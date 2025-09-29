@@ -1,0 +1,146 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="scroll-smooth">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>كارت عميل جديد | UniBooking</title>
+
+  <!-- تفعيل الداكن -->
+  <script>
+    try {
+      if (localStorage.getItem('unibooking.dark') === '1') {
+        document.documentElement.classList.add('dark');
+      }
+    } catch(e) {}
+  </script>
+
+  <!-- Tailwind -->
+  <script>window.tailwind={config:{darkMode:'class'}};</script>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    body{font-family:"Tajawal",system-ui,-apple-system,"Segoe UI",Roboto,"Noto Kufi Arabic",Arial,sans-serif}
+    .card{background:#fff;border-radius:.75rem;box-shadow:0 1px 2px rgba(0,0,0,.06),0 1px 3px rgba(0,0,0,.1)}
+    .dark .card{background:#111827}
+    .muted{color:#6b7280}.dark .muted{color:#9ca3af}
+    .hint{font-size:.75rem}
+    input::placeholder{opacity:.6}
+  </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen">
+
+  <!-- الشريط العلوي -->
+  <header class="bg-gray-900 text-white">
+    <div class="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="{% url 'dashboard' %}" class="hover:underline">الرئيسية</a>
+        <span class="opacity-60">/</span>
+        <span>كارت عميل جديد</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="{% url 'dashboard' %}" class="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-sm">رجوع</a>
+        <button id="darkToggle" class="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-sm">المظهر الداكن</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-6xl px-4 py-8">
+    <!-- ترويسة -->
+    <div class="card p-5 border border-gray-200 dark:border-gray-800 mb-6">
+      <h1 class="text-xl font-semibold">بيانات العميل</h1>
+      <p class="muted hint mt-1">املأ الحقول التالية لإنشاء كارت عميل جديد.</p>
+    </div>
+
+    <!-- نموذج -->
+    <form method="post" action="{% url 'card_create' %}" class="card p-6 border border-gray-200 dark:border-gray-800">
+      {% csrf_token %}
+
+      <!-- عرض رسائل الأخطاء -->
+      {% if messages %}
+        <ul class="mb-4 space-y-1">
+          {% for message in messages %}
+            <li class="text-red-600 dark:text-red-400 text-sm">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- اسم العميل -->
+        <div>
+          <label class="block text-sm mb-1">اسم العميل</label>
+          <input type="text" name="customer_name"
+                 value="{{ form.customer_name.value|default_if_none:'' }}"
+                 placeholder="اكتب الاسم الثلاثي"
+                 required
+                 class="w-full px-3 py-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <!-- الجنسية -->
+        <div>
+          <label class="block text-sm mb-1">الجنسية</label>
+          <input type="text" name="nationality"
+                 value="{{ form.nationality.value|default_if_none:'' }}"
+                 placeholder="مصري، كويتي …"
+                 class="w-full px-3 py-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <!-- كود الدولة -->
+        <div>
+          <label class="block text-sm mb-1">كود الدولة</label>
+          <input type="text" name="country_code"
+                 value="{{ form.country_code.value|default_if_none:'+965' }}"
+                 placeholder="+965"
+                 class="w-full px-3 py-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <!-- موبايل -->
+        <div>
+          <label class="block text-sm mb-1">موبايل</label>
+          <input type="text" name="mobile"
+                 value="{{ form.mobile.value|default_if_none:'' }}"
+                 placeholder="51234567"
+                 required
+                 class="w-full px-3 py-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <!-- طريقة التواصل -->
+        <div>
+          <label class="block text-sm mb-1">طريقة التواصل</label>
+          <select name="contact_source"
+                  class="w-full px-3 py-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 focus:ring-2 focus:ring-blue-500">
+            <option value="whatsapp" {% if form.contact_source.value == "whatsapp" %}selected{% endif %}>WhatsApp</option>
+            <option value="phone" {% if form.contact_source.value == "phone" %}selected{% endif %}>اتصال</option>
+            <option value="email" {% if form.contact_source.value == "email" %}selected{% endif %}>Email</option>
+          </select>
+        </div>
+
+        <!-- ملاحظات -->
+        <div class="md:col-span-2">
+          <label class="block text-sm mb-1">ملاحظات (اختياري)</label>
+          <textarea name="notes" rows="3"
+                    class="w-full px-3 py-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 focus:ring-2 focus:ring-blue-500"
+                    placeholder="أي معلومات إضافية…">{{ form.notes.value|default_if_none:'' }}</textarea>
+        </div>
+      </div>
+
+      <!-- أزرار -->
+      <div class="mt-6 flex items-center justify-between">
+        <a href="{% url 'dashboard' %}" class="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-800 hover:opacity-90">إلغاء</a>
+        <button type="submit" class="px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium">حفظ</button>
+      </div>
+    </form>
+  </main>
+
+  <script>
+    // زر المظهر الداكن
+    document.getElementById('darkToggle')?.addEventListener('click', () => {
+      document.documentElement.classList.toggle('dark');
+      try {
+        localStorage.setItem('unibooking.dark',
+          document.documentElement.classList.contains('dark') ? '1' : '0');
+      } catch(e){}
+    });
+  </script>
+</body>
+</html>

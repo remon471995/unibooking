@@ -1,0 +1,21 @@
+{% extends 'core/base.html' %}
+{% load widget_tweaks %}
+{% block content %}
+<h1 class="text-xl font-bold mb-4">بيانات الدفع — فوّتشر: {{ booking.voucher_code }}</h1>
+<form method="post" enctype="multipart/form-data" class="bg-white p-4 rounded shadow max-w-3xl">
+  {% csrf_token %}
+  <div class="grid md:grid-cols-2 gap-4">
+    {{ form.net_price|add_class:"border p-2 rounded" }}
+    {{ form.sell_price|add_class:"border p-2 rounded" }}
+    {{ form.paid_amount|add_class:"border p-2 rounded" }}
+    {{ form.installment_due_date|add_class:"border p-2 rounded" }}
+    {{ form.method|add_class:"border p-2 rounded" }}
+    {{ form.payment_link|add_class:"border p-2 rounded" }}
+    {{ form.proof_file|add_class:"border p-2 rounded" }}
+    {{ form.voucher_original|add_class:"border p-2 rounded" }}
+    {{ form.invoice_file|add_class:"border p-2 rounded" }}
+  </div>
+  <p class="text-sm text-gray-600 mt-2">لو المدفوع أقل من البيع → يعتبر تقسيط ويجب تحديد آخر موعد للسداد.</p>
+  <button class="mt-4 px-4 py-2 bg-blue-600 text-white rounded">حفظ</button>
+</form>
+{% endblock %}

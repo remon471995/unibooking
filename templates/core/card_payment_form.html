@@ -1,0 +1,66 @@
+{% extends 'core/base.html' %}
+{% block title %}إضافة دفعة عامة على الكارت{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto bg-white shadow rounded-lg p-6 mt-10">
+  <h2 class="text-lg font-semibold mb-4">💳 إضافة دفعة عامة على الكارت</h2>
+  <form method="post" enctype="multipart/form-data" class="space-y-4">
+    {% csrf_token %}
+
+    <div>
+      <label class="block text-sm text-gray-600">Amount:</label>
+      {{ form.amount }}
+    </div>
+
+    <div>
+      <label class="block text-sm text-gray-600">Method:</label>
+      {{ form.method }}
+    </div>
+
+    <div id="payment-link-field" class="hidden">
+      <label class="block text-sm text-gray-600">Payment link:</label>
+      {{ form.payment_link }}
+    </div>
+
+    <div id="bank-file-field" class="hidden">
+      <label class="block text-sm text-gray-600">Upload File:</label>
+      {{ form.bank_file }}
+    </div>
+
+    <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
+      حفظ الدفعة
+    </button>
+  </form>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const methodSelect = document.querySelector("#id_method");
+  const linkField = document.getElementById("payment-link-field");
+  const bankFileField = document.getElementById("bank-file-field");
+  const bankInput = bankFileField.querySelector("input");
+  const linkInput = linkField.querySelector("input");
+
+  function toggleFields() {
+    const value = methodSelect.value;
+
+    // reset
+    linkField.classList.add("hidden");
+    bankFileField.classList.add("hidden");
+    if (bankInput) bankInput.required = false;
+    if (linkInput) linkInput.required = false;
+
+    if (value === "link") {
+      linkField.classList.remove("hidden");
+      if (linkInput) linkInput.required = true;
+    } else if (value === "cash" || value === "bank") {
+      bankFileField.classList.remove("hidden");
+      if (bankInput) bankInput.required = true;
+    }
+  }
+
+  methodSelect.addEventListener("change", toggleFields);
+  toggleFields(); // ينفذ عند فتح الصفحة
+});
+</script>
+{% endblock %}

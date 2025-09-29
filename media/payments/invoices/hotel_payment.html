@@ -1,0 +1,215 @@
+{% extends "core/base.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto mt-8 bg-white shadow rounded-lg p-6">
+
+  <div class="border-b pb-6 mb-6">
+    <h1 class="text-3xl font-bold text-gray-800">💳 إدارة الدفع</h1>
+    <p class="text-lg text-gray-600">{{ booking.hotel_name }} - <span class="font-mono">{{ booking.voucher_code }}</span></p>
+
+    <div class="mt-4 grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
+      <div class="p-4 border rounded-lg bg-gray-50">
+        <p class="text-sm text-gray-500">سعر النت</p>
+        <p class="text-2xl font-bold text-gray-800">{{ total_net|floatformat:2 }}</p>
+      </div>
+      <div class="p-4 border rounded-lg bg-gray-50">
+        <p class="text-sm text-gray-500">سعر البيع</p>
+        <p class="text-2xl font-bold text-blue-600">{{ total_sell|floatformat:2 }}</p>
+      </div>
+      <div class="p-4 border rounded-lg bg-gray-50">
+        <p class="text-sm text-gray-500">إجمالي المدفوع</p>
+        <p class="text-2xl font-bold text-green-600">{{ total_paid|floatformat:2 }}</p>
+      </div>
+      <div class="p-4 border rounded-lg {% if remaining > 0 %}bg-red-50{% else %}bg-green-50{% endif %}">
+        <p class="text-sm text-gray-500">المتبقي</p>
+        <p class="text-2xl font-bold {% if remaining > 0 %}text-red-600{% else %}text-green-600{% endif %}">{{ remaining|floatformat:2 }}</p>
+      </div>
+      <div class="p-4 border rounded-lg bg-gray-50">
+        <p class="text-sm text-gray-500">الربح</p>
+        <p class="text-2xl font-bold text-green-700">{{ profit|floatformat:2 }}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+    
+    <div class="lg:col-span-2">
+      {% if remaining > 0 or not payments %}
+        <div class="bg-gray-50 p-5 rounded-lg border">
+          <h2 class="text-lg font-semibold mb-4">➕ إضافة دفعة جديدة</h2>
+          <form method="post" enctype="multipart/form-data" class="space-y-4">
+            {% csrf_token %}
+            
+            {% if not payments %}
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium">سعر النت (Net)</label>
+                  {{ form.net_price }}
+                </div>
+                <div>
+                  <label class="block text-sm font-medium">سعر البيع (Sell)</label>
+                  {{ form.sell_price }}
+                </div>
+              </div>
+            {% endif %}
+
+            <div>
+              <label class="block text-sm font-medium">المبلغ المدفوع</label>
+              {{ form.paid_amount }}
+            </div>
+            <div>
+              <label class="block text-sm font-medium">طريقة الدفع</label>
+              {{ form.method }}
+            </div>
+
+            <div id="payment-extra-fields" class="mt-3 space-y-4">
+              <div id="payment-link-field" class="hidden"><label class="block text-sm font-medium">🔗 رابط السداد</label>{{ form.payment_link }}</div>
+              <div id="bank-file-field" class="hidden"><label class="block text-sm font-medium">📎 رفع إيصال</label>{{ form.bank_file }}</div>
+              <div id="installment-deadline-field" class="hidden"><label class="block text-sm font-medium">📅 آخر ميعاد للدفع</label>{{ form.installment_date }}</div>
+            </div>
+            
+            {% if not payments %}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
+                <div><label class="block text-sm font-medium">📄 الفاتورة</label>{{ form.invoice_file }}</div>
+                <div><label class="block text-sm font-medium">🧾 الفاوتشر الأصلي</label>{{ form.voucher_original }}</div>
+            </div>
+            {% endif %}
+
+            <button type="submit" class="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">حفظ الدفعة</button>
+          </form>
+        </div>
+      {% else %}
+        <div class="p-4 bg-green-100 border border-green-300 rounded-lg text-green-800 text-center font-bold">
+          ✅ تم سداد المبلغ بالكامل
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="lg:col-span-3">
+      <h2 class="text-lg font-semibold mb-4">📑 قائمة الدفعات المسجلة</h2>
+      <div class="overflow-x-auto border rounded-lg">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-4 py-3 text-right text-sm font-medium text-gray-600">التاريخ</th>
+              <th class="px-4 py-3 text-right text-sm font-medium text-gray-600">الطريقة</th>
+              <th class="px-4 py-3 text-right text-sm font-medium text-gray-600">المبلغ</th>
+              <th class="px-4 py-3 text-right text-sm font-medium text-gray-600">المرفقات</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            {% for pay in payments %}
+            <tr class="hover:bg-gray-50">
+              <td class="px-4 py-3 text-sm">{{ pay.created_at|date:"Y-m-d H:i" }}</td>
+              <td class="px-4 py-3 text-sm">
+                {% if pay.method == 'cash' %}<i class="fa fa-money-bill-wave text-green-500"></i>
+                {% elif pay.method == 'bank' %}<i class="fa fa-university text-blue-500"></i>
+                {% elif pay.method == 'link' %}<i class="fa fa-link text-purple-500"></i>
+                {% endif %}
+                {{ pay.get_method_display }}
+              </td>
+              <td class="px-4 py-3 text-sm text-green-700 font-bold">{{ pay.paid_amount|floatformat:2 }}</td>
+              <td class="px-4 py-3 text-sm space-x-2">
+                  {% if pay.payment_link %}<a href="{{ pay.payment_link }}" target="_blank" class="text-blue-500 hover:underline">الرابط</a>{% endif %}
+                  {% if pay.bank_file %}<a href="{{ pay.bank_file.url }}" target="_blank" class="text-blue-500 hover:underline">الإيصال</a>{% endif %}
+                  {% if pay.invoice_file %}<a href="{{ pay.invoice_file.url }}" target="_blank" class="text-blue-500 hover:underline">الفاتورة</a>{% endif %}
+                  {% if pay.voucher_original %}<a href="{{ pay.voucher_original.url }}" target="_blank" class="text-blue-500 hover:underline">الفاوتشر</a>{% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="4" class="px-4 py-10 text-center text-gray-500">لا توجد دفعات مسجلة بعد.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const form = document.querySelector("form");
+  const sellPriceInput = document.querySelector("input[name='sell_price']");
+  const netPriceInput = document.querySelector("input[name='net_price']");
+  const paidAmountInput = document.querySelector("input[name='paid_amount']");
+  const paymentMethodSelect = document.querySelector("select[name='method']");
+  const installmentDateInput = document.querySelector("input[name='installment_date']");
+  const checkinDate = "{{ booking.checkin|date:'Y-m-d' }}";
+
+  const linkField = document.getElementById("payment-link-field");
+  const fileField = document.getElementById("bank-file-field");
+  const deadlineField = document.getElementById("installment-deadline-field");
+
+  const remainingAmount = parseFloat("{{ remaining|floatformat:'2'|default:'0' }}");
+
+  function toggleFields() {
+    if (!paidAmountInput) return;
+
+    linkField.classList.add('hidden');
+    fileField.classList.add('hidden');
+    deadlineField.classList.add('hidden');
+
+    const method = paymentMethodSelect.value;
+    if (method === "link") {
+      linkField.classList.remove('hidden');
+    } else if (method === "cash" || method === "bank") {
+      fileField.classList.remove('hidden');
+    }
+
+    const paidAmount = parseFloat(paidAmountInput.value || '0');
+    let targetAmount;
+
+    if (sellPriceInput) {
+      targetAmount = parseFloat(sellPriceInput.value || '0');
+    } else {
+      targetAmount = remainingAmount;
+    }
+
+    if (paidAmount > 0 && paidAmount < targetAmount) {
+      deadlineField.classList.remove('hidden');
+    }
+  }
+
+  // تحقق قبل الإرسال
+  form.addEventListener("submit", function(e) {
+    const netPrice = parseFloat(netPriceInput?.value || 0);
+    const sellPrice = parseFloat(sellPriceInput?.value || 0);
+    const paidAmount = parseFloat(paidAmountInput?.value || 0);
+    const method = paymentMethodSelect?.value;
+    const installmentDate = installmentDateInput?.value;
+
+    // شرط: سعر البيع > سعر النت
+    if (sellPrice && netPrice && sellPrice <= netPrice) {
+      alert("⚠️ سعر البيع يجب أن يكون أكبر من سعر النت");
+      e.preventDefault();
+      return;
+    }
+
+    // شرط: الحقول الأساسية
+    if (!sellPrice || !netPrice || !paidAmount || !method) {
+      alert("⚠️ من فضلك املأ كل الحقول المطلوبة");
+      e.preventDefault();
+      return;
+    }
+
+    // شرط: آخر ميعاد للدفع قبل الدخول
+    if (installmentDate && checkinDate) {
+      if (new Date(installmentDate) >= new Date(checkinDate)) {
+        alert("⚠️ آخر ميعاد للدفع يجب أن يكون قبل تاريخ دخول الفندق");
+        e.preventDefault();
+        return;
+      }
+    }
+  });
+
+  paymentMethodSelect?.addEventListener("change", toggleFields);
+  paidAmountInput?.addEventListener("input", toggleFields);
+  sellPriceInput?.addEventListener("input", toggleFields);
+  toggleFields();
+});
+</script>
+{% endblock %}

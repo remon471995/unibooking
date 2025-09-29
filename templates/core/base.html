@@ -1,0 +1,60 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}UniBooking{% endblock %}</title>
+
+  <!-- ✅ Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- ✅ Font Awesome -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+
+  <!-- ✅ ملف CSS الخاص بيك -->
+  <link rel="stylesheet" href="{% static 'core/app.css' %}">
+
+  {# أي أكواد زيادة من الصفحات التانية #}
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
+
+  <!-- ✅ التوب بار -->
+  <header class="flex justify-between items-center bg-white shadow px-6 py-4 mb-6">
+    <div class="flex items-center gap-6">
+      <a class="font-bold text-lg text-blue-600" href="{% url 'dashboard' %}">UniBooking</a>
+      <nav class="flex gap-4">
+        <a href="{% url 'dashboard' %}" class="text-gray-700 hover:text-blue-600">الرئيسية</a>
+        <a href="{% url 'card_create' %}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow">
+          + كارت عميل
+        </a>
+      </nav>
+    </div>
+    <div class="flex items-center gap-4">
+      <span class="font-medium">{{ request.user.get_full_name|default:request.user.username }}</span>
+      <a href="{% url 'logout' %}" class="text-red-500 hover:underline">تسجيل الخروج</a>
+    </div>
+  </header>
+
+  <!-- ✅ الرسائل -->
+  {% if messages %}
+    <div class="max-w-4xl mx-auto my-4">
+      {% for message in messages %}
+        <div class="p-3 mb-2 rounded-lg 
+          {% if message.tags == 'success' %} bg-green-100 text-green-700 
+          {% elif message.tags == 'error' %} bg-red-100 text-red-700 
+          {% else %} bg-gray-100 text-gray-700 {% endif %}">
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <!-- ✅ المحتوى الأساسي -->
+  <main class="container max-w-6xl mx-auto px-4 py-6">
+    {% block content %}{% endblock %}
+  </main>
+
+</body>
+</html>

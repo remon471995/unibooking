@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>قسيمة الإقامة - {{ booking.voucher_code }}</title>
+    <style>
+        @page {
+            size: a4 portrait;
+            margin: 1.5cm;
+        }
+        body {
+            font-family: "DejaVu Sans", "Arial", sans-serif;
+            font-size: 10pt;
+            color: #333;
+        }
+        .container {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        /* -- Header -- */
+        .header-table {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        .header-table .brand-title {
+            font-size: 24pt;
+            font-weight: bold;
+            color: #0d6efd;
+            margin: 0;
+        }
+        .header-table .voucher-title {
+            font-size: 14pt;
+            text-align: left;
+            font-weight: bold;
+            color: #333;
+            padding-bottom: 5px;
+            border-bottom: 2px solid #0d6efd;
+        }
+        .header-table .status {
+            font-size: 10pt;
+            font-weight: bold;
+            color: #198754; /* Green color for confirmed */
+            text-align: left;
+        }
+        
+        /* -- Section Title -- */
+        .section-title {
+            font-size: 13pt;
+            font-weight: bold;
+            color: #333;
+            margin: 20px 0 10px 0;
+        }
+
+        /* -- Details Table -- */
+        .details-table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden; /* To apply radius to table */
+        }
+        .details-table td {
+            padding: 12px;
+            vertical-align: top;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .details-table tr:last-child td {
+            border-bottom: none;
+        }
+        .details-table .label {
+            font-size: 9pt;
+            color: #666;
+            display: block;
+            margin-bottom: 2px;
+        }
+        .details-table .value {
+            font-size: 11pt;
+            font-weight: bold;
+        }
+        .details-table .value.large {
+            font-size: 14pt;
+        }
+        .details-table .icon {
+            width: 20px; /* For icons if added */
+            padding-right: 10px;
+        }
+
+        /* -- Footer -- */
+        .footer {
+            text-align: center;
+            font-size: 8pt;
+            color: #888;
+            margin-top: 30px;
+            border-top: 1px solid #eee;
+            padding-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <table class="header-table">
+        <tr>
+            <td style="width: 50%;">
+                <h1 class="brand-title">UniBooking</h1>
+            </td>
+            <td style="width: 50%;">
+                <div class="voucher-title">قسيمة الإقامة</div>
+                <div class="status">الحجز مؤكد</div>
+            </td>
+        </tr>
+    </table>
+
+    <table class="details-table">
+        <tr>
+            <td style="width: 60%;">
+                <span class="label">رقم الحجز / UniBooking ID</span>
+                <span class="value large">{{ booking.voucher_code }}</span>
+            </td>
+            <td style="width: 40%; text-align: center;">
+                <img src="{{ qr_data_url }}" alt="QR Code" style="width:70px; height:70px;">
+            </td>
+        </tr>
+    </table>
+
+    <h2 class="section-title">تفاصيل مكان الإقامة</h2>
+    <table class="details-table">
+        <tr>
+            <td>
+                <span class="label">اسم الفندق</span>
+                <span class="value">{{ booking.hotel_name }}</span>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <span class="label">عنوان الفندق</span>
+                <span class="value">{{ booking.hotel_address|default:"-" }}</span>
+            </td>
+        </tr>
+    </table>
+
+    <h2 class="section-title">تفاصيل الحجز</h2>
+    <table class="details-table">
+        <tr>
+            <td style="width: 50%;">
+                <span class="label">تاريخ تسجيل الدخول</span>
+                <span class="value">{{ booking.checkin|date:"d M, Y" }}</span>
+            </td>
+            <td style="width: 50%;">
+                <span class="label">تاريخ تسجيل الخروج</span>
+                <span class="value">{{ booking.checkout|date:"d M, Y" }}</span>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <span class="label">عدد الليالي</span>
+                <span class="value">{{ booking.nights }}</span>
+            </td>
+        </tr>
+    </table>
+
+    <h2 class="section-title">الغرف والنزلاء</h2>
+    <table class="details-table">
+        {% for room in booking.rooms.all %}
+            <tr>
+                <td style="width: 50%;">
+                    <span class="label">الغرفة {{ forloop.counter }}</span>
+                    <span class="value">{{ booking.room_type|default:"-" }}</span><br>
+                    <span class="value" style="font-size: 9pt; font-weight: normal;">{{ booking.meal_plan|default:"-" }}</span>
+                </td>
+                <td style="width: 50%;">
+                    <span class="label">أسماء النزلاء</span>
+                    <span class="value">{{ room.guest_names|linebreaksbr }}</span>
+                </td>
+            </tr>
+        {% endfor %}
+    </table>
+    
+    <div class="footer">
+        <p>للمساعدة، يرجى التواصل معنا عبر الواتساب (+965) 1899777</p>
+        <p>شكراً لاختياركم الخميس </p>
+    </div>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,206 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>لوحة التحكم - نظرة عامة</title>
+
+  <!-- تطبيق المظهر الداكن مبكراً -->
+  <script>
+    (function () {
+      try {
+        if (localStorage.getItem('unibooking.dark') === '1') {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
+
+  <!-- Tailwind + Chart.js -->
+  <script>
+    window.tailwind = { config: { darkMode: 'class' } };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Tajawal", "Noto Kufi Arabic", Arial, sans-serif; }
+    .card {
+      background:#fff; border-radius:.75rem; padding:1rem;
+      box-shadow:0 1px 2px rgba(0,0,0,.06),0 1px 3px rgba(0,0,0,.1);
+    }
+    .dark .card { background:#111827; }
+    .kpi  { font-size:1.5rem; font-weight:700; }
+  </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-gray-100 p-6">
+
+  <!-- Header -->
+  <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-6">
+    <h1 class="text-2xl font-bold">نظرة عامة</h1>
+    <div class="flex flex-wrap items-center gap-3">
+      <a class="text-sm px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-800 hover:opacity-90"
+         href="{% url 'reports_export_csv' %}?from=&to=&employee=&kind=">تنزيل CSV</a>
+      <a class="text-sm px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-800 hover:opacity-90"
+         href="{% url 'reports_export_xlsx' %}?from=&to=&employee=&kind=">تنزيل Excel</a>
+      <a class="text-sm px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-800 hover:opacity-90"
+         href="{% url 'reports_export_pdf' %}?from=&to=&employee=&kind=">تنزيل PDF</a>
+
+      <a href="{% url 'reports' %}" class="text-sm px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-800 hover:opacity-90">
+        التقارير (فلاتر متقدمة)
+      </a>
+      <a href="{% url 'dashboard' %}" class="text-sm px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-800 hover:opacity-90">
+        الرجوع للداشبورد
+      </a>
+
+      <!-- زر المظهر الداكن -->
+      <button id="darkToggle" class="text-sm px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-800 hover:opacity-90">
+        المظهر الداكن
+      </button>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+    <div class="card">
+      <h3 class="text-gray-500 dark:text-gray-400 text-sm">إجمالي الكروت</h3>
+      <p class="kpi text-blue-600 dark:text-blue-400">{{ total_cards }}</p>
+    </div>
+    <div class="card">
+      <h3 class="text-gray-500 dark:text-gray-400 text-sm">إجمالي الحجوزات</h3>
+      <p class="kpi text-green-600 dark:text-green-400">{{ counts.all }}</p>
+      <p class="text-xs mt-1 text-gray-500 dark:text-gray-400">
+        فنادق: {{ counts.hotels }} | طيران: {{ counts.flights }} | ترانسفير: {{ counts.transfers }} | فيزا: {{ counts.visas }}
+      </p>
+    </div>
+    <div class="card">
+      <h3 class="text-gray-500 dark:text-gray-400 text-sm">إجمالي المبيعات</h3>
+      <p class="kpi text-indigo-600 dark:text-indigo-400">{{ total_sell }}</p>
+    </div>
+    <div class="card">
+      <h3 class="text-gray-500 dark:text-gray-400 text-sm">مدفوع / متبقي</h3>
+      <p class="kpi">
+        <span class="text-emerald-600 dark:text-emerald-400">{{ total_paid }}</span>
+        /
+        <span class="text-rose-600 dark:text-rose-400">{{ total_remaining }}</span>
+      </p>
+      <p class="text-xs mt-1 text-gray-500 dark:text-gray-400">القيم المالية تعتمد على حجوزات الفنادق فقط</p>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+    <div class="card lg:col-span-2 h-80">
+      <h3 class="font-semibold mb-2">المبيعات الشهرية: بيع vs تكلفة</h3>
+      <canvas id="salesLine"></canvas>
+    </div>
+    <div class="card h-72">
+      <h3 class="font-semibold mb-2">توزيع أنواع الحجوزات</h3>
+      <canvas id="kindDoughnut"></canvas>
+    </div>
+  </div>
+
+  <!-- Top Lists -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+    <div class="card h-72">
+      <h3 class="font-semibold mb-3">Top 5 موظفين (عدد الحجوزات)</h3>
+      <canvas id="agentsBar"></canvas>
+    </div>
+    <div class="card h-72">
+      <h3 class="font-semibold mb-3">Top 5 عملاء (عدد الحجوزات)</h3>
+      <canvas id="customersBar"></canvas>
+    </div>
+  </div>
+
+  <!-- Latest Bookings -->
+  <div class="card">
+    <h3 class="font-semibold mb-4">أحدث 5 حجوزات</h3>
+    <div class="overflow-x-auto">
+      <table class="w-full text-right border-collapse min-w-[780px]">
+        <thead>
+          <tr class="bg-gray-100 dark:bg-gray-800">
+            <th class="p-2">النوع</th>
+            <th class="p-2">المرجع</th>
+            <th class="p-2">الموظف</th>
+            <th class="p-2">العميل</th>
+            <th class="p-2">التاريخ</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for b in latest %}
+          <tr class="border-b border-gray-100 dark:border-gray-800">
+            <td class="p-2">{{ b.display_kind }}</td>
+            <td class="p-2">{{ b.booking_ref }}</td>
+            <td class="p-2">{{ b.employee_name }}</td>
+            <td class="p-2">{{ b.card.customer_name }}</td>
+            <td class="p-2">{{ b.created_at|date:"Y-m-d" }}</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="5" class="p-2 text-center text-gray-500 dark:text-gray-400">لا توجد حجوزات</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script>
+    // زر المظهر الداكن
+    const root = document.documentElement;
+    document.getElementById('darkToggle').addEventListener('click', () => {
+      root.classList.toggle('dark');
+      try { localStorage.setItem('unibooking.dark', root.classList.contains('dark') ? '1' : '0'); } catch (e) {}
+    });
+
+    // بيانات من Django
+    const months = {{ months|safe }};
+    const salesData = {{ sales_data|safe }};
+    const netData = {{ net_data|safe }};
+    const kindData = {{ booking_types_data|safe }};
+    const agentLabels = [{% for name, c in top_agents %}"{{ name|escapejs }}",{% endfor %}];
+    const agentCounts = [{% for name, c in top_agents %}{{ c }},{% endfor %}];
+    const customerLabels = [{% for name, c in top_customers %}"{{ name|escapejs }}",{% endfor %}];
+    const customerCounts = [{% for name, c in top_customers %}{{ c }},{% endfor %}];
+
+    // Line: Sell vs Net
+    new Chart(document.getElementById('salesLine').getContext('2d'), {
+      type: 'line',
+      data: { labels: months, datasets: [
+        { label: 'Sell', data: salesData, borderWidth: 2, fill: false },
+        { label: 'Net', data: netData, borderWidth: 2, fill: false }
+      ]},
+      options: {
+        maintainAspectRatio: false,
+        responsive: true,
+        plugins: { legend: { position: 'bottom' } },
+        interaction: { intersect: false, mode: 'index' },
+        scales: { y: { beginAtZero: true } }
+      }
+    });
+
+    // Doughnut: kinds
+    new Chart(document.getElementById('kindDoughnut').getContext('2d'), {
+      type: 'doughnut',
+      data: { labels: ['فنادق', 'طيران', 'ترانسفير', 'فيزا'], datasets: [{ data: kindData }] },
+      options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+    });
+
+    // Bars: top agents
+    new Chart(document.getElementById('agentsBar').getContext('2d'), {
+      type: 'bar',
+      data: { labels: agentLabels, datasets: [{ label: 'حجوزات', data: agentCounts, borderWidth: 1 }] },
+      options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+    });
+
+    // Bars: top customers
+    new Chart(document.getElementById('customersBar').getContext('2d'), {
+      type: 'bar',
+      data: { labels: customerLabels, datasets: [{ label: 'حجوزات', data: customerCounts, borderWidth: 1 }] },
+      options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+    });
+  </script>
+</body>
+</html>

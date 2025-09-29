@@ -1,0 +1,18 @@
+{% extends 'core/base.html' %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <h1 class="text-xl font-bold">لوحة التحكم</h1>
+  <a href="{% url 'card_create' %}" class="px-3 py-2 bg-blue-600 text-white rounded">+ كارت عميل</a>
+</div>
+<div class="grid md:grid-cols-2 gap-4">
+  {% for c in cards %}
+    <div class="bg-white p-4 rounded shadow">
+      <div class="font-semibold">{{ c.ub_code }}</div>
+      <div class="text-gray-600">{{ c.customer_name }} — {{ c.country_code }} {{ c.mobile }}</div>
+      <a class="text-blue-600" href="{% url 'card_detail' c.pk %}">فتح</a>
+    </div>
+  {% empty %}
+    <p>لا توجد كروت بعد.</p>
+  {% endfor %}
+</div>
+{% endblock %}

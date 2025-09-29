@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% load static %}
+{% load widget_tweaks %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto mt-10 space-y-8">
+
+    <!-- ملخص الدفع -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-white shadow rounded-xl p-6 text-center border">
+            <p class="text-gray-500">إجمالي السعر</p>
+            <p class="text-2xl font-bold text-blue-600">{{ total_sell }} KWD</p>
+        </div>
+        <div class="bg-white shadow rounded-xl p-6 text-center border">
+            <p class="text-gray-500">إجمالي المدفوع</p>
+            <p class="text-2xl font-bold text-green-600">{{ total_paid }} KWD</p>
+        </div>
+        <div class="bg-white shadow rounded-xl p-6 text-center border">
+            <p class="text-gray-500">المتبقي</p>
+            <p class="text-2xl font-bold text-red-600">{{ remaining }} KWD</p>
+        </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="bg-white shadow rounded-xl p-6 border">
+        <h2 class="text-lg font-semibold text-gray-700 mb-4 flex items-center gap-2">
+            <i class="fas fa-chart-line text-indigo-500"></i>
+            نسبة السداد
+        </h2>
+        <div class="w-full bg-gray-200 rounded-full h-6 overflow-hidden shadow-inner">
+            <div class="bg-green-500 h-6 text-xs font-bold text-white flex items-center justify-center"
+                 style="width: {{ progress }}%;">
+                {{ progress }}%
+            </div>
+        </div>
+    </div>
+
+    <!-- نموذج إضافة دفعة -->
+    <div class="bg-white shadow rounded-xl p-6 border">
+        <h2 class="text-lg font-semibold text-gray-700 mb-6 flex items-center gap-2">
+            <i class="fas fa-credit-card text-blue-500"></i>
+            إضافة دفعة جديدة
+        </h2>
+
+        <form method="post" enctype="multipart/form-data" class="space-y-5">
+            {% csrf_token %}
+
+            <!-- مبلغ الدفع -->
+            <div>
+                <label class="block mb-1 font-medium text-gray-700">المبلغ المدفوع</label>
+                {{ form.paid_amount|add_class:"w-full border rounded-lg p-2 focus:ring focus:ring-blue-200" }}
+            </div>
+
+            <!-- طريقة الدفع -->
+            <div>
+                <label class="block mb-1 font-medium text-gray-700">طريقة الدفع</label>
+                {{ form.method|add_class:"w-full border rounded-lg p-2 focus:ring focus:ring-blue-200" }}
+            </div>
+
+            <!-- رابط الدفع -->
+            <div id="payment-link-field" class="hidden">
+                <label class="block mb-1 font-medium text-gray-700">رابط الدفع</label>
+                {{ form.payment_link|add_class:"w-full border rounded-lg p-2" }}
+            </div>
+
+            <!-- ملف التحويل البنكي -->
+            <div id="bank-file-field" class="hidden">
+                <label class="block mb-1 font-medium text-gray-700">ملف التحويل البنكي</label>
+                {{ form.bank_file|add_class:"w-full border rounded-lg p-2 bg-gray-50" }}
+            </div>
+
+            <!-- تاريخ القسط -->
+            <div id="installment-field" class="hidden">
+                <label class="block mb-1 font-medium text-gray-700">تاريخ الاستحقاق</label>
+                {{ form.installment_date|add_class:"w-full border rounded-lg p-2" }}
+            </div>
+
+            <!-- الفاتورة -->
+            <div>
+                <label class="block mb-1 font-medium text-gray-700">فاتورة</label>
+                {{ form.invoice_file|add_class:"w-full border rounded-lg p-2 bg-gray-50" }}
+            </div>
+
+            <!-- الفوّتشر الأصلي -->
+            <div>
+                <label class="block mb-1 font-medium text-gray-700">الفوّتشر الأصلي</label>
+                {{ form.voucher_original|add_class:"w-full border rounded-lg p-2 bg-gray-50" }}
+            </div>
+
+            <!-- زر الحفظ -->
+            <div class="text-right">
+                <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg shadow hover:bg-blue-700 transition">
+                    <i class="fas fa-save"></i> حفظ الدفعة
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- قائمة الدفعات السابقة -->
+    <div class="bg-white shadow rounded-xl p-6 border">
+        <h2 class="text-lg font-semibold text-gray-700 mb-4 flex items-center gap-2">
+            <i class="fas fa-list text-gray-500"></i>
+            الدفعات السابقة
+        </h2>
+
+        {% if payments %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm border-collapse border text-center">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="p-2 border">المبلغ</th>
+                            <th class="p-2 border">الطريقة</th>
+                            <th class="p-2 border">تاريخ الاستحقاق</th>
+                            <th class="p-2 border">فاتورة</th>
+                            <th class="p-2 border">فوّتشر</th>
+                            <th class="p-2 border">تاريخ الإضافة</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for pay in payments %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="border p-2">{{ pay.paid_amount }}</td>
+                            <td class="border p-2">{{ pay.get_method_display }}</td>
+                            <td class="border p-2">{{ pay.installment_date|default:"-" }}</td>
+                            <td class="border p-2">
+                                {% if pay.invoice_file %}
+                                    <a href="{{ pay.invoice_file.url }}" target="_blank" class="text-blue-600 hover:underline">📄</a>
+                                {% else %}-{% endif %}
+                            </td>
+                            <td class="border p-2">
+                                {% if pay.voucher_original %}
+                                    <a href="{{ pay.voucher_original.url }}" target="_blank" class="text-green-600 hover:underline">📑</a>
+                                {% else %}-{% endif %}
+                            </td>
+                            <td class="border p-2">{{ pay.created_at|date:"Y-m-d H:i" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="text-gray-500">لا توجد دفعات مسجلة بعد.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- جافاسكربت -->
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const methodField = document.getElementById("id_method");
+    const paymentLink = document.getElementById("payment-link-field");
+    const bankFile = document.getElementById("bank-file-field");
+    const installmentField = document.getElementById("installment-field");
+
+    function toggleFields() {
+        const method = methodField.value;
+        paymentLink.classList.add("hidden");
+        bankFile.classList.add("hidden");
+        installmentField.classList.add("hidden");
+
+        if (method === "link") paymentLink.classList.remove("hidden");
+        if (method === "bank") bankFile.classList.remove("hidden");
+        if (method === "installment") installmentField.classList.remove("hidden");
+    }
+
+    methodField.addEventListener("change", toggleFields);
+    toggleFields();
+});
+</script>
+{% endblock %}

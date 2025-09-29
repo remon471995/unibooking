@@ -1,0 +1,172 @@
+{% load static attrs %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>Voucher — {{ booking.voucher_code }}</title>
+  <style>
+    body{font-family:'Segoe UI',Tahoma,Verdana,Arial,sans-serif;margin:20px;padding:20px;background:#f8f8f8;color:#333}
+    .voucher-container{width:85%;max-width:950px;margin:0 auto;background:#fff;padding:40px;border:1px solid #dcdcdc;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.08);position:relative}
+    .header{text-align:center;margin-bottom:35px;border-bottom:1px solid #e0e0e0;padding-bottom:25px}
+    .voucher-title-left{position:absolute;top:20px;left:20px;font-size:2em;font-weight:bold;color:red}
+    .section-title{background:#e9f5ff;padding:12px 20px;margin-top:30px;margin-bottom:20px;border-radius:6px;font-weight:bold;color:#0056b3;border-right:6px solid #007bff}
+    .field-group{display:flex;flex-wrap:wrap;margin-bottom:15px}
+    .field{flex:1 1 48%;margin-inline-start:4%;margin-bottom:14px}
+    .field:nth-child(2n){margin-inline-start:0}
+    .field label{display:block;margin-bottom:6px;font-weight:600}
+    .print-value{display:block;border:1px solid #000;border-radius:10px;padding:10px;background:#fafafa}
+    .field.full-width{flex:1 1 100%;margin-inline-start:0}
+    .guest-details{border:1px solid #e0e0e0;padding:16px;border-radius:8px;margin-bottom:15px;background:#fdfdfd}
+    .logo{position:absolute;right:20px;top:20px;width:130px}
+
+    /* تحسين مظهر الطباعة */
+    @media print{
+      body{background:#fff;margin:0;padding:0}
+      .voucher-container{box-shadow:none;border:1px solid #a0a0a0;width:95%;max-width:100%;padding:20px 30px;margin:10mm auto;page-break-after:auto}
+      .voucher-title-left{top:12px;left:12px;font-size:1.8em}
+      .logo{right:12px;top:12px;width:110px}
+      .button-group{display:none}
+
+      /* خلي الليبل والقيمة على سطر واحد شكله رسمي */
+      .field label{display:inline-block;min-width:160px;margin-left:12px;vertical-align:top}
+      .print-value{display:inline-block;width:calc(100% - 180px);vertical-align:top;border:1px solid #000;border-radius:6px;background:#fff;padding:8px;line-height:1.4;color:#222}
+      .field.full-width label{display:block;min-width:unset;margin:0 0 6px 0}
+      .field.full-width .print-value{display:block;width:100%}
+    }
+  </style>
+</head>
+<body>
+  <div class="voucher-container">
+    <img src="{% static 'logo.png' %}" class="logo" alt="Logo">
+    <div class="voucher-title-left">Voucher</div>
+
+    <div class="header">
+      <p style="color:red;font-weight:bold;font-size:1.2em">Al Khamees Travel and Tourism</p>
+      <p>Tel: (+965)1899777</p>
+      <p>للإتصال أو واتساب</p>
+    </div>
+
+    <!-- تفاصيل الحجز -->
+    <div class="section-title">تفاصيل الحجز</div>
+    <div class="field-group">
+      <div class="field">
+        <label>Booking Ref.:</label>
+        <span class="print-value">{{ booking.booking_ref }}</span>
+      </div>
+      <div class="field full-width">
+        <label>Voucher Code:</label>
+        <span class="print-value">{{ booking.voucher_code }}</span>
+      </div>
+
+      <div class="field">
+        <label>Date:</label>
+        <span class="print-value">{{ today|date:"d/m/Y" }}</span>
+      </div>
+      <div class="field">
+        <label>Employee:</label>
+        <span class="print-value">{{ booking.employee_name }}</span>
+      </div>
+      <div class="field">
+        <label>Provider:</label>
+        <span class="print-value">{{ booking.provider_name|default:"—" }}</span>
+      </div>
+    </div>
+
+    <!-- تفاصيل الفندق -->
+    <div class="section-title">تفاصيل الفندق</div>
+    <div class="field-group">
+      <div class="field full-width">
+        <label>Hotel Name:</label>
+        <span class="print-value">{{ booking.hotel_name }}</span>
+      </div>
+      <div class="field full-width">
+        <label>Hotel Address:</label>
+        <span class="print-value">{{ booking.hotel_address|default:"—" }}</span>
+      </div>
+      <div class="field">
+        <label>Country:</label>
+        <span class="print-value">{{ booking.country|default:"—" }}</span>
+      </div>
+    </div>
+
+    <!-- الإقامة -->
+    <div class="section-title">الإقامة</div>
+    <div class="field-group">
+      <div class="field">
+        <label>Holder Name:</label>
+        <span class="print-value">{{ booking.customer_display_name|default:booking.card.customer_name }}</span>
+      </div>
+      <div class="field">
+        <label>Arrival date:</label>
+        <span class="print-value">{{ booking.checkin|date:"d/m/Y" }}</span>
+      </div>
+      <div class="field">
+        <label>Departure date:</label>
+        <span class="print-value">{{ booking.checkout|date:"d/m/Y" }}</span>
+      </div>
+      <div class="field">
+        <label>Nights:</label>
+        <span class="print-value">{{ booking.nights }}</span>
+      </div>
+      <div class="field">
+        <label>Rooms:</label>
+        <span class="print-value">{{ booking.rooms_count }}</span>
+      </div>
+      <div class="field">
+        <label>Board:</label>
+        <span class="print-value">{{ booking.meal_plan|default:"—" }}</span>
+      </div>
+      <div class="field full-width">
+        <label>Room Type:</label>
+        <span class="print-value">{{ booking.room_type|default:"—" }}</span>
+      </div>
+    </div>
+
+    <!-- سياسة الإلغاء والتعديل -->
+    <div class="section-title">سياسة الإلغاء والتعديل</div>
+    <div class="field-group">
+      <div class="field">
+        <label>Policy:</label>
+        <span class="print-value">
+          {% if booking.cancellation_policy == 'refundable' %}refundable{% else %}non refundable non amendable{% endif %}
+        </span>
+      </div>
+      <div class="field">
+        <label>Refundable until:</label>
+        <span class="print-value">
+          {% if booking.cancellation_policy == 'refundable' and booking.refundable_until %}
+            {{ booking.refundable_until|date:"d/m/Y" }}
+          {% else %}—{% endif %}
+        </span>
+      </div>
+      <div class="field full-width">
+        <label>Cancellation Penalty:</label>
+        <span class="print-value">{{ booking.cancellation_penalty|default:"—" }}</span>
+      </div>
+    </div>
+
+    <!-- الغرف والنزلاء -->
+    <div class="section-title">Room & Guests</div>
+    {% for num in "12345"|make_list %}
+      {% with rn="room"|add:num|add:"_names" %}
+        {% if forloop.counter <= booking.rooms_count %}
+          <div class="guest-details">
+            <h4>Room {{ forloop.counter }}</h4>
+            <div class="field full-width">
+              <label>Names:</label>
+              <span class="print-value">{{ booking|attr:rn|default:"—" }}</span>
+            </div>
+          </div>
+        {% endif %}
+      {% endwith %}
+    {% endfor %}
+
+    <div class="button-group" style="text-align:center;margin-top:20px">
+      <button onclick="window.print()" style="background:#007bff;color:#fff;border:none;border-radius:6px;padding:10px 18px;cursor:pointer">
+        طباعة / PDF
+      </button>
+    </div>
+  </div>
+</body>
+</html>

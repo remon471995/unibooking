@@ -1,0 +1,87 @@
+{% extends 'core/base.html' %}
+{% load widget_tweaks %}
+
+{% block title %}✈️ إضافة حجز طيران{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto mt-8 bg-white p-6 rounded-lg shadow">
+  <h1 class="text-2xl font-bold mb-6">✈️ إضافة حجز طيران</h1>
+  <span class="text-sm text-gray-500">الكارت: {{ card.ub_code }}</span>
+
+  <form method="post" enctype="multipart/form-data" class="space-y-6 mt-6">
+    {% csrf_token %}
+
+    <!-- بيانات الحجز -->
+    <div>
+      <label class="block text-sm font-medium">شركة الطيران</label>
+      {{ form.airline|add_class:"w-full border rounded p-2" }}
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium">PNR</label>
+      {{ form.pnr|add_class:"w-full border rounded p-2" }}
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-medium">سعر النت 💵</label>
+        {{ form.net_price|add_class:"w-full border rounded p-2" }}
+      </div>
+      <div>
+        <label class="block text-sm font-medium">سعر البيع 💵</label>
+        {{ form.sell_price|add_class:"w-full border rounded p-2" }}
+      </div>
+    </div>
+
+    <!-- بيانات الدفع -->
+    <div>
+      <label class="block text-sm font-medium">طريقة الدفع 💳</label>
+      {{ form.payment_method|add_class:"w-full border rounded p-2"|attr:"id:payment-method" }}
+    </div>
+
+    <div id="payment-file-field" style="display:none;">
+      <label class="block text-sm font-medium">ملف الدفع</label>
+      {{ form.payment_file }}
+    </div>
+
+    <div id="payment-link-field" style="display:none;">
+      <label class="block text-sm font-medium">رابط الدفع</label>
+      {{ form.payment_link|add_class:"w-full border rounded p-2" }}
+    </div>
+
+    <!-- ملفات -->
+    <div>
+      <label class="block text-sm font-medium">الفاتورة</label>
+      {{ form.invoice_file }}
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium">الفاوتشر</label>
+      {{ form.voucher_file }}
+    </div>
+
+    <button type="submit" class="mt-4 px-6 py-2 bg-blue-600 text-white rounded">
+      💾 حفظ الحجز
+    </button>
+  </form>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const paymentMethod = document.getElementById("payment-method");
+    const fileField = document.getElementById("payment-file-field");
+    const linkField = document.getElementById("payment-link-field");
+
+    function toggleFields() {
+      const value = paymentMethod.value;
+      fileField.style.display = (value === "cash" || value === "bank") ? "block" : "none";
+      linkField.style.display = (value === "link") ? "block" : "none";
+    }
+
+    if (paymentMethod) {
+      paymentMethod.addEventListener("change", toggleFields);
+      toggleFields();
+    }
+  });
+</script>
+{% endblock %}

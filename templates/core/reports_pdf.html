@@ -1,0 +1,60 @@
+{% load l10n %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>تقرير الحجوزات</title>
+  <style>
+    /* لو عندك خط عربي TTF ابعته لاضافته بـ @font-face */
+    body { font-family: DejaVu Sans, Arial, sans-serif; direction: rtl; }
+    h1,h3 { margin: 0 0 8px 0; }
+    .meta { font-size: 12px; margin-bottom: 10px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #999; padding: 6px 8px; font-size: 12px; }
+    th { background: #eee; }
+  </style>
+</head>
+<body>
+  <h1>تقرير الحجوزات</h1>
+  <div class="meta">
+    مولَّد بواسطة: {{ user.get_full_name|default:user.username }}<br/>
+    التاريخ: {{ generated_at|date:"Y-m-d H:i" }}<br/>
+    الفلاتر:
+    من: {{ q_from|default:"-" }} |
+    إلى: {{ q_to|default:"-" }} |
+    الموظف: {{ q_employee|default:"-" }} |
+    النوع: {{ q_kind|default:"الكل" }}
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>النوع</th>
+        <th>المرجع</th>
+        <th>الفوّتشر</th>
+        <th>الموظف</th>
+        <th>العميل</th>
+        <th>تاريخ الإنشاء</th>
+        <th>تفاصيل</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.type }}</td>
+        <td>{{ r.ref }}</td>
+        <td>{{ r.voucher }}</td>
+        <td>{{ r.employee }}</td>
+        <td>{{ r.customer }}</td>
+        <td>{{ r.created|date:"Y-m-d H:i" }}</td>
+        <td>{{ r.extra }}</td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="7" style="text-align:center">لا توجد بيانات</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

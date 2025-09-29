@@ -1,0 +1,192 @@
+{% extends "core/base.html" %}
+{% load widget_tweaks %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto px-4 py-10">
+  
+  <div class="text-center mb-10">
+    <h1 class="text-3xl font-extrabold text-gray-800">إضافة حجز فندق</h1>
+    <p class="text-sm text-gray-500 mt-2">للعميل: {{ card.customer_name }} - {{ card.ub_code }}</p>
+  </div>
+
+  <form method="post" class="bg-white shadow-lg border rounded-2xl p-8 space-y-10">
+    {% csrf_token %}
+
+    <div>
+      <h2 class="text-xl font-semibold text-gray-700 border-b pb-3 mb-6">تفاصيل الحجز</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+        
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">اسم الفندق</label>
+          {% render_field form.hotel_name class="w-full px-3 py-2 rounded-lg border focus:ring-2 focus:ring-blue-400" %}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">رقم الحجز (المرجع)</label>
+          {% render_field form.booking_ref class="w-full px-3 py-2 rounded-lg border focus:ring-2 focus:ring-blue-400" placeholder="مثل B23SDM" %}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">عنوان الفندق</label>
+          {% render_field form.hotel_address class="w-full px-3 py-2 rounded-lg border focus:ring-2 focus:ring-blue-400" %}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">الدولة</label>
+          {% render_field form.country class="w-full px-3 py-2 rounded-lg border focus:ring-2 focus:ring-blue-400" %}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">تاريخ الدخول</label>
+          {% render_field form.checkin class="w-full px-3 py-2 rounded-lg border focus:ring-2 focus:ring-blue-400" type="date" id="id_checkin" %}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">تاريخ الخروج</label>
+          {% render_field form.checkout class="w-full px-3 py-2 rounded-lg border focus:ring-2 focus:ring-blue-400" type="date" id="id_checkout" %}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">نوع الغرفة</label>
+          {% render_field form.room_type class="w-full px-3 py-2 rounded-lg border focus:ring-2 focus:ring-blue-400" placeholder="DELUXE / STANDARD ..." %}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">الوجبات</label>
+          <select name="meal_plan" id="id_meal_plan"
+            class="w-full px-3 py-2 rounded-lg border focus:ring-2 focus:ring-blue-400">
+              <option value="RO">RO (Room Only)</option>
+              <option value="BB">BB (Bed & Breakfast)</option>
+              <option value="HB">HB (Half Board)</option>
+              <option value="FB">FB (Full Board)</option>
+              <option value="AI">AI (All Inclusive)</option>
+              <option value="UAI">UAI (Ultra All Inclusive)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">اسم المورّد (Provider)</label>
+          <select name="provider_name" id="id_provider_name"
+            class="w-full px-3 py-2 rounded-lg border focus:ring-2 focus:ring-blue-400">
+              <option value="Smile">Smile</option>
+              <option value="TDS">TDS</option>
+              <option value="Rixos">Rixos</option>
+              <option value="TBO">TBO</option>
+              <option value="RateHawk">RateHawk</option>
+              <option value="Product">Product</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">عدد الغرف (للعرض فقط)</label>
+          {% render_field form.rooms_count class="w-full px-3 py-2 rounded-lg border bg-gray-100" readonly="readonly" %}
+        </div>
+        
+      </div>
+    </div>
+
+    <div>
+      <div class="flex justify-between items-center border-b pb-3 mb-6">
+        <h2 class="text-xl font-semibold text-gray-700">أسماء النزلاء</h2>
+        <button type="button" id="add-room-btn" class="px-3 py-1.5 text-sm bg-green-500 text-white rounded-lg hover:bg-green-600">+ إضافة غرفة</button>
+      </div>
+      
+      {{ room_formset.management_form }}
+      
+      <div id="rooms-container" class="space-y-4">
+        {% for room_form in room_formset %}
+          <div class="room-form p-3 border rounded-lg bg-gray-50">
+            <label class="block text-sm font-medium text-gray-600 mb-1">غرفة {{ forloop.counter }} - الأسماء</label>
+            {% render_field room_form.guest_names class="w-full px-3 py-2 rounded-lg border" placeholder="أدخل الأسماء (كل اسم في سطر)" %}
+            {{ room_form.id }}
+          </div>
+        {% endfor %}
+      </div>
+      <div id="empty-form-template" class="hidden">
+        <div class="room-form p-3 border rounded-lg bg-gray-50">
+            <label class="block text-sm font-medium text-gray-600 mb-1">غرفة __prefix_num__ - الأسماء</label>
+            {% render_field room_formset.empty_form.guest_names class="w-full px-3 py-2 rounded-lg border" placeholder="أدخل الأسماء (كل اسم في سطر)" %}
+            {{ room_formset.empty_form.id }}
+        </div>
+      </div>
+    </div>
+
+    <div>
+        <h2 class="text-xl font-semibold text-gray-700 border-b pb-3 mb-6">سياسة الإلغاء</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+            <div>
+                <label class="block text-sm font-medium text-gray-600 mb-1">السياسة</label>
+                {% render_field form.cancellation_policy class="w-full px-3 py-2 rounded-lg border" id="id_cancellation_policy" %}
+            </div>
+            <div id="refundable_until_wrapper">
+                <label class="block text-sm font-medium text-gray-600 mb-1">مسترد حتى تاريخ</label>
+                {% render_field form.refundable_until class="w-full px-3 py-2 rounded-lg border" type="date" id="id_refundable_until" %}
+            </div>
+            <div id="penalty_wrapper" class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-600 mb-1">قيمة الغرامة</label>
+                    {% render_field form.cancellation_penalty_value class="w-full px-3 py-2 rounded-lg border" %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-600 mb-1">نوع الغرامة</label>
+                    {% render_field form.cancellation_penalty_type class="w-full px-3 py-2 rounded-lg border" %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex justify-end gap-4 pt-6 border-t mt-6">
+      <a href="{% if card.id %}{% url 'card_detail' card.id %}{% else %}{% url 'dashboard' %}{% endif %}" class="px-5 py-2.5 rounded-lg bg-gray-200 hover:bg-gray-300">إلغاء</a>
+      <button type="submit" class="px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium">حفظ الحجز</button>
+    </div>
+  </form>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  const form = document.querySelector("form");
+  const checkin = document.getElementById("id_checkin");
+  const checkout = document.getElementById("id_checkout");
+  const refundableUntil = document.getElementById("id_refundable_until");
+  const policyEl = document.getElementById("id_cancellation_policy");
+
+  form.addEventListener("submit", function(event) {
+    // تحقق إن كل الحقول متعبيه
+    const requiredFields = form.querySelectorAll("input[type=text], input[type=date], select");
+    for (let field of requiredFields) {
+      if (field.offsetParent !== null && !field.value) {
+        alert("⚠️ من فضلك املأ كل الحقول الإلزامية");
+        field.focus();
+        event.preventDefault();
+        return;
+      }
+    }
+
+    // شرط: تاريخ الخروج بعد الدخول
+    if (checkin.value && checkout.value) {
+      if (new Date(checkout.value) <= new Date(checkin.value)) {
+        alert("⚠️ تاريخ الخروج يجب أن يكون بعد تاريخ الدخول");
+        event.preventDefault();
+        return;
+      }
+    }
+
+    // شرط: Refund لازم تاريخ استرداد قبل الدخول
+    if (policyEl && (policyEl.value === "refundable" || policyEl.value === "refundable_with_penalty")) {
+      if (!refundableUntil.value) {
+        alert("⚠️ يجب إدخال تاريخ الاسترداد عند اختيار سياسة استرداد");
+        event.preventDefault();
+        return;
+      }
+      if (new Date(refundableUntil.value) >= new Date(checkin.value)) {
+        alert("⚠️ تاريخ الاسترداد يجب أن يكون قبل تاريخ الدخول");
+        event.preventDefault();
+        return;
+      }
+    }
+  });
+
+  // إظهار/إخفاء الحقول حسب السياسة
+  function togglePolicyFields() {
+    if (!policyEl) return;
+    const policy = policyEl.value;
+    document.getElementById("refundable_until_wrapper").style.display = (policy === "non_refundable") ? "none" : "";
+    document.getElementById("penalty_wrapper").style.display = (policy === "refundable_with_penalty") ? "" : "none";
+  }
+
+  if(policyEl) policyEl.addEventListener("change", togglePolicyFields);
+  togglePolicyFields();
+});
+</script>
+{% endblock %}

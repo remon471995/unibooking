@@ -1,0 +1,42 @@
+{% extends 'core/base.html' %}
+{% load widget_tweaks %}
+{% block content %}
+<h1 class="text-xl font-bold mb-4">إضافة حجز فندق — {{ card.ub_code }}</h1>
+<form method="post" class="bg-white p-4 rounded shadow max-w-3xl">
+  {% csrf_token %}
+  <div class="grid md:grid-cols-2 gap-4">
+    {{ form.booking_ref|add_class:"border p-2 rounded" }}
+    {{ form.hotel_name|add_class:"border p-2 rounded" }}
+    {{ form.hotel_address|add_class:"border p-2 rounded" }}
+    {{ form.country|add_class:"border p-2 rounded" }}
+    {{ form.room_type|add_class:"border p-2 rounded" }}
+    {{ form.meal_plan|add_class:"border p-2 rounded" }}
+    {{ form.checkin|add_class:"border p-2 rounded" }}
+    {{ form.checkout|add_class:"border p-2 rounded" }}
+    {{ form.customer_display_name|add_class:"border p-2 rounded" }}
+    {{ form.rooms_count|add_class:"border p-2 rounded" }}
+  </div>
+  <button class="mt-4 px-4 py-2 bg-blue-600 text-white rounded">حفظ</button>
+</form>
+{% endblock %}
+{% extends 'core/base.html' %}
+{% load widget_tweaks %}
+{% block content %}
+<h1 class="text-xl font-bold mb-4">إضافة حجز فندق — {{ card.ub_code }}</h1>
+<form method="post" class="bg-white p-4 rounded shadow max-w-3xl">
+  {% csrf_token %}
+  <div class="grid md:grid-cols-2 gap-4">
+    {{ form.booking_ref|add_class:"border p-2 rounded" }}
+    {{ form.hotel_name|add_class:"border p-2 rounded" }}
+    {{ form.hotel_address|add_class:"border p-2 rounded" }}
+    {{ form.country|add_class:"border p-2 rounded" }}
+    {{ form.room_type|add_class:"border p-2 rounded" }}
+    {{ form.meal_plan|add_class:"border p-2 rounded" }}
+    {{ form.checkin|add_class:"border p-2 rounded" }}
+    {{ form.checkout|add_class:"border p-2 rounded" }}
+    {{ form.customer_display_name|add_class:"border p-2 rounded" }}
+    {{ form.rooms_count|add_class:"border p-2 rounded" }}
+  </div>
+  <button class="mt-4 px-4 py-2 bg-blue-600 text-white rounded">حفظ</button>
+</form>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends 'core/base.html' %}
+{% load widget_tweaks %}
+{% block content %}
+<h1 class="text-xl font-bold mb-4">{{ card.ub_code }} — إضافة توصيل</h1>
+<form method="post" class="bg-white p-6 rounded shadow max-w-4xl">
+  {% csrf_token %}
+  <div class="grid md:grid-cols-2 gap-6">
+    <div><label class="block mb-1">المرجع</label>{{ form.booking_ref|add_class:"border p-2 rounded w-full" }}</div>
+    <div><label class="block mb-1">نقطة الالتقاط</label>{{ form.pickup|add_class:"border p-2 rounded w-full" }}</div>
+    <div><label class="block mb-1">الوجهة</label>{{ form.dropoff|add_class:"border p-2 rounded w-full" }}</div>
+    <div><label class="block mb-1">التاريخ</label>{{ form.date|add_class:"border p-2 rounded w-full" }}</div>
+    <div><label class="block mb-1">الوقت</label>{{ form.time|add_class:"border p-2 rounded w-full" }}</div>
+    <div><label class="block mb-1">عدد الركاب</label>{{ form.pax|add_class:"border p-2 rounded w-full" }}</div>
+    <div><label class="block mb-1">نوع السيارة</label>{{ form.vehicle_type|add_class:"border p-2 rounded w-full" }}</div>
+    <div class="md:col-span-2"><label class="block mb-1">ملاحظات</label>{{ form.notes|add_class:"border p-2 rounded w-full" }}</div>
+
+    <div><label class="block mb-1">Provider</label>{{ form.provider_name|add_class:"border p-2 rounded w-full" }}</div>
+    <div><label class="block mb-1">اسم العميل</label>{{ form.customer_display_name|add_class:"border p-2 rounded w-full" }}</div>
+    <div><label class="block mb-1">Employee</label>{{ form.employee_name|add_class:"border p-2 rounded w-full" }}</div>
+  </div>
+  <button class="mt-6 px-4 py-2 bg-blue-600 text-white rounded">حفظ</button>
+</form>
+{% endblock %}
+

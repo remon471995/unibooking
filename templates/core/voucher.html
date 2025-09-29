@@ -1,0 +1,246 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>قسيمة الإقامة - {{ booking.voucher_code }}</title>
+    <style>
+        @page { size: a4 portrait; margin: 1.5cm; }
+
+        body {
+            font-family: "DejaVu Sans", "Arial", sans-serif;
+            font-size: 10pt;
+            color: #333;
+            position: relative;
+        }
+
+        /* Watermark */
+        @media print {
+            .watermark {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%) rotate(-25deg);
+                width: 600px;
+                height: 600px;
+                opacity: 0.07;
+                z-index: -1;
+                text-align: center;
+                pointer-events: none;
+            }
+            .watermark img { width: 300px; }
+        }
+
+        .container { border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; margin-bottom: 40px; background: #fff; }
+        .header-table { width: 100%; margin-bottom: 20px; }
+        .brand-title { font-size: 22pt; font-weight: bold; color: #0d6efd; margin: 0; }
+        .voucher-title { font-size: 14pt; font-weight: bold; color: #333; border-bottom: 2px solid #0d6efd; padding-bottom: 4px; }
+        .status { font-size: 10pt; font-weight: bold; color: #198754; }
+        .section-title { font-size: 13pt; font-weight: bold; color: #0d6efd; margin: 20px 0 10px; border-bottom: 1px solid #ccc; }
+        .details-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+        .details-table td { padding: 10px; border: 1px solid #ddd; background: #f8f9fa; vertical-align: top; }
+        .label { font-size: 9pt; color: #666; display: block; margin-bottom: 2px; }
+        .value { font-size: 11pt; font-weight: bold; }
+        .footer { text-align: center; font-size: 9pt; color: #555; margin-top: 30px; border-top: 1px solid #eee; padding-top: 10px; }
+        .policy-box { background: #fff8f0; border: 1px dashed #f39c12; padding: 12px; border-radius: 6px; font-size: 9.5pt; color: #444; }
+        .print-btn { margin: 20px auto; display: block; background: #0d6efd; color: #fff; padding: 10px 20px; border-radius: 6px; border: none; font-size: 12pt; cursor: pointer; }
+        .print-btn:hover { background: #0b5ed7; }
+
+        .page-break { page-break-before: always; }
+    </style>
+</head>
+<body>
+
+<!-- Watermark -->
+<div class="watermark">
+  <img src="{% static 'logo_khamees.png' %}" alt="Watermark">
+</div>
+
+<!-- زر الطباعة -->
+<button class="print-btn" onclick="window.print()">🖨️ طباعة النسختين</button>
+
+<!-- ==================== النسخة العربية ==================== -->
+<div class="container" dir="rtl">
+    <h2 class="section-title">قسيمة الإقامة (عربي)</h2>
+    <table class="header-table">
+        <tr>
+            <td style="width: 40%;"><img src="{% static 'logo_khamees.png' %}" alt="شعار الخميس" style="height:80px;"></td>
+            <td style="width: 60%; text-align: left;">
+                <div class="brand-title">UniBooking</div>
+                <div class="voucher-title">قسيمة الإقامة</div>
+                <div class="status">الحجز مؤكد ✅</div>
+            </td>
+        </tr>
+    </table>
+
+    <table class="details-table">
+        <tr>
+            <td><span class="label">رقم الحجز</span><span class="value">{{ booking.voucher_code }}</span></td>
+            <td style="text-align: center;">
+                <img src="{{ qr_data_url }}" alt="QR Code" style="width:70px; height:70px;"><br><small>امسح الرمز للتفاصيل</small>
+            </td>
+        </tr>
+    </table>
+
+    <h2 class="section-title">تفاصيل مكان الإقامة</h2>
+    <table class="details-table">
+        <tr><td><span class="label">اسم الفندق</span><span class="value">{{ booking.hotel_name }}</span></td></tr>
+        <tr><td><span class="label">العنوان</span><span class="value">{{ booking.hotel_address|default:"-" }}</span></td></tr>
+    </table>
+
+    <h2 class="section-title">تفاصيل الحجز</h2>
+    <table class="details-table">
+        <tr>
+            <td><span class="label">تسجيل الدخول</span><span class="value">{{ booking.checkin|date:"d M, Y" }}</span></td>
+            <td><span class="label">تسجيل الخروج</span><span class="value">{{ booking.checkout|date:"d M, Y" }}</span></td>
+        </tr>
+        <tr><td colspan="2"><span class="label">عدد الليالي</span><span class="value">{{ booking.nights }}</span></td></tr>
+        <tr>
+            <td colspan="2">
+                <span class="label">الوجبات</span>
+                <span class="value">
+                  {% if booking.meal_plan == "RO" %} إقامة فقط
+                  {% elif booking.meal_plan == "BB" %} إفطار فقط
+                  {% elif booking.meal_plan == "HB" %} نصف إقامة (إفطار + عشاء)
+                  {% elif booking.meal_plan == "FB" %} إقامة كاملة (إفطار + غداء + عشاء)
+                  {% elif booking.meal_plan == "AI" %} شامل كليًا
+                  {% elif booking.meal_plan == "UAI" %} شامل كليًا بلس
+                  {% else %} {{ booking.meal_plan|default:"-" }}
+                  {% endif %}
+                </span>
+            </td>
+        </tr>
+    </table>
+
+    <h2 class="section-title">سياسة الإلغاء والتعديل</h2>
+    <div class="policy-box">
+        {% if booking.cancellation_policy == "refundable" and booking.refundable_until %}
+            <p>🔹 إلغاء مجاني حتى <strong>{{ booking.refundable_until|date:"d M, Y" }}</strong>.</p>
+            <p>🔹 بعد هذا التاريخ يعتبر الحجز <strong>غير قابل للإلغاء أو التعديل</strong>.</p>
+
+        {% elif booking.cancellation_policy == "refundable_with_penalty" and booking.refundable_until and booking.cancellation_penalty_value %}
+            <p>🔹 يمكن الإلغاء برسوم <strong>{{ booking.cancellation_penalty_value }}</strong>
+               {% if booking.cancellation_penalty_type == "percent" %}%{% else %} {{ booking.currency|default:"KWD" }}{% endif %}
+               حتى <strong>{{ booking.refundable_until|date:"d M, Y" }}</strong>.</p>
+            <p>🔹 بعد هذا التاريخ يعتبر الحجز <strong>غير قابل للإلغاء أو التعديل</strong>.</p>
+
+        {% elif booking.cancellation_policy == "non_refundable" %}
+            <p>⚠️ هذا الحجز <strong>غير قابل للإلغاء أو التعديل</strong>.</p>
+
+        {% else %}
+            <p>🔹 لم يتم تحديد سياسة إلغاء.</p>
+        {% endif %}
+    </div>
+
+    <h2 class="section-title">معلومات إضافية</h2>
+    <div class="policy-box">
+        <p>⏰ تسجيل الوصول من 14:00 حتى 15:00.</p>
+        <p>⏰ تسجيل الخروج قبل 12:00 ظهرًا.</p>
+        <p>🪪 بطاقة هوية أو جواز سفر مطلوب عند الوصول.</p>
+        <p>💰 قد يطلب الفندق مبلغ تأمين عند الوصول.</p>
+        <p>⭐ الطلبات الخاصة تعتمد على التوافر.</p>
+        <p>💡 جميع الأسعار تشمل الضرائب والخدمات باستثناء ضريبة المدينة/البيئة إن وجدت.</p>
+    </div>
+
+    <div class="footer">
+        <p>📞 واتساب: (+965) 1899777</p>
+        <p>🌍 شكراً لاختياركم الخميس للسفر والسياحة</p>
+        <img src="{% static 'logo_khamees.png' %}" alt="شعار الخميس" style="height:40px;">
+    </div>
+</div>
+
+<!-- 🔹 فاصل للنسخة الإنجليزية -->
+<div class="page-break"></div>
+
+<!-- ==================== النسخة الإنجليزية ==================== -->
+<div class="container" dir="ltr">
+    <h2 class="section-title">Accommodation Voucher (English)</h2>
+    <table class="header-table">
+        <tr>
+            <td style="width: 40%;"><img src="{% static 'logo_khamees.png' %}" alt="Al Khamees Logo" style="height:80px;"></td>
+            <td style="width: 60%; text-align: right;">
+                <div class="brand-title">UniBooking</div>
+                <div class="voucher-title">Accommodation Voucher</div>
+                <div class="status">Confirmed ✅</div>
+            </td>
+        </tr>
+    </table>
+
+    <table class="details-table">
+        <tr>
+            <td><span class="label">Reservation Number</span><span class="value">{{ booking.voucher_code }}</span></td>
+            <td style="text-align: center;">
+                <img src="{{ qr_data_url }}" alt="QR Code" style="width:70px; height:70px;"><br><small>Scan QR for details</small>
+            </td>
+        </tr>
+    </table>
+
+    <h2 class="section-title">Accommodation Details</h2>
+    <table class="details-table">
+        <tr><td><span class="label">Hotel Name</span><span class="value">{{ booking.hotel_name }}</span></td></tr>
+        <tr><td><span class="label">Address</span><span class="value">{{ booking.hotel_address|default:"-" }}</span></td></tr>
+    </table>
+
+    <h2 class="section-title">Booking Details</h2>
+    <table class="details-table">
+        <tr>
+            <td><span class="label">Check-in</span><span class="value">{{ booking.checkin|date:"d M, Y" }}</span></td>
+            <td><span class="label">Check-out</span><span class="value">{{ booking.checkout|date:"d M, Y" }}</span></td>
+        </tr>
+        <tr><td colspan="2"><span class="label">Nights</span><span class="value">{{ booking.nights }}</span></td></tr>
+        <tr>
+            <td colspan="2">
+                <span class="label">Meal Plan</span>
+                <span class="value">
+                  {% if booking.meal_plan == "RO" %} Room Only
+                  {% elif booking.meal_plan == "BB" %} Bed & Breakfast
+                  {% elif booking.meal_plan == "HB" %} Half Board
+                  {% elif booking.meal_plan == "FB" %} Full Board
+                  {% elif booking.meal_plan == "AI" %} All Inclusive
+                  {% elif booking.meal_plan == "UAI" %} Ultra All Inclusive
+                  {% else %} {{ booking.meal_plan|default:"-" }}
+                  {% endif %}
+                </span>
+            </td>
+        </tr>
+    </table>
+
+    <h2 class="section-title">Cancellation & Amendment Policy</h2>
+    <div class="policy-box">
+        {% if booking.cancellation_policy == "refundable" and booking.refundable_until %}
+            <p>🔹 Free cancellation until <strong>{{ booking.refundable_until|date:"d M, Y" }}</strong>.</p>
+            <p>🔹 After this date, booking will be <strong>non-refundable</strong>.</p>
+
+        {% elif booking.cancellation_policy == "refundable_with_penalty" and booking.refundable_until and booking.cancellation_penalty_value %}
+            <p>🔹 Cancellation fee of <strong>{{ booking.cancellation_penalty_value }}</strong>
+               {% if booking.cancellation_penalty_type == "percent" %}%{% else %} {{ booking.currency|default:"KWD" }}{% endif %}
+               until <strong>{{ booking.refundable_until|date:"d M, Y" }}</strong>.</p>
+            <p>🔹 After this date, booking will be <strong>non-refundable</strong>.</p>
+
+        {% elif booking.cancellation_policy == "non_refundable" %}
+            <p>⚠️ This booking is <strong>non-refundable</strong>.</p>
+
+        {% else %}
+            <p>🔹 Cancellation policy not defined.</p>
+        {% endif %}
+    </div>
+
+    <h2 class="section-title">Additional Information</h2>
+    <div class="policy-box">
+        <p>⏰ Check-in from 14:00 to 15:00.</p>
+        <p>⏰ Check-out before 12:00 noon.</p>
+        <p>🪪 Passport or valid ID is required at check-in.</p>
+        <p>💰 A refundable deposit may be required upon check-in.</p>
+        <p>⭐ Special requests are subject to availability.</p>
+        <p>💡 All rates include taxes & service charges, except city/environmental tax if applicable (payable at hotel).</p>
+    </div>
+
+    <div class="footer">
+        <p>📞 WhatsApp: (+965) 1899777</p>
+        <p>🌍 Thank you for choosing Al Khamees Travel & Tourism</p>
+        <img src="{% static 'logo_khamees.png' %}" alt="Al Khamees Logo" style="height:40px;">
+    </div>
+</div>
+
+</body>
+</html>

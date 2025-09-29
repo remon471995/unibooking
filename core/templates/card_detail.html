@@ -1,0 +1,21 @@
+{% extends 'core/base.html' %}
+{% block content %}
+<h1 class="text-xl font-bold mb-4">{{ card.ub_code }} — {{ card.customer_name }}</h1>
+
+<div class="mb-4">
+  <a href="{% url 'hotel_create' card.pk %}" class="px-3 py-2 bg-indigo-600 text-white rounded">+ حجز فندق</a>
+</div>
+
+<h2 class="font-semibold mb-2">الحجوزات</h2>
+<div class="space-y-3">
+  {% for b in bookings %}
+    <div class="bg-white p-4 rounded shadow">
+      <div>فندق: <strong>{{ b.hotel_name }}</strong> — فوّتشر: <strong>{{ b.voucher_code }}</strong></div>
+      <div>الدخول: {{ b.checkin }} — الخروج: {{ b.checkout }} (ليالي: {{ b.nights }})</div>
+      <a class="text-blue-600" href="{% url 'hotel_payment' b.pk %}">إضافة/عرض الدفع</a>
+    </div>
+  {% empty %}
+    <p>لا توجد حجوزات بعد.</p>
+  {% endfor %}
+</div>
+{% endblock %}

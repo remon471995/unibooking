@@ -1,0 +1,25 @@
+{% load i18n %}
+<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE }}" dir="{% if LANGUAGE_CODE == 'ar' %}rtl{% else %}ltr{% endif %}">
+<head>
+  <meta charset="UTF-8">
+  <title>{% trans "Sign in" %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>body{font-family:'Tajawal',sans-serif}</style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+  <form method="post" class="bg-white p-6 rounded-xl shadow w-full max-w-sm">
+    <h1 class="text-xl font-bold mb-4 text-center">{% trans "Sign in" %}</h1>
+    {% csrf_token %}
+    {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+    {% if form.errors %}
+      <div class="p-3 mb-3 rounded bg-red-100 text-red-700">{% trans "Incorrect username or password." %}</div>
+    {% endif %}
+    <label class="block mb-2">{% trans "Username" %}</label>
+    <input name="username" class="w-full border rounded p-2 mb-4" autofocus required>
+    <label class="block mb-2">{% trans "Password" %}</label>
+    <input name="password" type="password" class="w-full border rounded p-2 mb-4" required>
+    <button class="w-full bg-blue-600 text-white rounded p-2">{% trans "Sign in" %}</button>
+  </form>
+</body>
+</html>

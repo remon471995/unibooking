@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>تسجيل الدخول</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>body{font-family:'Tajawal',sans-serif}</style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+  <form method="post" class="bg-white p-6 rounded-xl shadow w-full max-w-sm">
+    <h1 class="text-xl font-bold mb-4 text-center">تسجيل الدخول</h1>
+    {% csrf_token %}
+    {% if form.errors %}
+      <div class="p-3 mb-3 rounded bg-red-100 text-red-700">بيانات الدخول غير صحيحة.</div>
+    {% endif %}
+    <label class="block mb-2">اسم المستخدم</label>
+    <input name="username" class="w-full border rounded p-2 mb-4" autofocus required>
+
+    <label class="block mb-2">كلمة المرور</label>
+    <input name="password" type="password" class="w-full border rounded p-2 mb-4" required>
+
+    <button class="w-full bg-blue-600 text-white rounded p-2">دخول</button>
+  </form>
+</body>
+</html>

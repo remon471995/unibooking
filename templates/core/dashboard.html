@@ -1,0 +1,234 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>الكروت | UniBooking</title>
+
+  <!-- تفعيل الوضع الداكن مبكّرًا لتفادي الوميض -->
+  <script>
+    (function () {
+      try {
+        if (localStorage.getItem('unibooking.dark') === '1') {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
+
+  <!-- Tailwind (darkMode بالـ class) -->
+  <script>window.tailwind = { config: { darkMode: 'class' } };</script>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    body { font-family: "Tajawal", system-ui, -apple-system, "Segoe UI", Roboto, "Noto Kufi Arabic", Arial, sans-serif; }
+    .card { background:#fff; border-radius:.75rem; padding:1rem; box-shadow:0 1px 2px rgba(0,0,0,.06),0 1px 3px rgba(0,0,0,.1); }
+    .dark .card { background:#111827; }
+    .muted { color:#6b7280 }
+    .dark .muted { color:#9ca3af }
+    .pill  { display:inline-flex; align-items:center; gap:.35rem; padding:.15rem .6rem; border-radius:999px; font-size:.75rem; }
+    .btn   { display:inline-flex; align-items:center; justify-content:center; gap:.4rem; padding:.45rem .75rem; border-radius:.6rem; font-size:.8rem; }
+
+    /* شارات ديناميكية أساس */
+    .badge { display:inline-flex; align-items:center; gap:.35rem; padding:.15rem .6rem; border-radius:999px; font-size:.75rem; font-weight:600; }
+    .badge--on   { background: rgba(16,185,129,.15); color:#10b981; }  /* emerald */
+    .badge--off  { background: rgba(156,163,175,.18); color:#6b7280; } /* gray  */
+
+    /* Skeleton loader */
+    .skeleton { position: relative; overflow: hidden; background: linear-gradient(0deg,#f3f4f6,#f3f4f6); }
+    .dark .skeleton { background: #1f2937; }
+    .skeleton::after {
+      content:""; position:absolute; inset:0;
+      transform: translateX(-100%);
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);
+      animation: shimmer 1.1s infinite;
+    }
+    @keyframes shimmer { 100% { transform: translateX(100%); } }
+  </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen">
+
+  <!-- الشريط العلوي -->
+  <header class="sticky top-0 z-10 bg-gray-900 text-white dark:bg-black/70 backdrop-blur">
+    <div class="mx-auto max-w-7xl px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-4">
+        <a href="{% url 'dashboard' %}" class="font-semibold">UniBooking</a>
+        <nav class="hidden md:flex items-center gap-2 text-sm">
+          <a class="px-3 py-1 rounded-lg hover:bg-white/10" href="{% url 'dashboard' %}">الرئيسية</a>
+          <a class="px-3 py-1 rounded-lg hover:bg-white/10" href="{% url 'dashboard_overview' %}">نظرة عامة</a>
+          <a class="px-3 py-1 rounded-lg hover:bg-white/10" href="{% url 'reports' %}">التقارير</a>
+        </nav>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="{% url 'card_create' %}" class="ml-2 bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1.5 rounded-lg">+ كارت عميل</a>
+        <button id="darkToggle" class="text-sm px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20">المظهر الداكن</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-7xl px-4 py-6">
+    <!-- شريط البحث -->
+    <form method="get" class="mb-5">
+      <div class="flex gap-2">
+        <input
+          type="text" name="q" value="{{ q }}"
+          placeholder="ابحث بالاسم، الكود، الموبايل..."
+          class="flex-1 px-4 py-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 focus:outline-none"
+        />
+        <button class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white">بحث</button>
+      </div>
+    </form>
+
+    <!-- العنوان + إجمالي -->
+    <div class="flex items-center justify-between mb-4">
+      <h1 class="text-xl font-semibold">الكروت</h1>
+      {% if cards.paginator %}
+        <span class="text-sm muted">إجمالي: {{ cards.paginator.count }}</span>
+      {% else %}
+        <span class="text-sm muted">العدد: {{ cards|length }}</span>
+      {% endif %}
+    </div>
+
+    <!-- حالة لا نتائج للبحث -->
+    {% if q and cards.paginator and cards.paginator.count == 0 %}
+      <div class="rounded-xl p-5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 mb-6">
+        <div class="text-lg font-semibold mb-1">لا توجد نتائج</div>
+        <p class="muted">لم نجد كروتًا تطابق <span class="font-semibold">"{{ q }}"</span>. جرّب كلمة أخرى أو ازِل الفلاتر.</p>
+        <div class="mt-3 flex gap-2 text-sm">
+          <a href="{% url 'dashboard' %}" class="px-3 py-1.5 rounded-lg bg-gray-200 dark:bg-gray-800 hover:opacity-90">عرض الكل</a>
+        </div>
+      </div>
+    {% endif %}
+
+    <!-- Skeleton Loader (يختفي بعد تحميل الصفحة) -->
+    <div id="skeletonGrid" class="grid grid-cols-1 gap-4 mb-4">
+      {% for _ in "123456"|make_list %}
+      <div class="card">
+        <div class="skeleton h-5 w-40 mb-3 rounded"></div>
+        <div class="skeleton h-4 w-28 mb-2 rounded"></div>
+        <div class="skeleton h-3 w-full mb-2 rounded"></div>
+        <div class="skeleton h-3 w-3/4 mb-4 rounded"></div>
+        <div class="skeleton h-7 w-full rounded"></div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- شبكة الكروت -->
+    <div id="cardsGrid" class="grid grid-cols-1 gap-4 hidden">
+      {% for c in cards %}
+      <div class="card hover:shadow-lg transition flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <a href="{% url 'card_detail' c.id %}" class="font-semibold truncate hover:underline">{{ c.customer_name }}</a>
+            <span class="pill bg-gray-100 dark:bg-gray-800 muted">{{ c.ub_code }}</span>
+          </div>
+
+          <div class="border-t border-gray-100 dark:border-gray-800 my-2"></div>
+
+          <div class="grid grid-cols-2 gap-2 text-sm">
+            <div class="muted">آخر تحديث:</div>
+            <div class="text-right">{{ c.created_at|date:"M j, Y, g:i a" }}</div>
+
+            <div class="muted">الموبايل:</div>
+            <div class="text-right">{{ c.mobile|default:"-" }}</div>
+
+            <div class="muted">الجنسية:</div>
+            <div class="text-right">{{ c.nationality|default:"-" }}</div>
+          </div>
+
+          {% if c.country %}
+            <div class="mt-2 text-xs muted">{{ c.country }}</div>
+          {% endif %}
+        </div>
+
+        <!-- شارات ديناميكية حسب العدّادات -->
+        <div class="mt-3 flex flex-wrap gap-1 text-xs">
+          {% with h=c.hotelbooking_set.count f=c.flightbooking_set.count t=c.transferbooking_set.count v=c.visabooking_set.count %}
+            <span class="badge {% if h %}badge--on{% else %}badge--off{% endif %}">فنادق {{ h }}</span>
+            <span class="badge {% if f %}badge--on{% else %}badge--off{% endif %}">طيران {{ f }}</span>
+            <span class="badge {% if t %}badge--on{% else %}badge--off{% endif %}">ترانسفير {{ t }}</span>
+            <span class="badge {% if v %}badge--on{% else %}badge--off{% endif %}">فيزا {{ v }}</span>
+          {% endwith %}
+        </div>
+
+        <!-- أكشن سريع -->
+        <div class="border-t border-gray-100 dark:border-gray-800 my-3"></div>
+        <div class="flex flex-wrap items-center gap-2">
+          <a class="btn bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:opacity-90" href="{% url 'hotel_create' c.id %}">+ فندق</a>
+          <a class="btn bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 hover:opacity-90" href="{% url 'flight_create' c.id %}">+ طيران</a>
+          <a class="btn bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 hover:opacity-90" href="{% url 'transfer_create' c.id %}">+ ترانسفير</a>
+          <a class="btn bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:opacity-90" href="{% url 'visa_create' c.id %}">+ فيزا</a>
+
+          <span class="flex-1"></span>
+          {% if c.mobile %}
+            <a class="pill bg-emerald-200/70 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200 hover:opacity-90"
+               href="https://wa.me/{{ c.mobile|cut:' ' }}" target="_blank" rel="noopener">WhatsApp</a>
+          {% endif %}
+        </div>
+      </div>
+      {% empty %}
+      <div class="col-span-full text-center muted py-10">لا توجد كروت حتى الآن.</div>
+      {% endfor %}
+    </div>
+
+    <!-- Pagination رقمية -->
+    {% if cards.paginator and cards.paginator.num_pages > 1 %}
+    <nav class="flex flex-wrap items-center justify-center gap-2 mt-6">
+      <!-- السابق -->
+      {% if cards.has_previous %}
+        <a class="px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-800 hover:opacity-90"
+           href="?q={{ q|urlencode }}&page={{ cards.previous_page_number }}">السابق</a>
+      {% else %}
+        <span class="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-900 opacity-60 cursor-not-allowed">السابق</span>
+      {% endif %}
+
+      <!-- أرقام الصفحات مع نقاط اختصار -->
+      {% with total=cards.paginator.num_pages current=cards.number %}
+        {% for i in cards.paginator.page_range %}
+          {% if i == 1 or i == total or i >= current|add:-2 and i <= current|add:2 %}
+            {% if i == current %}
+              <span class="px-3 py-2 rounded-lg bg-blue-600 text-white">{{ i }}</span>
+            {% else %}
+              <a class="px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-800 hover:opacity-90"
+                 href="?q={{ q|urlencode }}&page={{ i }}">{{ i }}</a>
+            {% endif %}
+          {% elif i == 2 and current > 4 %}
+            <span class="px-2 muted">…</span>
+          {% elif i == total|add:-1 and current < total|add:-3 %}
+            <span class="px-2 muted">…</span>
+          {% endif %}
+        {% endfor %}
+      {% endwith %}
+
+      <!-- التالي -->
+      {% if cards.has_next %}
+        <a class="px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-800 hover:opacity-90"
+           href="?q={{ q|urlencode }}&page={{ cards.next_page_number }}">التالي</a>
+      {% else %}
+        <span class="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-900 opacity-60 cursor-not-allowed">التالي</span>
+      {% endif %}
+    </nav>
+    {% endif %}
+  </main>
+
+  <script>
+    // تبديل الوضع الداكن + حفظ الحالة
+    const root = document.documentElement;
+    document.getElementById('darkToggle').addEventListener('click', () => {
+      root.classList.toggle('dark');
+      try { localStorage.setItem('unibooking.dark', root.classList.contains('dark') ? '1' : '0'); } catch (e) {}
+    });
+
+    // إدارة Skeleton: إخفاء بعد جاهزية DOM
+    document.addEventListener('DOMContentLoaded', () => {
+      const sk = document.getElementById('skeletonGrid');
+      const grid = document.getElementById('cardsGrid');
+      setTimeout(() => {
+        if (sk) sk.classList.add('hidden');
+        if (grid) grid.classList.remove('hidden');
+      }, 250);
+    });
+  </script>
+</body>
+</html>

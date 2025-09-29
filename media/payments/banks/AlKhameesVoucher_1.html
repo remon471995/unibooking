@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Al Khamees Travel and Tourism (voucher)</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Verdana, Arial, sans-serif; /* تغيير الخط */
+            margin: 20px;
+            padding: 20px;
+            background-color: #f8f8f8; /* لون خلفية أفتح قليلاً */
+            color: #333;
+        }
+        .voucher-container {
+            width: 85%; /* ممكن نزود العرض شوية */
+            max-width: 950px; /* أو نقلله حسب الرغبة */
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 40px; /* زيادة البادينج الداخلي */
+            border: 1px solid #dcdcdc; /* إطار أنعم وأخف */
+            border-radius: 10px; /* حواف دائرية أكثر */
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); /* ظل أوضح وأكثر نعومة */
+            position: relative; /* لجعل اللوجو بوزيشن أبسولوت داخله للشاشة */
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 35px; /* مسافة أكبر بعد الهيدر */
+            border-bottom: 1px solid #e0e0e0; /* خط فاصل أرفع وأخف */
+            padding-bottom: 25px; /* بادينج أكبر */
+        }
+        .header h1 {
+            color: #004085; /* لون أزرق أغمق للعنوان الرئيسي */
+            margin-bottom: 8px; /* مسافة أكبر */
+            font-size: 2.2em; /* حجم أكبر للعنوان */
+        }
+        .header p {
+            margin: 4px 0; /* مسافة بين فقرات الهيدر */
+            font-size: 1em; /* حجم نص مناسب */
+            color: #555;
+        }
+        /* New style for the red bold "Voucher" */
+        .voucher-title-left {
+            position: absolute;
+            top: 20px; /* Align with logo top */
+            left: 20px; /* Distance from left edge */
+            font-size: 2em; /* Make it large */
+            font-weight: bold;
+            color: red;
+            z-index: 100;
+            text-align: left; /* Ensure it aligns left */
+        }
+
+        .section-title {
+            background-color: #e9f5ff; /* لون خلفية أفتح لعنوان القسم */
+            padding: 12px 20px; /* زيادة البادينج */
+            margin-top: 30px; /* مسافة أكبر قبل العنوان */
+            margin-bottom: 20px; /* مسافة أكبر بعد العنوان */
+            border-radius: 6px;
+            font-weight: bold;
+            color: #0056b3; /* نفس لون الأزرق */
+            border-left: 6px solid #007bff; /* خط أزرق أغمق على اليسار */
+            font-size: 1.15em; /* حجم أكبر لعنوان القسم */
+        }
+        .field-group {
+            display: flex;
+            flex-wrap: wrap;
+            margin-bottom: 15px; /* زيادة المسافة بين مجموعات الحقول */
+        }
+        .field {
+            flex: 1 1 48%;
+            margin-right: 4%;
+            margin-bottom: 20px; /* زيادة المسافة بين الحقول الفردية */
+        }
+        .field:nth-child(2n) {
+            margin-right: 0;
+        }
+        .field label {
+            display: block;
+            margin-bottom: 8px; /* مسافة أكبر بين الليبل ومربع الإدخال */
+            font-weight: bold;
+            color: #444; /* لون أغمق لليبل */
+            font-size: 0.95em; /* حجم أصغر قليلاً لليبل */
+        }
+        /* Style for inputs/select/textarea in screen view */
+        .field input[type="text"],
+        .field input[type="date"],
+        .field input[type="number"],
+        .field textarea,
+        .field select {
+            width: calc(100% - 22px); /* ضبط العرض ليتناسب مع البادينج والبوردر */
+            padding: 12px; /* زيادة البادينج داخل مربعات الإدخال */
+            border: 1px solid #000; /* تغيير لون البوردر إلى أسود خالص */
+            border-radius: 10px; /* زيادة التدوير من 6px إلى 10px (أو أكثر مثل 15px حسب رغبتك) */
+            font-size: 1em; /* حجم خط مناسب داخل المربعات */
+            box-sizing: border-box;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease; /* إضافة تأثير عند التركيز */
+        }
+        .field input[type="text"]:focus,
+        .field input[type="date"]:focus,
+        .field input[type="number"]:focus,
+        .field textarea:focus,
+        .field select:focus {
+            border-color: #333; /* تغيير لون الإطار عند التركيز إلى رمادي غامق / أسود */
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.1); /* تعديل الظل ليتناسب مع اللون الجديد */
+            outline: none; /* إزالة الإطار الافتراضي عند التركيز */
+        }
+        .field input[type="date"] {
+            width: calc(100% - 24px); /* ضبط دقيق للـ date input */
+        }
+        .field.full-width {
+            flex: 1 1 100%;
+            margin-right: 0;
+        }
+        .guest-details {
+            border: 1px solid #e0e0e0; /* إطار أنعم لتفاصيل الغرف */
+            padding: 20px; /* زيادة البادينج */
+            border-radius: 8px;
+            margin-bottom: 25px; /* مسافة أكبر بين الغرف */
+            background-color: #fdfdfd; /* خلفية بيضاء تقريباً */
+            display: block; /* Show by default on screen */
+        }
+        .guest-details h4 {
+            margin-top: 0;
+            margin-bottom: 15px; /* مسافة أكبر بعد عنوان الغرفة */
+            color: #0056b3;
+            font-size: 1.1em; /* حجم أكبر لعنوان الغرفة */
+        }
+        .button-group {
+            text-align: center;
+            margin-top: 30px;
+        }
+        .button-group button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1.1em;
+            margin: 0 10px;
+            transition: background-color 0.3s ease;
+        }
+        .button-group button:hover {
+            background-color: #0056b3;
+        }
+        textarea {
+            resize: vertical;
+            min-height: 90px; /* زيادة الارتفاع الافتراضي لمربعات النص */
+        }
+        /* اللوجو على الشاشة */
+        .logo {
+            position: absolute;
+            top: 20px; /* ضبط المسافة من الأعلى */
+            right: 20px; /* ضبط المسافة من اليمين */
+            width: 150px; /* أو الحجم المناسب للوجو */
+            height: auto;
+            z-index: 100; /* للتأكد من أنه يظهر فوق العناصر الأخرى */
+        }
+
+        /* Span to hold the value for printing */
+        .field .print-value {
+            display: none; /* Hidden on screen */
+            padding: 10px 0; /* Match input padding for vertical alignment */
+            font-size: 1em;
+            min-height: 1.2em; /* Ensure some height even if empty */
+            box-sizing: border-box;
+            word-wrap: break-word; /* Allow long text to wrap */
+        }
+
+        /* Styles for print (when printing to PDF) */
+        @media print {
+            body {
+                background-color: #fff;
+                margin: 0; /* Remove body margin for print */
+                padding: 0;
+            }
+            .voucher-container {
+                box-shadow: none;
+                border: 1px solid #a0a0a0; /* Keep the frame for print as well */
+                width: 95%; /* استخدام عرض أكبر للصفحة */
+                max-width: 100%;
+                padding: 20px 30px; /* Adjust padding for print */
+                margin: 10mm auto; /* إضافة هامش علوي وسفلي 10 مم وتوسيط أفقي */
+                page-break-after: always; /* لضمان طباعة كل قسيمة في صفحة جديدة لو كان هناك أكثر من قسيمة (لو لم يتم فصلهم بـ HTML) */
+            }
+            .button-group {
+                display: none;
+            }
+            /* اللوجو عند الطباعة - سيعود للظهور مرة واحدة في أعلى القسيمة */
+            .logo {
+                display: block; /* للتأكد من ظهور اللوجو عند الطباعة */
+                position: absolute; /* يعود إلى absolute ليظل ضمن الـ voucher-container */
+                top: 15px; /* ضبط مكانه للطباعة */
+                right: 15px; /* ضبط مكانه للطباعة */
+                width: 120px; /* قد تحتاج لتصغير حجم اللوجو قليلاً للطباعة */
+                z-index: 100; /* قيمة عادية للطباعة */
+            }
+            .voucher-title-left {
+                display: block; /* Show on print */
+                position: absolute; /* Relative to voucher-container */
+                top: 15px; /* Adjust for print */
+                left: 15px; /* Adjust for print */
+                font-size: 1.8em; /* Slightly smaller for print */
+                font-weight: bold;
+                color: red;
+                z-index: 100;
+            }
+            
+            /* Hide actual input fields and show print-value spans */
+            .field input,
+            .field textarea,
+            .field select {
+                display: none; /* Hide input fields */
+            }
+            .field .print-value {
+                display: block; /* Show print-value spans */
+                border: 1px solid #000 !important; /* بوردر أسود بسمك 1px */
+                border-radius: 6px; /* حواف مدورة للخانات في الطباعة */
+                background-color: transparent !important;
+                padding: 8px; /* بادينج داخلي ليكون النص بعيداً عن الإطار */
+                font-size: 1em; /* حجم خط مناسب للطباعة */
+                min-height: 1.2em;
+                box-sizing: border-box;
+                word-wrap: break-word; /* Allow long text to wrap */
+                line-height: 1.4; /* مسافة بين السطور للطباعة */
+                color: #222; /* لون نص أغمق للطباعة */
+            }
+
+            .field label {
+                font-weight: bold;
+                display: inline-block; /* Keep label inline with value */
+                min-width: 160px; /* زيادة العرض الأدنى لليبل لمساواة المحاذاة */
+                margin-right: 15px; /* مسافة أكبر بين الليبل والقيمة */
+                vertical-align: top; /* Align with top of content */
+                color: #444; /* لون الليبل للطباعة */
+            }
+            .field .print-value {
+                display: inline-block; /* Make value inline with label */
+                width: calc(100% - 180px); /* Adjust width based on label min-width + margin-right */
+                vertical-align: top;
+            }
+            /* For full-width fields, label should be block, then value block */
+            .field.full-width label {
+                display: block;
+                margin-bottom: 5px;
+                min-width: unset; /* Remove min-width for full-width labels */
+            }
+            .field.full-width .print-value {
+                display: block;
+                width: 100%;
+                margin-top: 5px;
+            }
+
+            .field-group {
+                display: flex;
+                flex-wrap: wrap;
+                margin-bottom: 8px; /* تقليل المسافة بين مجموعات الحقول في الطباعة */
+            }
+            .field {
+                flex: 1 1 48%;
+                margin-right: 4%;
+                margin-bottom: 8px; /* تقليل المسافة بين الحقول في الطباعة */
+            }
+            .field:nth-child(2n) {
+                margin-right: 0;
+            }
+            .field.full-width {
+                flex: 1 1 100%;
+                margin-right: 0;
+            }
+            .guest-details {
+                border: 1px dashed #cccccc; /* إطار متقطع لتفاصيل الغرف */
+                page-break-inside: avoid;
+                padding: 15px; /* بادينج أقل للطباعة */
+                margin-bottom: 15px; /* مسافة أقل بين تفاصيل الغرف */
+            }
+            .field textarea#room1Names,
+            .field textarea#room2Names,
+            .field textarea#room3Names,
+            .field textarea#room4Names,
+            .field textarea#room5Names,
+            .field textarea#notes { /* Updated to exclude supplements */
+                white-space: pre-wrap; /* للحفاظ على تنسيق الأسطر الجديدة */
+                width: 100%;
+                height: auto !important; /* السماح بتغير الارتفاع حسب المحتوى */
+            }
+
+            /* Adjust header and section titles for print */
+            .header {
+                padding-bottom: 12px;
+                margin-bottom: 20px;
+            }
+            .section-title {
+                margin-top: 20px;
+                margin-bottom: 12px;
+                padding: 10px 15px;
+                font-size: 1.1em; /* ضبط حجم الخط لعنوان القسم */
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="voucher-container">
+        <img src="image_68fcf5.png" alt="Al Khamees Travel Logo" class="logo">
+
+        <div class="voucher-title-left">Voucher</div>
+
+        <div class="header">
+            <h1 style="display: none;">Al Khamees Travel</h1>
+            <p style="color: red; font-weight: bold; font-size: 1.2em;">Al Khamees Travel and Tourism</p>
+            <p>Tel: (+965)1899777</p>
+            <p>للإتصال أو واتساب</p>
+        </div>
+
+        <div class="section-title">Booking Details</div>
+        <div class="field-group">
+            <div class="field">
+                <label for="bookingRef">Booking Ref.:</label>
+                <input type="text" id="bookingRef" value="4VB8C7">
+                <span class="print-value" data-value="4VB8C7"></span>
+            </div>
+            <div class="field">
+                <label for="date">Date:</label>
+                <input type="date" id="date">
+                <span class="print-value" data-value=""></span>
+            </div>
+            <div class="field full-width">
+                <label for="provider">Provider:</label>
+                <input type="text" id="provider" value="[Provider Name Here]">
+                <span class="print-value" data-value="[Provider Name Here]"></span>
+            </div>
+            <div class="field full-width">
+                <label for="agentName">Agent Name:</label>
+                <input type="text" id="agentName" value="[Agent Name Here]">
+                <span class="print-value" data-value="[Agent Name Here]"></span>
+            </div>
+        </div>
+
+        <div class="section-title">Hotel Details</div>
+        <div class="field-group">
+            <div class="field full-width">
+                <label for="hotelName">Hotel Name:</label>
+                <input type="text" id="hotelName" value="Rixos Premium Qetaifan Island North 5 Stars">
+                <span class="print-value" data-value="Rixos Premium Qetaifan Island North 5 Stars"></span>
+            </div>
+            <div class="field full-width">
+                <label for="hotelAddress">Hotel Address:</label>
+                <input type="text" id="hotelAddress" value="Qetaifan Island North Street 305 Zone 69, 2977, Lusail, Qatar, Doha, Ad-Dawhah, Qatar">
+                <span class="print-value" data-value="Qetaifan Island North Street 305 Zone 69, 2977, Lusail, Qatar, Doha, Ad-Dawhah, Qatar"></span>
+            </div>
+            <div class="field">
+                <label for="hotelTel">Hotel Phone Number:</label>
+                <input type="text" id="hotelTel" value="974-414-44444">
+                <span class="print-value" data-value="974-414-44444"></span>
+            </div>
+        </div>
+
+        <div class="section-title">Accommodation Details</div>
+        <div class="field-group">
+            <div class="field">
+                <label for="holderName">Holder Name:</label>
+                <input type="text" id="holderName" value="Jasem alrabeea">
+                <span class="print-value" data-value="Jasem alrabeea"></span>
+            </div>
+            <div class="field">
+                <label for="arrivalDate">Arrival date:</label>
+                <input type="date" id="arrivalDate" value="2025-08-10">
+                <span class="print-value" data-value="10/08/2025"></span>
+            </div>
+            <div class="field">
+                <label for="departureDate">Departure date:</label>
+                <input type="date" id="departureDate" value="2025-08-15">
+                <span class="print-value" data-value="15/08/2025"></span>
+            </div>
+            <div class="field">
+                <label for="nights">Nights:</label>
+                <input type="number" id="nights" value="5">
+                <span class="print-value" data-value="5"></span>
+            </div>
+            <div class="field">
+                <label for="rooms">Rooms:</label>
+                <input type="number" id="rooms" value="2" min="1" max="5">
+                <span class="print-value" data-value="2"></span>
+            </div>
+            <div class="field">
+                <label for="board">Board:</label>
+                <select id="board">
+                    <option value="Room Only">Room Only</option>
+                    <option value="Bed & Breakfast">Bed & Breakfast</option>
+                    <option value="Half Board">Half Board</option>
+                    <option value="Full Board">Full Board</option>
+                    <option value="All Inclusive" selected>All Inclusive</option>
+                    <option value="Ultra All Inclusive">Ultra All Inclusive</option>
+                </select>
+                <span class="print-value" data-value="All Inclusive"></span>
+            </div>
+        </div>
+
+        <div class="section-title">Room and Guest Details</div>
+
+        <div class="guest-details" id="roomDetails1">
+            <h4>Room 1:</h4>
+            <div class="field full-width">
+                <label for="room1Type">Room Type:</label>
+                <input type="text" id="room1Type" value="DELUXE ROOM SEA VIEW - Y25 (All Inclusive) (3 Persons)" data-base-type="DELUXE ROOM SEA VIEW - Y25 (All Inclusive)">
+                <span class="print-value" data-value="DELUXE ROOM SEA VIEW - Y25 (All Inclusive) (3 Persons)"></span>
+            </div>
+            <div class="field">
+                <label for="room1Persons">Number of Persons in Room:</label>
+                <input type="number" id="room1Persons" value="3" min="1">
+                <span class="print-value" data-value="3"></span>
+            </div>
+            <div class="field full-width">
+                <label for="room1Names">Names:</label>
+                <textarea id="room1Names">ADULT 1-Jasem alrabeea
+CHILD 1-alrabeea Jasem - Age: 5
+CHILD 2-alrabeeaa Jasemm - Age: 10</textarea>
+                <span class="print-value" data-value="ADULT 1-Jasem alrabeea&#10;CHILD 1-alrabeea Jasem - Age: 5&#10;CHILD 2-alrabeeaa Jasemm - Age: 10"></span>
+            </div>
+        </div>
+
+        <div class="guest-details" id="roomDetails2">
+            <h4>Room 2:</h4>
+            <div class="field full-width">
+                <label for="room2Type">Room Type:</label>
+                <input type="text" id="room2Type" value="DELUXE ROOM SEA VIEW - Y25 (All Inclusive) (3 Persons)" data-base-type="DELUXE ROOM SEA VIEW - Y25 (All Inclusive)">
+                <span class="print-value" data-value="DELUXE ROOM SEA VIEW - Y25 (All Inclusive) (3 Persons)"></span>
+            </div>
+            <div class="field">
+                <label for="room2Persons">Number of Persons in Room:</label>
+                <input type="number" id="room2Persons" value="3" min="1">
+                <span class="print-value" data-value="3"></span>
+            </div>
+            <div class="field full-width">
+                <label for="room2Names">Names:</label>
+                <textarea id="room2Names">ADULT 1-Reem alabdulhadi
+CHILD 1-alabdulhadi Reem - Age: 5
+CHILD 2-alabdulhadiii Reemm - Age: 10</textarea>
+                <span class="print-value" data-value="ADULT 1-Reem alabdulhadi&#10;CHILD 1-alabdulhadi Reem - Age: 5&#10;CHILD 2-alabdulhadiii Reemm - Age: 10"></span>
+            </div>
+        </div>
+
+        <div class="guest-details" id="roomDetails3">
+            <h4>Room 3:</h4>
+            <div class="field full-width">
+                <label for="room3Type">Room Type:</label>
+                <input type="text" id="room3Type" value="Standard Room" data-base-type="Standard Room">
+                <span class="print-value" data-value="Standard Room"></span>
+            </div>
+            <div class="field">
+                <label for="room3Persons">Number of Persons in Room:</label>
+                <input type="number" id="room3Persons" value="0" min="1">
+                <span class="print-value" data-value="0"></span>
+            </div>
+            <div class="field full-width">
+                <label for="room3Names">Names:</label>
+                <textarea id="room3Names"></textarea>
+                <span class="print-value" data-value=""></span>
+            </div>
+        </div>
+
+        <div class="guest-details" id="roomDetails4">
+            <h4>Room 4:</h4>
+            <div class="field full-width">
+                <label for="room4Type">Room Type:</label>
+                <input type="text" id="room4Type" value="Standard Room" data-base-type="Standard Room">
+                <span class="print-value" data-value="Standard Room"></span>
+            </div>
+            <div class="field">
+                <label for="room4Persons">Number of Persons in Room:</label>
+                <input type="number" id="room4Persons" value="0" min="1">
+                <span class="print-value" data-value="0"></span>
+            </div>
+            <div class="field full-width">
+                <label for="room4Names">Names:</label>
+                <textarea id="room4Names"></textarea>
+                <span class="print-value" data-value=""></span>
+            </div>
+        </div>
+
+        <div class="guest-details" id="roomDetails5">
+            <h4>Room 5:</h4>
+            <div class="field full-width">
+                <label for="room5Type">Room Type:</label>
+                <input type="text" id="room5Type" value="Standard Room" data-base-type="Standard Room">
+                <span class="print-value" data-value="Standard Room"></span>
+            </div>
+            <div class="field">
+                <label for="room5Persons">Number of Persons in Room:</label>
+                <input type="number" id="room5Persons" value="0" min="1">
+                <span class="print-value" data-value="0"></span>
+            </div>
+            <div class="field full-width">
+                <label for="room5Names">Names:</label>
+                <textarea id="room5Names"></textarea>
+                <span class="print-value" data-value=""></span>
+            </div>
+        </div>
+
+        <div class="section-title">Cancellation and Amendment Policy</div>
+        <div class="field-group">
+            <div class="field full-width">
+                <label for="cancellationPolicy">Cancellation and Amendment Policy Details:</label>
+                <select id="cancellationPolicy">
+                    <option value="non refundable non amendable">non refundable non amendable</option>
+                    <option value="refundable">refundable</option>
+                </select>
+                <span class="print-value" data-value="non refundable non amendable"></span>
+            </div>
+            <div class="field" id="refundableUntilField">
+                <label for="refundableUntilDate">Refundable until:</label>
+                <input type="date" id="refundableUntilDate">
+                <span class="print-value" data-value=""></span>
+            </div>
+            <div class="field" id="cancellationPenaltyField">
+                <label for="cancellationPenalty">Cancellation Penalty:</label>
+                <input type="text" id="cancellationPenalty" placeholder="e.g., 50% or 100 KWD">
+                <span class="print-value" data-value=""></span>
+            </div>
+        </div>
+
+        <div class="section-title">Other Notes</div>
+        <div class="field full-width">
+            <label for="notes">Notes:</label>
+            <textarea id="notes">Only man accommodation is unacceptable.</textarea>
+            <span class="print-value" data-value="Only man accommodation is unacceptable."></span>
+        </div>
+
+        <div class="button-group">
+            <button onclick="window.print()">Print / Download Voucher</button>
+        </div>
+
+    </div>
+
+    <script>
+        // JavaScript for automatic nights calculation
+        const arrivalDateInput = document.getElementById('arrivalDate');
+        const departureDateInput = document.getElementById('departureDate');
+        const nightsInput = document.getElementById('nights');
+        const roomsInput = document.getElementById('rooms');
+        const roomDetailsSections = [];
+        const roomTypeInputs = [];
+        const roomPersonsInputs = [];
+
+        // Populate arrays for easy access
+        for (let i = 1; i <= 5; i++) {
+            roomDetailsSections.push(document.getElementById(`roomDetails${i}`));
+            roomTypeInputs.push(document.getElementById(`room${i}Type`));
+            roomPersonsInputs.push(document.getElementById(`room${i}Persons`));
+        }
+
+        function calculateNights() {
+            const arrival = new Date(arrivalDateInput.value);
+            const departure = new Date(departureDateInput.value);
+
+            if (arrival && departure && departure > arrival) {
+                const timeDiff = Math.abs(departure.getTime() - arrival.getTime());
+                const diffDays = Math.ceil(timeDiff / (1000 * 3600 * 24));
+                nightsInput.value = diffDays;
+                // Update print value as well
+                nightsInput.nextElementSibling.textContent = diffDays;
+                nightsInput.nextElementSibling.dataset.value = diffDays;
+            } else {
+                nightsInput.value = '';
+                nightsInput.nextElementSibling.textContent = '';
+                nightsInput.nextElementSibling.dataset.value = '';
+            }
+        }
+
+        function toggleRoomDetails() {
+            const numRooms = parseInt(roomsInput.value);
+
+            for (let i = 0; i < roomDetailsSections.length; i++) {
+                if (i < numRooms) {
+                    roomDetailsSections[i].style.display = 'block';
+                    updateRoomType(i + 1); // Update type when room becomes visible
+                    // Ensure print values are updated when rooms are toggled
+                    updateAllPrintValuesInRoom(roomDetailsSections[i]);
+                } else {
+                    roomDetailsSections[i].style.display = 'none';
+                    // Clear values and print values for hidden rooms
+                    roomDetailsSections[i].querySelectorAll('input, textarea, select').forEach(input => {
+                        input.value = '';
+                        const printSpan = input.nextElementSibling;
+                        if (printSpan && printSpan.classList.contains('print-value')) {
+                            printSpan.textContent = '';
+                            printSpan.dataset.value = '';
+                        }
+                    });
+                }
+            }
+            roomsInput.nextElementSibling.textContent = numRooms;
+            roomsInput.nextElementSibling.dataset.value = numRooms;
+        }
+
+        // Function to update the room type text with number of persons
+        function updateRoomType(roomNumber) {
+            const typeInput = document.getElementById(`room${roomNumber}Type`);
+            const personsInput = document.getElementById(`room${roomNumber}Persons`);
+            const baseType = typeInput.dataset.baseType; // Get the original base type
+            const typePrintValueSpan = typeInput.nextElementSibling;
+
+            if (typeInput && personsInput && baseType) {
+                const numPersons = parseInt(personsInput.value);
+                let displayValue;
+                if (!isNaN(numPersons) && numPersons > 0) {
+                    displayValue = `${baseType.replace(/ \(\d+ Persons\)/, '')} (${numPersons} Persons)`;
+                } else {
+                    displayValue = baseType.replace(/ \(\d+ Persons\)/, '');
+                }
+                typeInput.value = displayValue;
+                typePrintValueSpan.textContent = displayValue;
+                typePrintValueSpan.dataset.value = displayValue;
+            }
+        }
+
+        // Function to update all .print-value spans
+        function updateAllPrintValues() {
+            document.querySelectorAll('.field input, .field textarea, .field select').forEach(inputElement => {
+                const printValueSpan = inputElement.nextElementSibling;
+                if (printValueSpan && printValueSpan.classList.contains('print-value')) {
+                    let valueToSet;
+                    if (inputElement.tagName === 'SELECT') {
+                        valueToSet = inputElement.options[inputElement.selectedIndex].text; // Get display text for select
+                    } else if (inputElement.type === 'date') {
+                        // Format date for display like 10/08/2025
+                        const date = new Date(inputElement.value);
+                        if (!isNaN(date.getTime()) && inputElement.value !== '') { // Check for valid date and not empty string
+                            valueToSet = date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                        } else {
+                            valueToSet = '';
+                        }
+                    } else {
+                        valueToSet = inputElement.value;
+                    }
+
+                    // Replace newlines with &#10; for data-value if it's a textarea
+                    if (inputElement.tagName === 'TEXTAREA') {
+                        printValueSpan.dataset.value = valueToSet.replace(/\n/g, '&#10;');
+                        printValueSpan.innerHTML = valueToSet.replace(/\n/g, '<br>'); // Use <br> for visual line breaks
+                    } else {
+                        printValueSpan.textContent = valueToSet;
+                        printValueSpan.dataset.value = valueToSet;
+                    }
+                }
+            });
+        }
+
+        // Helper to update print values within a specific room section
+        function updateAllPrintValuesInRoom(roomSection) {
+            roomSection.querySelectorAll('input, textarea, select').forEach(inputElement => {
+                const printValueSpan = inputElement.nextElementSibling;
+                if (printValueSpan && printValueSpan.classList.contains('print-value')) {
+                    let valueToSet;
+                    if (inputElement.tagName === 'SELECT') {
+                        valueToSet = inputElement.options[inputElement.selectedIndex].text;
+                    } else if (inputElement.type === 'date') {
+                        const date = new Date(inputElement.value);
+                        if (!isNaN(date.getTime()) && inputElement.value !== '') {
+                            valueToSet = date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                        } else {
+                            valueToSet = '';
+                        }
+                    } else {
+                        valueToSet = inputElement.value;
+                    }
+
+                    if (inputElement.tagName === 'TEXTAREA') {
+                        printValueSpan.dataset.value = valueToSet.replace(/\n/g, '&#10;');
+                        printValueSpan.innerHTML = valueToSet.replace(/\n/g, '<br>');
+                    } else {
+                        printValueSpan.textContent = valueToSet;
+                        printValueSpan.dataset.value = valueToSet;
+                    }
+                }
+            });
+        }
+
+        // Cancellation Policy fields
+        const cancellationPolicySelect = document.getElementById('cancellationPolicy');
+        const refundableUntilField = document.getElementById('refundableUntilField');
+        const cancellationPenaltyField = document.getElementById('cancellationPenaltyField');
+
+        function toggleCancellationPolicyFields() {
+            if (cancellationPolicySelect.value === 'refundable') {
+                refundableUntilField.style.display = 'block';
+                cancellationPenaltyField.style.display = 'block';
+            } else {
+                refundableUntilField.style.display = 'none';
+                cancellationPenaltyField.style.display = 'none';
+                // Clear values when hidden
+                document.getElementById('refundableUntilDate').value = '';
+                document.getElementById('cancellationPenalty').value = '';
+            }
+            // Ensure print values are updated after toggling display
+            updateAllPrintValues();
+        }
+
+
+        // Add event listeners for general input/select changes
+        arrivalDateInput.addEventListener('change', calculateNights);
+        departureDateInput.addEventListener('change', calculateNights);
+        roomsInput.addEventListener('input', toggleRoomDetails);
+        cancellationPolicySelect.addEventListener('change', toggleCancellationPolicyFields); // Listener for cancellation policy
+
+        // Listen for changes on individual room persons input to update room type text
+        roomPersonsInputs.forEach((input, index) => {
+            input.addEventListener('input', () => updateRoomType(index + 1));
+        });
+
+        document.querySelectorAll('.field input[type="text"], .field input[type="number"], .field textarea').forEach(input => {
+            input.addEventListener('input', () => {
+                const printValueSpan = input.nextElementSibling;
+                if (printValueSpan && printValueSpan.classList.contains('print-value')) {
+                    if (input.tagName === 'TEXTAREA') {
+                        printValueSpan.dataset.value = input.value.replace(/\n/g, '&#10;');
+                        printValueSpan.innerHTML = input.value.replace(/\n/g, '<br>');
+                    } else {
+                        printValueSpan.textContent = input.value;
+                        printValueSpan.dataset.value = input.value;
+                    }
+                }
+            });
+        });
+
+        document.querySelectorAll('.field select').forEach(select => {
+            select.addEventListener('change', () => {
+                const printValueSpan = select.nextElementSibling;
+                if (printValueSpan && printValueSpan.classList.contains('print-value')) {
+                    printValueSpan.textContent = select.options[select.selectedIndex].text;
+                    printValueSpan.dataset.value = select.options[select.selectedIndex].text;
+                }
+            });
+        });
+
+        document.querySelectorAll('.field input[type="date"]').forEach(dateInput => {
+            dateInput.addEventListener('change', () => {
+                const printValueSpan = dateInput.nextElementSibling;
+                if (printValueSpan && printValueSpan.classList.contains('print-value')) {
+                    const date = new Date(dateInput.value);
+                    if (!isNaN(date.getTime()) && dateInput.value !== '') { // Check for valid date and not empty string
+                        const formattedDate = date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                        printValueSpan.textContent = formattedDate;
+                        printValueSpan.dataset.value = formattedDate;
+                    } else {
+                        printValueSpan.textContent = '';
+                        printValueSpan.dataset.value = '';
+                    }
+                }
+            });
+        });
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            // Set today's date for the 'Date:' field
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0'); // Month is 0-indexed
+            const day = String(today.getDate()).padStart(2, '0');
+            const formattedDateISO = `${year}-${month}-${day}`;
+            document.getElementById('date').value = formattedDateISO;
+
+            calculateNights(); // Calculate nights based on initial dates
+            toggleRoomDetails(); // Show/hide rooms based on initial value
+            toggleCancellationPolicyFields(); // Set initial state for cancellation fields
+            updateAllPrintValues(); // Ensure all print values are set initially
+        });
+
+    </script>
+</body>
+</html>
