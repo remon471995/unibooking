@@ -77,6 +77,7 @@ USE_TZ = True
 
 # ملفات ستاتيك وميديا
 STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [BASE_DIR / 'static']     # اعمل مجلد static فاضي
 STATIC_ROOT = BASE_DIR / 'staticfiles'       # للإنتاج (collectstatic)
 
