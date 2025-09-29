@@ -1,1 +1,1 @@
-web: gunicorn unibooking.wsgi
+web: gunicorn unibooking.wsgi:application
