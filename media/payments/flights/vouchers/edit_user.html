@@ -1,0 +1,29 @@
+{% extends "core/base.html" %}
+{% block content %}
+<div class="max-w-2xl mx-auto mt-8 bg-white shadow rounded-lg p-6">
+  <h1 class="text-2xl font-bold mb-4">تعديل المستخدم: {{ the_user.username }}</h1>
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="grid gap-4">
+      <label>البريد الإلكتروني</label>
+      {{ uform.email }}
+      <label>الموبايل</label>
+      {{ pform.phone }}
+      <label>القسم</label>
+      {{ pform.department }}
+      <label>المسمى الوظيفي</label>
+      {{ pform.job_title }}
+      <label>العنوان</label>
+      {{ pform.address }}
+      <label>الصورة</label>
+      {{ pform.avatar }}
+      <label>ملاحظات</label>
+      {{ pform.notes }}
+      <div>
+        <button class="bg-blue-600 text-white px-4 py-2 rounded">حفظ</button>
+        <a href="{% url 'accounts:manage_staff' %}" class="ml-2 text-gray-600">إلغاء</a>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}

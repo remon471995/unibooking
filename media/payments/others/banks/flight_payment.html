@@ -1,0 +1,139 @@
+{% extends "core/base.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 py-8">
+
+  <div class="flex items-center justify-between mb-4">
+    <a href="{% url 'card_detail' booking.card_id %}" class="btn btn-light">رجوع للكارت</a>
+    <h1 class="text-xl font-bold">إدارة دفع الفندق</h1>
+  </div>
+
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+    <div class="bg-white border rounded-xl p-4"><div class="text-xs text-gray-500">Net</div><div class="text-lg font-bold">{{ total_net|floatformat:2|intcomma }}</div></div>
+    <div class="bg-white border rounded-xl p-4"><div class="text-xs text-gray-500">Sell</div><div class="text-lg font-bold">{{ total_sell|floatformat:2|intcomma }}</div></div>
+    <div class="bg-white border rounded-xl p-4"><div class="text-xs text-gray-500">المدفوع</div><div class="text-lg font-bold">{{ total_paid|floatformat:2|intcomma }}</div></div>
+    <div class="bg-white border rounded-xl p-4"><div class="text-xs text-gray-500">المتبقي</div><div class="text-lg font-extrabold text-red-600">{{ remaining|floatformat:2|intcomma }}</div></div>
+    <div class="bg-white border rounded-xl p-4"><div class="text-xs text-gray-500">الربح</div><div class="text-lg font-extrabold text-emerald-600">{{ profit|floatformat:2|intcomma }}</div></div>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-6">
+    <div class="bg-white border rounded-xl p-4">
+      <h2 class="font-semibold mb-3">قائمة الدفعات المسجلة</h2>
+      {% include "core/_payments_table.html" %}
+    </div>
+
+    <div class="bg-white border rounded-xl p-4">
+      {% if not allow_new_payment %}
+        <div class="text-center text-emerald-700 py-10">تم السداد بالكامل — لا يمكن إضافة دفعات أخرى.</div>
+      {% else %}
+        <h2 class="font-semibold mb-3">إضافة دفعة جديدة</h2>
+
+        <form id="pay-form"
+              method="post" enctype="multipart/form-data" class="space-y-3"
+              data-first="{% if not has_existing %}1{% else %}0{% endif %}"
+              data-sell="{{ total_sell|floatformat:'2' }}">
+          {% csrf_token %}
+
+          {% if form.net_price %}<div>
+            <label class="text-sm text-gray-600">Net</label>{{ form.net_price }}
+          </div>{% endif %}
+          {% if form.sell_price %}<div>
+            <label class="text-sm text-gray-600">Sell</label>{{ form.sell_price }}
+          </div>{% endif %}
+
+          <div>
+            <label class="text-sm text-gray-600">المبلغ المدفوع</label>{{ form.paid_amount }}
+          </div>
+
+          <div>
+            <label class="text-sm text-gray-600">طريقة الدفع</label>{{ form.method }}
+          </div>
+
+          {% if form.installment_date %}
+          <div id="row-due">
+            <label class="text-sm text-gray-600">آخر ميعاد للدفع (للأول فقط عند عدم السداد كاملًا)</label>
+            {{ form.installment_date }}
+          </div>
+          {% endif %}
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div id="row-bank">
+              <label class="text-sm text-gray-600">إيصال الدفع (كاش/تحويل)</label>{{ form.bank_file }}
+            </div>
+            {% if form.invoice_file %}<div id="row-invoice">
+              <label class="text-sm text-gray-600">الفاتورة (أول دفعة)</label>{{ form.invoice_file }}
+            </div>{% endif %}
+            {% if form.voucher_original %}<div id="row-voucher">
+              <label class="text-sm text-gray-600">الفوّتشر الأصلي (أول دفعة)</label>{{ form.voucher_original }}
+            </div>{% endif %}
+          </div>
+
+          {% if form.payment_link %}
+          <div id="row-link">
+            <label class="text-sm text-gray-600">رابط الدفع</label>{{ form.payment_link }}
+          </div>
+          {% endif %}
+
+          <button class="px-4 py-2 rounded-lg bg-blue-600 text-white w-full">حفظ الدفعة</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const $ = (s, r=document) => r.querySelector(s);
+  const form = $("#pay-form"); if (!form) return;
+
+  const isFirst = form.dataset.first === "1";
+  const rowBank    = $("#row-bank");
+  const rowLink    = $("#row-link");
+  const rowDue     = $("#row-due");
+  const rowInv     = $("#row-invoice");
+  const rowVoucher = $("#row-voucher");
+
+  const selMethod  = $("#id_method");
+  const inPaid     = $("#id_paid_amount");
+  const inSellFirst= $("#id_sell_price");               // موجود فقط في أول دفعة
+  const sellStatic = parseFloat(form.dataset.sell || "0");
+
+  function show(el, ok){ if(!el) return; el.style.display = ok ? "" : "none"; }
+
+  function currentSell(){
+    // في أول دفعة نقرأ من حقل Sell، وإلا من إجمالي sell للبوكينج
+    if (isFirst && inSellFirst) {
+      const v = parseFloat(inSellFirst.value || "0"); return isNaN(v)?0:v;
+    }
+    return isNaN(sellStatic)?0:sellStatic;
+  }
+
+  function refresh(){
+    const method = selMethod ? selMethod.value : "";
+    const paid = parseFloat((inPaid && inPaid.value) ? inPaid.value : "0") || 0;
+    const sell = currentSell();
+
+    // link vs bank/cash
+    show(rowBank, method === "bank" || method === "cash");
+    show(rowLink, method === "link");
+
+    // due date: فقط أول دفعة && paid < sell
+    show(rowDue, isFirst && paid > 0 && sell > 0 && paid < sell);
+
+    // الفاتورة/الفوّتشر يظهروا في أول دفعة فقط (موجودين أساسًا بس نزود safeguard)
+    show(rowInv, !!rowInv && isFirst);
+    show(rowVoucher, !!rowVoucher && isFirst);
+  }
+
+  ["change","keyup","input"].forEach(ev=>{
+    if (selMethod) selMethod.addEventListener(ev, refresh);
+    if (inPaid)    inPaid.addEventListener(ev, refresh);
+    if (inSellFirst) inSellFirst.addEventListener(ev, refresh);
+  });
+
+  // أول تحميل
+  refresh();
+})();
+</script>
+{% endblock %}

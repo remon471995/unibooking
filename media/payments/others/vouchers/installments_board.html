@@ -1,0 +1,177 @@
+{% extends "core/base.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-8 space-y-8">
+
+  <!-- العنوان + فلاتر -->
+  <div class="flex flex-col md:flex-row items-start md:items-end justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-extrabold text-gray-800">لوحة التحكم بالأقساط</h1>
+      <p class="text-sm text-gray-500 mt-1">متابعة الأقساط وتنفيذ التحصيل بسرعة.</p>
+    </div>
+
+    <form method="get" class="bg-white border rounded-xl p-3 flex flex-wrap items-end gap-3">
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">من تاريخ الحجز</label>
+        <input type="date" name="from" value="{{ q_from }}" class="border rounded-md px-2 py-1.5">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">إلى تاريخ الحجز</label>
+        <input type="date" name="to" value="{{ q_to }}" class="border rounded-md px-2 py-1.5">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">بحث بالعميل</label>
+        <input type="text" name="q" value="{{ q }}" placeholder="اسم العميل…" class="border rounded-md px-2 py-1.5">
+      </div>
+      <label class="flex items-center gap-2 text-sm text-gray-700 ml-2">
+        <input type="checkbox" name="only_due" value="1" {% if only_due %}checked{% endif %}>
+        إظهار ذات المتبقي فقط
+      </label>
+      <button class="px-4 py-2 rounded-lg bg-blue-600 text-white">تطبيق</button>
+    </form>
+  </div>
+
+  <!-- KPIs -->
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+    <div class="bg-white rounded-xl shadow border p-4">
+      <div class="text-xs text-gray-500">إجمالي البيع</div>
+      <div class="text-xl font-bold mt-1">{{ kpis.total_sell|floatformat:2|intcomma }}</div>
+    </div>
+    <div class="bg-white rounded-xl shadow border p-4">
+      <div class="text-xs text-gray-500">إجمالي النت</div>
+      <div class="text-xl font-bold mt-1">{{ kpis.total_net|floatformat:2|intcomma }}</div>
+    </div>
+    <div class="bg-white rounded-xl shadow border p-4">
+      <div class="text-xs text-gray-500">المدفوع</div>
+      <div class="text-xl font-bold mt-1">{{ kpis.total_paid|floatformat:2|intcomma }}</div>
+    </div>
+    <div class="bg-white rounded-xl shadow border p-4">
+      <div class="text-xs text-gray-500">المتبقي</div>
+      <div class="text-xl font-bold mt-1">{{ kpis.total_remaining|floatformat:2|intcomma }}</div>
+    </div>
+    <div class="bg-white rounded-xl shadow border p-4">
+      <div class="text-xs text-gray-500">الربح</div>
+      <div class="text-xl font-bold mt-1">{{ kpis.total_profit|floatformat:2|intcomma }}</div>
+    </div>
+  </div>
+
+  <!-- تذكير بالأقساط القريبة -->
+  <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-semibold text-amber-900">
+        تذكير بالأقساط القادمة خلال {{ remind_days }} يوم
+      </h2>
+      <span class="text-xs text-amber-800">{{ reminders|length }} قسط</span>
+    </div>
+
+    {% if reminders %}
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead>
+          <tr class="text-amber-900">
+            <th class="text-right py-2 px-2">تاريخ الاستحقاق</th>
+            <th class="text-right py-2 px-2">العميل</th>
+            <th class="text-right py-2 px-2">النوع</th>
+            <th class="text-right py-2 px-2">المبلغ</th>
+            <th class="text-right py-2 px-2">بعد/قبل (يوم)</th>
+            <th class="text-right py-2 px-2">التحصيل</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in reminders %}
+          <tr class="border-t">
+            <td class="py-2 px-2 whitespace-nowrap">{{ r.due }}</td>
+            <td class="py-2 px-2">{{ r.customer }}</td>
+            <td class="py-2 px-2">
+              {% if r.kind == 'فندق' %}
+                <span class="inline-flex items-center px-2 py-0.5 rounded bg-blue-100 text-blue-800">فندق</span>
+              {% elif r.kind == 'طيران' %}
+                <span class="inline-flex items-center px-2 py-0.5 rounded bg-green-100 text-green-800">طيران</span>
+              {% else %}
+                <span class="inline-flex items-center px-2 py-0.5 rounded bg-purple-100 text-purple-800">أخرى</span>
+              {% endif %}
+            </td>
+            <td class="py-2 px-2">{{ r.amount|floatformat:2|intcomma }}</td>
+            <td class="py-2 px-2 {% if r.days is not None and r.days < 0 %}text-red-700{% endif %}">
+              {% if r.days is not None %}{{ r.days }}{% else %}-{% endif %}
+            </td>
+            <td class="py-2 px-2">
+              <a href="{{ r.url }}" class="text-blue-600 hover:underline">إدارة الدفعات</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <div class="text-sm text-amber-800">لا توجد أقساط مستحقة قريبًا.</div>
+    {% endif %}
+  </div>
+
+  <!-- جدول موحّد للحركة -->
+  <div class="bg-white border rounded-xl shadow">
+    <div class="flex items-center justify-between px-4 py-3 border-b">
+      <h2 class="font-bold text-gray-800">الحجوزات ضمن النطاق</h2>
+      <span class="text-xs text-gray-500">{{ rows|length }} صف</span>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="bg-gray-50">
+          <tr class="text-gray-700">
+            <th class="text-right py-2 px-3">تاريخ الإنشاء</th>
+            <th class="text-right py-2 px-3">تاريخ الحجز</th>
+            <th class="text-right py-2 px-3">رقم الحجز</th>  {# بدلاً من النوع #}
+            <th class="text-right py-2 px-3">العميل</th>
+            <th class="text-right py-2 px-3">الموظف</th>
+            <th class="text-right py-2 px-3">البيع</th>
+            <th class="text-right py-2 px-3">النت</th>
+            <th class="text-right py-2 px-3">المدفوع</th>
+            <th class="text-right py-2 px-3">المتبقي</th>
+            <th class="text-right py-2 px-3">الربح</th>
+            <th class="text-right py-2 px-3">آخر ميعاد قسط</th>
+            <th class="text-right py-2 px-3">إدارة</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          <tr class="border-t hover:bg-gray-50">
+            <td class="py-2 px-3 whitespace-nowrap">{{ r.date|date:"Y-m-d H:i" }}</td>
+            <td class="py-2 px-3 whitespace-nowrap">{% if r.book_date %}{{ r.book_date|date:"Y-m-d" }}{% else %}-{% endif %}</td>
+
+            <!-- رقم الحجز -->
+            <td class="py-2 px-3 whitespace-nowrap font-mono">{{ r.voucher }}</td>
+
+            <td class="py-2 px-3">{{ r.customer }}</td>
+            <td class="py-2 px-3">{{ r.employee }}</td>
+            <td class="py-2 px-3">{{ r.sell|floatformat:2|intcomma }}</td>
+            <td class="py-2 px-3">{{ r.net|floatformat:2|intcomma }}</td>
+            <td class="py-2 px-3">{{ r.paid|floatformat:2|intcomma }}</td>
+            <td class="py-2 px-3 font-semibold {% if r.remain > 0 %}text-red-700{% else %}text-emerald-700{% endif %}">
+              {{ r.remain|floatformat:2|intcomma }}
+            </td>
+            <td class="py-2 px-3 font-semibold {% if r.profit >= 0 %}text-emerald-700{% else %}text-red-700{% endif %}">
+              {{ r.profit|floatformat:2|intcomma }}
+            </td>
+            <td class="py-2 px-3 {% if r.last_due and r.remain > 0 and today and r.last_due < today %}text-red-700{% endif %}">
+              {% if r.last_due %}{{ r.last_due|date:"Y-m-d" }}{% else %}-{% endif %}
+            </td>
+            <td class="py-2 px-3 whitespace-nowrap">
+              <a href="{{ r.detail_url }}" class="text-blue-600 hover:underline">الكارت</a>
+              <span class="text-gray-300 mx-1">|</span>
+              <a href="{{ r.pay_url }}" class="text-indigo-600 hover:underline">الدفعات</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="12" class="py-6 text-center text-gray-500">لا توجد بيانات ضمن النطاق المحدد.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

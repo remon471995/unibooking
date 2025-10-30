@@ -1,0 +1,76 @@
+{% extends "core/base.html" %}
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 py-6 space-y-4">
+  {% include "helpdesk/_topbar.html" %}
+
+  <h2 class="text-lg font-bold">إنشاء تذكرة جديدة</h2>
+
+  <div class="bg-white rounded-xl shadow p-4">
+    <form method="post" enctype="multipart/form-data" class="space-y-4">
+      {% csrf_token %}
+
+      <div>
+        <label class="block text-sm text-gray-600 mb-1">الموضوع</label>
+        {{ form.subject }}
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-4">
+        <div>
+          <label class="block text-sm text-gray-600 mb-1">القسم</label>
+          {{ form.department }}
+        </div>
+        <div>
+          <label class="block text-sm text-gray-600 mb-1">الفئة</label>
+          {{ form.category }}
+        </div>
+        <div>
+          <label class="block text-sm text-gray-600 mb-1">الأولوية</label>
+          {{ form.priority }}
+        </div>
+      </div>
+
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm text-gray-600 mb-1">مرجع داخلي (اختياري)</label>
+          {{ form.related_ref }}
+        </div>
+        <div>
+          <label class="block text-sm text-gray-600 mb-1">رابط داخلي (اختياري)</label>
+          {{ form.related_url }}
+        </div>
+      </div>
+
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm text-gray-600 mb-1">كيان مرتبط (اختياري)</label>
+          {{ form.related_model }}
+        </div>
+        <div>
+          <label class="block text-sm text-gray-600 mb-1">المعرف المرتبط (ID)</label>
+          {{ form.related_id }}
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-600 mb-1">تصنيفات (Tags)</label>
+        {{ form.tags }}
+        <div class="text-xs text-gray-500 mt-1">اختر أكثر من Tag بالضغط مع Ctrl/⌘.</div>
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-600 mb-1">تفاصيل الطلب</label>
+        {{ form.body }}
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-600 mb-1">مرفق (اختياري)</label>
+        {{ form.attachment }}
+      </div>
+
+      <div class="pt-2">
+        <button class="px-4 py-2 rounded bg-gray-900 text-white">إنشاء التذكرة</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

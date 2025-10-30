@@ -1,0 +1,40 @@
+{% load humanize %}
+<table class="table table-sm w-full">
+  <thead>
+    <tr>
+      <th>التاريخ</th>
+      <th>المبلغ</th>
+      <th>الطريقة</th>
+      <th>المرفقات</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% if payments %}
+      {% for p in payments %}
+      <tr>
+        <td>{{ p.created_at|date:"Y-m-d H:i" }}</td>
+        <td class="text-end">{{ p.paid_amount|floatformat:2|intcomma }}</td>
+        <td>{{ p.get_method_display }}</td>
+        <td class="space-x-1 space-y-1">
+          {% if p.invoice_file %}
+            <a href="{{ p.invoice_file.url }}" target="_blank" class="badge text-bg-secondary">الفاتورة</a>
+          {% endif %}
+          {% if p.bank_file %}
+            <a href="{{ p.bank_file.url }}" target="_blank" class="badge text-bg-secondary">التحويل</a>
+          {% endif %}
+          {% if p.voucher_original %}
+            <a href="{{ p.voucher_original.url }}" target="_blank" class="badge text-bg-secondary">الفوشر</a>
+          {% endif %}
+          {% if p.payment_link %}
+            <a href="{{ p.payment_link }}" target="_blank" class="badge text-bg-primary">الرابط</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    {% else %}
+      <tr>
+        <td colspan="4" class="text-center">لا توجد دفعات مسجلة بعد.</td>
+      </tr>
+    {% endif %}
+  </tbody>
+</table>

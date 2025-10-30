@@ -14,8 +14,9 @@
             position: relative;
         }
 
-        /* Watermark */
+        /* ✅ إخفاء زر الطباعة في PDF/Print */
         @media print {
+            .print-btn { display: none !important; }
             .watermark {
                 position: fixed;
                 top: 50%;
@@ -38,28 +39,24 @@
         .status { font-size: 10pt; font-weight: bold; color: #198754; }
         .section-title { font-size: 13pt; font-weight: bold; color: #0d6efd; margin: 20px 0 10px; border-bottom: 1px solid #ccc; }
         .details-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-        .details-table td { padding: 10px; border: 1px solid #ddd; background: #f8f9fa; vertical-align: top; }
+        .details-table td, .details-table th { padding: 10px; border: 1px solid #ddd; vertical-align: top; }
         .label { font-size: 9pt; color: #666; display: block; margin-bottom: 2px; }
-        .value { font-size: 11pt; font-weight: bold; }
+        .value { font-size: 11pt; font-weight: bold; white-space: pre-line; }
         .footer { text-align: center; font-size: 9pt; color: #555; margin-top: 30px; border-top: 1px solid #eee; padding-top: 10px; }
         .policy-box { background: #fff8f0; border: 1px dashed #f39c12; padding: 12px; border-radius: 6px; font-size: 9.5pt; color: #444; }
         .print-btn { margin: 20px auto; display: block; background: #0d6efd; color: #fff; padding: 10px 20px; border-radius: 6px; border: none; font-size: 12pt; cursor: pointer; }
         .print-btn:hover { background: #0b5ed7; }
-
         .page-break { page-break-before: always; }
     </style>
 </head>
 <body>
 
-<!-- Watermark -->
+<a href="{% url 'hotel_voucher_pdf' booking.pk %}" class="print-btn">🖨️ طباعة وتنزيل PDF</a>
+
 <div class="watermark">
   <img src="{% static 'logo_khamees.png' %}" alt="Watermark">
 </div>
 
-<!-- زر الطباعة -->
-<button class="print-btn" onclick="window.print()">🖨️ طباعة النسختين</button>
-
-<!-- ==================== النسخة العربية ==================== -->
 <div class="container" dir="rtl">
     <h2 class="section-title">قسيمة الإقامة (عربي)</h2>
     <table class="header-table">
@@ -112,21 +109,34 @@
         </tr>
     </table>
 
+    <h2 class="section-title">تفاصيل الغرف</h2>
+    <table class="details-table">
+      <tr>
+        <th>الغرفة</th>
+        <th>أسماء النزلاء</th>
+      </tr>
+      {% for room in rooms %}
+      <tr>
+        <td>غرفة {{ forloop.counter }}</td>
+        <td class="value">{{ room.guest_names|linebreaksbr }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="2" style="text-align:center; color:#999;">لا توجد غرف مسجلة</td></tr>
+      {% endfor %}
+    </table>
+
     <h2 class="section-title">سياسة الإلغاء والتعديل</h2>
     <div class="policy-box">
         {% if booking.cancellation_policy == "refundable" and booking.refundable_until %}
             <p>🔹 إلغاء مجاني حتى <strong>{{ booking.refundable_until|date:"d M, Y" }}</strong>.</p>
             <p>🔹 بعد هذا التاريخ يعتبر الحجز <strong>غير قابل للإلغاء أو التعديل</strong>.</p>
-
         {% elif booking.cancellation_policy == "refundable_with_penalty" and booking.refundable_until and booking.cancellation_penalty_value %}
             <p>🔹 يمكن الإلغاء برسوم <strong>{{ booking.cancellation_penalty_value }}</strong>
                {% if booking.cancellation_penalty_type == "percent" %}%{% else %} {{ booking.currency|default:"KWD" }}{% endif %}
                حتى <strong>{{ booking.refundable_until|date:"d M, Y" }}</strong>.</p>
             <p>🔹 بعد هذا التاريخ يعتبر الحجز <strong>غير قابل للإلغاء أو التعديل</strong>.</p>
-
         {% elif booking.cancellation_policy == "non_refundable" %}
             <p>⚠️ هذا الحجز <strong>غير قابل للإلغاء أو التعديل</strong>.</p>
-
         {% else %}
             <p>🔹 لم يتم تحديد سياسة إلغاء.</p>
         {% endif %}
@@ -149,10 +159,8 @@
     </div>
 </div>
 
-<!-- 🔹 فاصل للنسخة الإنجليزية -->
 <div class="page-break"></div>
 
-<!-- ==================== النسخة الإنجليزية ==================== -->
 <div class="container" dir="ltr">
     <h2 class="section-title">Accommodation Voucher (English)</h2>
     <table class="header-table">
@@ -205,21 +213,34 @@
         </tr>
     </table>
 
+    <h2 class="section-title">Room Details</h2>
+    <table class="details-table">
+      <tr>
+        <th>Room</th>
+        <th>Guest Names</th>
+      </tr>
+      {% for room in rooms %}
+      <tr>
+        <td>Room {{ forloop.counter }}</td>
+        <td class="value">{{ room.guest_names|linebreaksbr }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="2" style="text-align:center; color:#999;">No rooms registered</td></tr>
+      {% endfor %}
+    </table>
+
     <h2 class="section-title">Cancellation & Amendment Policy</h2>
     <div class="policy-box">
         {% if booking.cancellation_policy == "refundable" and booking.refundable_until %}
             <p>🔹 Free cancellation until <strong>{{ booking.refundable_until|date:"d M, Y" }}</strong>.</p>
             <p>🔹 After this date, booking will be <strong>non-refundable</strong>.</p>
-
         {% elif booking.cancellation_policy == "refundable_with_penalty" and booking.refundable_until and booking.cancellation_penalty_value %}
             <p>🔹 Cancellation fee of <strong>{{ booking.cancellation_penalty_value }}</strong>
                {% if booking.cancellation_penalty_type == "percent" %}%{% else %} {{ booking.currency|default:"KWD" }}{% endif %}
                until <strong>{{ booking.refundable_until|date:"d M, Y" }}</strong>.</p>
             <p>🔹 After this date, booking will be <strong>non-refundable</strong>.</p>
-
         {% elif booking.cancellation_policy == "non_refundable" %}
             <p>⚠️ This booking is <strong>non-refundable</strong>.</p>
-
         {% else %}
             <p>🔹 Cancellation policy not defined.</p>
         {% endif %}

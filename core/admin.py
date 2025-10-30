@@ -6,9 +6,10 @@ from django.contrib.auth.models import Group
 from django.utils.translation import gettext_lazy as _
 
 from .models import (
-    Department,
+    Department, EmployeeProfile,
     UniBookingCard, HotelBooking, FlightBooking,
     Payment, FlightPayment, OtherBooking, OtherPayment,
+    TargetCycle, StaffTarget, LeaderTarget, BookingAdjustment
 )
 
 User = get_user_model()
@@ -101,6 +102,31 @@ class OtherPaymentAdmin(admin.ModelAdmin):
         return obj.booking_other.get_service_type_display()
     service_type.short_description = "نوع الخدمة"
 
+
+# ================== Targets & Adjustments ==================
+@admin.register(TargetCycle)
+class TargetCycleAdmin(admin.ModelAdmin):
+    list_display = ("year", "month", "start_date", "end_date", "locked")
+    list_filter = ("locked",)
+
+@admin.register(StaffTarget)
+class StaffTargetAdmin(admin.ModelAdmin):
+    list_display = ("cycle", "employee", "leader", "set_by", "grade", "target_amount",
+                    "thr1", "rate1", "thr2", "rate2", "thr3", "rate3")
+    list_filter = ("cycle", "grade")
+    search_fields = ("employee__username", "employee__first_name", "employee__last_name")
+
+@admin.register(LeaderTarget)
+class LeaderTargetAdmin(admin.ModelAdmin):
+    list_display = ("cycle", "leader", "target_amount", "set_by")
+    list_filter = ("cycle",)
+    search_fields = ("leader__username", "leader__first_name", "leader__last_name")
+
+@admin.register(BookingAdjustment)
+class BookingAdjustmentAdmin(admin.ModelAdmin):
+    list_display = ("booking_type", "booking_id", "amount", "adj_type", "apply_in_cycle", "cycle", "created_by", "created_at")
+    list_filter = ("booking_type", "adj_type", "apply_in_cycle")
+    search_fields = ("reason",)
 
 
 # ================== Departments ==================

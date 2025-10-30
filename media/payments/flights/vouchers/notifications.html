@@ -1,0 +1,30 @@
+{# core/templates/core/notifications.html #}
+{% extends "base.html" %}
+{% block title %}التنبيهات{% endblock %}
+
+{% block content %}
+<h1 class="text-xl font-semibold mb-4">التنبيهات</h1>
+
+{% if notifications %}
+  <ul class="space-y-3">
+    {% for n in notifications %}
+      <li>
+        <a href="{% url 'notification_mark_read' n.pk %}"
+           class="block p-3 rounded-lg border hover:bg-gray-50">
+          <div class="text-sm">{{ n.message }}</div>
+          {% if n.due_date %}
+            <div class="text-xs text-gray-500 mt-1">استحقاق: {{ n.due_date }}</div>
+          {% endif %}
+          {% if not n.is_read %}
+            <span class="inline-block mt-1 text-[10px] px-2 py-0.5 rounded bg-yellow-100 text-yellow-700">
+              غير مقروء
+            </span>
+          {% endif %}
+        </a>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p class="text-gray-500">لا توجد تنبيهات.</p>
+{% endif %}
+{% endblock %}

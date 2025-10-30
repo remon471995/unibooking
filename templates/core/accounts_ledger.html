@@ -1,0 +1,133 @@
+{% extends 'core/base.html' %}
+{% load humanize %} {# لتحسين عرض الأرقام #}
+
+{% block title %}دفتر الأستاذ العام{% endblock %}
+
+{% block content %}
+<div class="bg-white dark:bg-gray-900 shadow rounded-lg p-4 md:p-6 mb-6">
+  <h1 class="text-xl md:text-2xl font-bold mb-4">دفتر الأستاذ العام</h1>
+
+  {# --- قسم الفلاتر --- #}
+  <form method="get" class="grid grid-cols-1 md:grid-cols-6 gap-3 mb-4 items-end">
+    <div>
+      <label class="block text-xs mb-1">من تاريخ</label>
+      <input type="date" name="from" value="{{ filter_from|default:'' }}" class="w-full px-3 py-1.5 rounded-md bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm">
+    </div>
+    <div>
+      <label class="block text-xs mb-1">إلى تاريخ</label>
+      <input type="date" name="to" value="{{ filter_to|default:'' }}" class="w-full px-3 py-1.5 rounded-md bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm">
+    </div>
+    <div>
+      <label class="block text-xs mb-1">اسم العميل</label>
+      <input type="text" name="customer" value="{{ filter_customer|default:'' }}" placeholder="بحث..." class="w-full px-3 py-1.5 rounded-md bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm">
+    </div>
+    <div>
+      <label class="block text-xs mb-1">الموظف</label>
+      <input type="text" name="employee" value="{{ filter_employee|default:'' }}" placeholder="بحث..." class="w-full px-3 py-1.5 rounded-md bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm">
+    </div>
+    <div>
+      <label class="block text-xs mb-1">نوع الحجز</label>
+      <select name="type" class="w-full px-3 py-1.5 rounded-md bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm">
+        <option value="" {% if not filter_type %}selected{% endif %}>الكل</option>
+        <option value="hotel" {% if filter_type == 'hotel' %}selected{% endif %}>فندق</option>
+        <option value="flight" {% if filter_type == 'flight' %}selected{% endif %}>طيران</option>
+        <option value="other" {% if filter_type == 'other' %}selected{% endif %}>أخرى</option>
+      </select>
+    </div>
+    <div class="flex items-center gap-2">
+       <button type="submit" class="w-full px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm">تطبيق</button>
+       <a href="{% url 'accounts_ledger' %}" class="w-full px-4 py-2 rounded-md bg-gray-200 dark:bg-gray-700 hover:opacity-90 text-center text-sm">إلغاء</a> {# رابط لإعادة تعيين الفلاتر #}
+    </div>
+  </form>
+  {# --- نهاية قسم الفلاتر --- #}
+
+</div>
+
+<div class="bg-white dark:bg-gray-900 shadow rounded-lg overflow-x-auto">
+  <table class="min-w-full text-sm">
+    <thead class="bg-gray-100 dark:bg-gray-800">
+      <tr>
+        <th class="px-3 py-2 text-right">تاريخ الإنشاء</th>
+        <th class="px-3 py-2 text-right">تاريخ الحجز</th>
+        <th class="px-3 py-2 text-right">النوع</th>
+        <th class="px-3 py-2 text-right">الكود/PNR</th>
+        <th class="px-3 py-2 text-right">العميل</th>
+        <th class="px-3 py-2 text-right">الموبايل</th>
+        <th class="px-3 py-2 text-right">الجنسية</th>
+        <th class="px-3 py-2 text-right">الموظف</th>
+        <th class="px-3 py-2 text-right">البيع</th>
+        <th class="px-3 py-2 text-right">النت</th>
+        <th class="px-3 py-2 text-right">الربح</th>
+        <th class="px-3 py-2 text-right">المدفوع</th>
+        <th class="px-3 py-2 text-right">المتبقي</th>
+        <th class="px-3 py-2 text-center">الإجراءات</th>
+        {# <th class="px-3 py-2 text-center">المرفقات</th> #} {# يمكن إضافتها لاحقاً #}
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+      {% for b in bookings_page.object_list %} {# استخدمنا bookings_page من الـ Paginator #}
+      <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+        <td class="px-3 py-2 whitespace-nowrap">{{ b.created_at|date:"Y-m-d H:i" }}</td>
+        <td class="px-3 py-2 whitespace-nowrap">{{ b.booking_date|date:"Y-m-d"|default:"-" }}</td>
+        <td class="px-3 py-2">{{ b.type }}</td>
+        <td class="px-3 py-2 whitespace-nowrap">{{ b.voucher_code|default:"-" }}</td>
+        <td class="px-3 py-2 whitespace-nowrap">
+          <a href="{{ b.card_url }}" class="text-blue-600 hover:underline" target="_blank">{{ b.customer_name|default:"-" }}</a>
+        </td>
+        <td class="px-3 py-2 whitespace-nowrap">{{ b.customer_mobile|default:"-" }}</td>
+        <td class="px-3 py-2">{{ b.customer_nationality|default:"-" }}</td>
+        <td class="px-3 py-2 whitespace-nowrap">{{ b.employee_name|default:"-" }}</td>
+        <td class="px-3 py-2 text-right">{{ b.sell_price|floatformat:2|intcomma }}</td>
+        <td class="px-3 py-2 text-right">{{ b.net_price|floatformat:2|intcomma }}</td>
+        <td class="px-3 py-2 text-right font-semibold {% if b.profit >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+          {{ b.profit|floatformat:2|intcomma }}
+        </td>
+        <td class="px-3 py-2 text-right text-emerald-600">{{ b.total_paid|floatformat:2|intcomma }}</td>
+        <td class="px-3 py-2 text-right font-semibold {% if b.remaining > 0.01 %}text-red-600{% else %}text-gray-500{% endif %}">
+          {{ b.remaining|floatformat:2|intcomma }}
+        </td>
+        <td class="px-3 py-2 text-center whitespace-nowrap">
+           <a href="{{ b.details_url }}" class="text-indigo-600 hover:underline" target="_blank">التفاصيل</a>
+        </td>
+        {# <td class="px-3 py-2 text-center">
+            أيقونات المرفقات هنا
+        </td> #}
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="14" class="px-3 py-6 text-center text-gray-500">لا توجد حجوزات تطابق الفلاتر المحددة.</td> {# تم تحديث عدد الأعمدة #}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {# --- قسم الترقيم (Pagination) --- #}
+  {% if bookings_page.has_other_pages %}
+    <div class="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-center gap-2 text-sm">
+      {% if bookings_page.has_previous %}
+        <a class="px-3 py-1 border rounded hover:bg-gray-50 dark:hover:bg-gray-700"
+           href="?page={{ bookings_page.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+           &laquo; السابق
+        </a>
+      {% else %}
+        <span class="px-3 py-1 border rounded text-gray-400 dark:text-gray-500">&laquo; السابق</span>
+      {% endif %}
+
+      <span class="px-2 text-gray-500 dark:text-gray-400">
+        صفحة {{ bookings_page.number }} من {{ bookings_page.paginator.num_pages }}
+      </span>
+
+      {% if bookings_page.has_next %}
+        <a class="px-3 py-1 border rounded hover:bg-gray-50 dark:hover:bg-gray-700"
+           href="?page={{ bookings_page.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+           التالي &raquo;
+        </a>
+      {% else %}
+        <span class="px-3 py-1 border rounded text-gray-400 dark:text-gray-500">التالي &raquo;</span>
+      {% endif %}
+    </div>
+  {% endif %}
+  {# --- نهاية قسم الترقيم --- #}
+
+</div>
+{% endblock %}

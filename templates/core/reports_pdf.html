@@ -1,31 +1,45 @@
-{% load l10n %}
+{% load static %}
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <title>تقرير الحجوزات</title>
-  <style>
-    /* لو عندك خط عربي TTF ابعته لاضافته بـ @font-face */
-    body { font-family: DejaVu Sans, Arial, sans-serif; direction: rtl; }
-    h1,h3 { margin: 0 0 8px 0; }
-    .meta { font-size: 12px; margin-bottom: 10px; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { border: 1px solid #999; padding: 6px 8px; font-size: 12px; }
-    th { background: #eee; }
-  </style>
+<meta charset="utf-8">
+<title>تقرير الحجوزات</title>
+<style>
+  @page { size: A4; margin: 18mm 14mm; }
+  body { font-family: "Noto Naskh Arabic","Amiri","Tajawal",Arial, sans-serif; font-size: 12px; color:#111 }
+  h1,h2,h3{ margin: 0 0 6px 0 }
+  .muted{ color:#555 }
+  .kpis{ display:flex; gap:10px; margin:10px 0 14px }
+  .kpi{ border:1px solid #ddd; border-radius:8px; padding:8px 10px; flex:1; }
+  table{ width:100%; border-collapse:collapse; }
+  th,td{ border:1px solid #ddd; padding:6px 8px; text-align:right; }
+  thead th{ background:#f2f2f2 }
+  .small{ font-size:11px }
+  .mt{ margin-top:12px }
+  .page-break{ page-break-after: always; }
+</style>
 </head>
 <body>
+
   <h1>تقرير الحجوزات</h1>
-  <div class="meta">
-    مولَّد بواسطة: {{ user.get_full_name|default:user.username }}<br/>
-    التاريخ: {{ generated_at|date:"Y-m-d H:i" }}<br/>
-    الفلاتر:
-    من: {{ q_from|default:"-" }} |
-    إلى: {{ q_to|default:"-" }} |
-    الموظف: {{ q_employee|default:"-" }} |
-    النوع: {{ q_kind|default:"الكل" }}
+  <div class="small muted">
+    تم الإنشاء: {{ generated_at|date:"Y-m-d H:i" }} — المستخدم: {{ user.get_username }}
+  </div>
+  <div class="small">
+    المدى: {% if q_from %}{{ q_from }}{% else %}—{% endif %} ⟷ {% if q_to %}{{ q_to }}{% else %}—{% endif %}
+    — النوع: {% if q_kind %}{{ q_kind }}{% else %}الكل{% endif %}
+    — النطاق: {{ scope|default:"mine" }}
+    {% if q_employee %}— الموظف: "{{ q_employee }}"{% endif %}
   </div>
 
+  <div class="kpis">
+    <div class="kpi"><div class="small muted">إجمالي البيع</div><div style="font-weight:700">{{ totals.sell|default:"-" }}</div></div>
+    <div class="kpi"><div class="small muted">إجمالي الصافي</div><div style="font-weight:700">{{ totals.net|default:"-" }}</div></div>
+    <div class="kpi"><div class="small muted">الربح</div><div style="font-weight:700">{{ totals.profit|default:"-" }}</div></div>
+    <div class="kpi"><div class="small muted">المتحصل</div><div style="font-weight:700">{{ totals.paid|default:"-" }}</div></div>
+  </div>
+
+  <h3 class="mt">تفاصيل الحجوزات</h3>
   <table>
     <thead>
       <tr>
@@ -44,17 +58,19 @@
         <td>{{ r.type }}</td>
         <td>{{ r.ref }}</td>
         <td>{{ r.voucher }}</td>
-        <td>{{ r.employee }}</td>
+        <td>{{ r.employee|default:"-" }}</td>
         <td>{{ r.customer }}</td>
-        <td>{{ r.created|date:"Y-m-d H:i" }}</td>
+        <td>{{ r.created|date:"Y-m-d" }}</td>  {# ✅ هنا التعديل #}
         <td>{{ r.extra }}</td>
       </tr>
       {% empty %}
-      <tr>
-        <td colspan="7" style="text-align:center">لا توجد بيانات</td>
-      </tr>
+      <tr><td colspan="7" class="small muted" style="text-align:center">لا توجد بيانات</td></tr>
       {% endfor %}
     </tbody>
   </table>
+
+  <div class="small muted mt">
+    * هذا المستند تم توليده آليًا من النظام.
+  </div>
 </body>
 </html>

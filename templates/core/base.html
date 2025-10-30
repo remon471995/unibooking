@@ -6,55 +6,90 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{% block title %}UniBooking{% endblock %}</title>
 
-  <!-- ✅ Tailwind CSS CDN -->
+  <script>
+    (function () {
+      try {
+        if (localStorage.getItem('unibooking.dark') === '1') {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
+
+  <script>window.tailwind = { config: { darkMode: 'class' } };</script>
   <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- ✅ Font Awesome -->
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-
-  <!-- ✅ ملف CSS الخاص بيك -->
-  <link rel="stylesheet" href="{% static 'core/app.css' %}">
-
-  {# أي أكواد زيادة من الصفحات التانية #}
+  <link rel="stylesheet" href="{% static 'core/app.css' %}?v=5">
   {% block extra_head %}{% endblock %}
 </head>
+
 <body class="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
 
-  <!-- ✅ التوب بار -->
-  <header class="flex justify-between items-center bg-white shadow px-6 py-4 mb-6">
-    <div class="flex items-center gap-6">
-      <a class="font-bold text-lg text-blue-600" href="{% url 'dashboard' %}">UniBooking</a>
-      <nav class="flex gap-4">
-        <a href="{% url 'dashboard' %}" class="text-gray-700 hover:text-blue-600">الرئيسية</a>
-        <a href="{% url 'card_create' %}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow">
-          + كارت عميل
-        </a>
-      </nav>
-    </div>
-    <div class="flex items-center gap-4">
-      <span class="font-medium">{{ request.user.get_full_name|default:request.user.username }}</span>
-      <a href="{% url 'logout' %}" class="text-red-500 hover:underline">تسجيل الخروج</a>
-    </div>
-  </header>
+  {# ← النافبار الموحد #}
+  {% include "core/_navbar.html" %}
 
-  <!-- ✅ الرسائل -->
+  {# شريط ثانوي اختياري خاص بكل صفحة #}
+  {% block subnav %}{% endblock %}
+
+  {# الرسائل المنبثقة #}
   {% if messages %}
-    <div class="max-w-4xl mx-auto my-4">
-      {% for message in messages %}
-        <div class="p-3 mb-2 rounded-lg 
-          {% if message.tags == 'success' %} bg-green-100 text-green-700 
-          {% elif message.tags == 'error' %} bg-red-100 text-red-700 
-          {% else %} bg-gray-100 text-gray-700 {% endif %}">
-          {{ message }}
-        </div>
-      {% endfor %}
-    </div>
+  <div class="max-w-4xl mx-auto my-4">
+    {% for message in messages %}
+      <div class="p-3 mb-2 rounded-lg
+        {% if 'success' in message.tags %} bg-green-100 text-green-700
+        {% elif 'error' in message.tags %} bg-red-100 text-red-700
+        {% elif 'warning' in message.tags %} bg-amber-100 text-amber-800
+        {% else %} bg-gray-100 text-gray-700 {% endif %}">
+        {{ message }}
+      </div>
+    {% endfor %}
+  </div>
   {% endif %}
 
-  <!-- ✅ المحتوى الأساسي -->
   <main class="container max-w-6xl mx-auto px-4 py-6">
     {% block content %}{% endblock %}
   </main>
 
+  <script>
+    (function () {
+      // تبديل المظهر (نهاري / ليلي)
+      const root = document.documentElement;
+      const btn = document.getElementById('darkToggle');
+      if (btn) {
+        btn.addEventListener('click', function () {
+          root.classList.toggle('dark');
+          try {
+            localStorage.setItem('unibooking.dark', root.classList.contains('dark') ? '1' : '0');
+          } catch (e) {}
+        });
+      }
+
+      // دوال القوائم المنسدلة
+      function makeDropdown(btnId, menuId) {
+        const b = document.getElementById(btnId);
+        const m = document.getElementById(menuId);
+        if (!b || !m) return;
+        const open  = () => { m.classList.remove('hidden'); b.setAttribute('aria-expanded','true'); };
+        const close = () => { m.classList.add('hidden');   b.setAttribute('aria-expanded','false'); };
+        b.addEventListener('click', e => {
+          e.stopPropagation();
+          (m.classList.contains('hidden') ? open : close)();
+        });
+        m.addEventListener('click', e => e.stopPropagation());
+        document.addEventListener('click', close);
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+      }
+
+      // تفعيل جميع القوائم المنسدلة
+      makeDropdown('dd-target-btn',  'dd-target-menu');
+      makeDropdown('dd-helpdesk-btn','dd-helpdesk-menu');
+      makeDropdown('dd-notif-btn',   'dd-notif-menu');
+      makeDropdown('dd-user-btn',    'dd-user-menu');
+      // ✅ قائمة الإدارة (تظهر فقط للسوبر)
+      makeDropdown('dd-admin-btn',   'dd-admin-menu');
+    })();
+  </script>
+
+  {% block extra_js %}{% endblock %}
 </body>
 </html>

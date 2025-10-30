@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة تحكم الوكيل</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Bootstrap Icons for a modern look -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Custom styles forgradients -->
+    <style>
+        .bg-gradient-primary {
+            background: linear-gradient(45deg, #0d6efd, #054ea3);
+        }
+        .bg-gradient-success {
+            background: linear-gradient(45deg, #28a745, #1d6e35);
+        }
+        .bg-gradient-warning {
+            background: linear-gradient(45deg, #ffc107, #d4a700);
+        }
+        .bg-gradient-danger {
+            background: linear-gradient(45deg, #dc3545, #a30e1d);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+
+    <!-- Modal for delete confirmation (replaces alert()) -->
+    <div id="deleteModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white text-right">
+            <div class="mt-3 text-center">
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                    <i class="bi bi-exclamation-triangle-fill text-red-600 text-xl"></i>
+                </div>
+                <h3 class="text-lg leading-6 font-medium text-gray-900 mt-2">تأكيد الحذف</h3>
+                <div class="mt-2 px-7 py-3">
+                    <p class="text-sm text-gray-500">
+                        هل أنت متأكد من حذف هذا الحجز؟ لا يمكن التراجع عن هذا الإجراء.
+                    </p>
+                </div>
+                <div class="items-center px-4 py-3">
+                    <button id="confirmDelete" class="px-4 py-2 bg-red-600 text-white text-base font-medium rounded-md w-24 shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500">
+                        تأكيد
+                    </button>
+                    <button id="cancelDelete" class="px-4 py-2 bg-gray-500 text-white text-base font-medium rounded-md w-24 shadow-sm hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 mr-2">
+                        إلغاء
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex flex-col md:flex-row">
+        <!-- Sidebar -->
+        <div class="md:w-64 bg-white shadow-lg md:fixed md:top-0 md:right-0 md:h-screen md:flex md:flex-col p-4 z-50">
+            <div class="flex flex-col items-center justify-center md:items-start md:justify-start">
+                <a href="#" class="flex items-center pb-3 text-gray-800 text-decoration-none">
+                    <span class="text-xl font-bold">نظام الحجوزات</span>
+                </a>
+                <hr class="w-full my-2 border-gray-300">
+                <ul class="flex flex-col w-full text-right mt-4">
+                    <li class="w-full mb-2">
+                        <a href="#" class="nav-link p-2 rounded-md transition duration-300 hover:bg-gray-200 flex items-center text-gray-800 bg-blue-100">
+                            <i class="fs-4 bi-house-door"></i>
+                            <span class="ms-2">لوحة التحكم</span>
+                        </a>
+                    </li>
+                    <li class="w-full mb-2">
+                        <a href="#" class="nav-link p-2 rounded-md transition duration-300 hover:bg-gray-200 flex items-center text-gray-800">
+                            <i class="fs-4 bi-plus-circle"></i>
+                            <span class="ms-2">إضافة حجز جديد</span>
+                        </a>
+                    </li>
+                    <li class="w-full mb-2">
+                        <a href="#" class="nav-link p-2 rounded-md transition duration-300 hover:bg-gray-200 flex items-center text-gray-800">
+                            <i class="fs-4 bi-journal-text"></i>
+                            <span class="ms-2">التقارير</span>
+                        </a>
+                    </li>
+                    <li class="w-full mt-auto mb-2 md:mt-16">
+                        <a href="#" class="nav-link p-2 rounded-md transition duration-300 hover:bg-red-100 flex items-center text-red-500">
+                            <i class="fs-4 bi-box-arrow-right"></i>
+                            <span class="ms-2">تسجيل الخروج</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="flex-grow md:mr-64 p-4 md:p-8">
+            <h1 class="text-3xl font-bold mb-6 text-gray-800">لوحة تحكم الوكيل</h1>
+
+            <!-- Info Cards Section -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                <!-- Card 1: Total Profit -->
+                <div class="info-card bg-gradient-primary rounded-xl p-6 relative overflow-hidden shadow-lg transition-transform hover:translate-y-[-8px]">
+                    <span class="absolute bottom-[-15px] left-[-15px] text-white opacity-10 text-7xl leading-none">
+                        <i class="bi bi-currency-dollar"></i>
+                    </span>
+                    <div class="text-white text-4xl font-bold mb-2">54,321</div>
+                    <div class="text-white text-sm opacity-90">إجمالي الربح</div>
+                </div>
+
+                <!-- Card 2: Total Sales -->
+                <div class="info-card bg-gradient-success rounded-xl p-6 relative overflow-hidden shadow-lg transition-transform hover:translate-y-[-8px]">
+                    <span class="absolute bottom-[-15px] left-[-15px] text-white opacity-10 text-7xl leading-none">
+                        <i class="bi bi-cash-stack"></i>
+                    </span>
+                    <div class="text-white text-4xl font-bold mb-2">150,000</div>
+                    <div class="text-white text-sm opacity-90">إجمالي المبيعات</div>
+                </div>
+
+                <!-- Card 3: Total Paid -->
+                <div class="info-card bg-gradient-warning rounded-xl p-6 relative overflow-hidden shadow-lg transition-transform hover:translate-y-[-8px]">
+                    <span class="absolute bottom-[-15px] left-[-15px] text-white opacity-10 text-7xl leading-none">
+                        <i class="bi bi-check2-circle"></i>
+                    </span>
+                    <div class="text-white text-4xl font-bold mb-2">125,500</div>
+                    <div class="text-white text-sm opacity-90">إجمالي المدفوع</div>
+                </div>
+
+                <!-- Card 4: Total Remaining -->
+                <div class="info-card bg-gradient-danger rounded-xl p-6 relative overflow-hidden shadow-lg transition-transform hover:translate-y-[-8px]">
+                    <span class="absolute bottom-[-15px] left-[-15px] text-white opacity-10 text-7xl leading-none">
+                        <i class="bi bi-x-circle"></i>
+                    </span>
+                    <div class="text-white text-4xl font-bold mb-2">24,500</div>
+                    <div class="text-white text-sm opacity-90">إجمالي المتبقي</div>
+                </div>
+            </div>
+
+            <!-- Upcoming Payments Section -->
+            <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+                <div class="flex items-center justify-between border-b pb-4 mb-4">
+                    <h2 class="text-xl font-semibold text-gray-800"><i class="bi bi-bell-fill text-yellow-500 ml-2"></i> تذكير بالدفعات القادمة</h2>
+                    <a href="#" class="text-blue-600 hover:underline">عرض الكل</a>
+                </div>
+                <ul id="upcomingPaymentsList" class="divide-y divide-gray-200 text-right">
+                    <!-- Dynamic list items will be inserted here -->
+                </ul>
+            </div>
+
+            <!-- Search and Filter Section -->
+            <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+                <div class="flex items-center justify-between border-b pb-4 mb-4">
+                    <h2 class="text-xl font-semibold text-gray-800"><i class="bi bi-funnel-fill text-blue-600 ml-2"></i> بحث وتصفية</h2>
+                    <a href="#" class="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg transition duration-300 shadow-md">
+                        <i class="bi bi-plus-circle ml-1"></i> إضافة حجز جديد
+                    </a>
+                </div>
+                <form class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label for="q" class="block text-sm font-medium text-gray-700 mb-1">رقم الحجز أو اسم العميل</label>
+                        <input type="text" name="q" id="q" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label for="start_date" class="block text-sm font-medium text-gray-700 mb-1">تاريخ البداية</label>
+                        <input type="date" name="start_date" id="start_date" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label for="end_date" class="block text-sm font-medium text-gray-700 mb-1">تاريخ النهاية</label>
+                        <input type="date" name="end_date" id="end_date" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div class="md:col-span-3 text-left mt-2">
+                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-6 rounded-lg transition duration-300 shadow-md">
+                            <i class="bi bi-search ml-1"></i> بحث
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Bookings List Section -->
+            <div class="bg-white rounded-xl shadow-lg overflow-x-auto p-6">
+                <div class="flex items-center justify-between border-b pb-4 mb-4">
+                    <h2 class="text-xl font-semibold text-gray-800"><i class="bi bi-list-ul text-green-600 ml-2"></i> قائمة الحجوزات</h2>
+                </div>
+                <table class="min-w-full text-center divide-y divide-gray-200">
+                    <thead class="bg-gray-800 text-white">
+                        <tr>
+                            <th scope="col" class="py-3 px-6 text-sm font-semibold">رقم الحجز</th>
+                            <th scope="col" class="py-3 px-6 text-sm font-semibold">اسم العميل</th>
+                            <th scope="col" class="py-3 px-6 text-sm font-semibold">صافي السعر</th>
+                            <th scope="col" class="py-3 px-6 text-sm font-semibold">سعر البيع</th>
+                            <th scope="col" class="py-3 px-6 text-sm font-semibold">الربح</th>
+                            <th scope="col" class="py-3 px-6 text-sm font-semibold">المبلغ المدفوع</th>
+                            <th scope="col" class="py-3 px-6 text-sm font-semibold">المبلغ المتبقي</th>
+                            <th scope="col" class="py-3 px-6 text-sm font-semibold">تاريخ الحجز</th>
+                            <th scope="col" class="py-3 px-6 text-sm font-semibold">الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bookingsTableBody" class="bg-white divide-y divide-gray-200">
+                        <!-- Dynamic rows will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Footer for spacing on small screens -->
+            <div class="h-16 md:hidden"></div>
+
+        </main>
+    </div>
+
+    <script>
+        // Mock data for demonstration purposes
+        const upcomingPayments = [
+            { id: 101, bookingNumber: 'BK-54321', clientName: 'أحمد علي', remainingAmount: '500', paymentDueDate: '2023-11-20', statusClass: 'bg-red-100 text-red-700' },
+            { id: 102, bookingNumber: 'BK-54322', clientName: 'فاطمة محمد', remainingAmount: '250', paymentDueDate: '2023-11-25', statusClass: 'bg-yellow-100 text-yellow-700' },
+            { id: 103, bookingNumber: 'BK-54323', clientName: 'خالد محمود', remainingAmount: '150', paymentDueDate: '2023-12-01', statusClass: 'bg-green-100 text-green-700' },
+        ];
+
+        const bookings = [
+            { id: 1, bookingNumber: 'BK-1001', clientName: 'علياء', netPrice: '1,500', salePrice: '1,700', profit: '200', paidAmount: '1,700', remainingAmount: '0', bookingDate: '2023-11-01' },
+            { id: 2, bookingNumber: 'BK-1002', clientName: 'سارة', netPrice: '2,200', salePrice: '2,500', profit: '300', paidAmount: '1,000', remainingAmount: '1,500', bookingDate: '2023-11-05' },
+            { id: 3, bookingNumber: 'BK-1003', clientName: 'محمد', netPrice: '800', salePrice: '950', profit: '150', paidAmount: '950', remainingAmount: '0', bookingDate: '2023-11-08' },
+        ];
+
+        // Function to render upcoming payments list
+        function renderUpcomingPayments() {
+            const list = document.getElementById('upcomingPaymentsList');
+            list.innerHTML = '';
+            upcomingPayments.forEach(booking => {
+                const li = document.createElement('li');
+                li.className = `p-4 flex justify-between items-center ${booking.statusClass} first:rounded-t-xl last:rounded-b-xl`;
+                li.innerHTML = `
+                    <div>
+                        <span class="font-bold">الحجز رقم: ${booking.bookingNumber}</span>
+                        <span class="mr-2">- العميل: <span class="font-bold">${booking.clientName}</span></span>
+                        <span class="mr-2">- المبلغ المتبقي: <span class="text-red-600 font-bold">${booking.remainingAmount}</span></span>
+                        <span class="mr-2">- تاريخ الاستحقاق: <span class="font-bold">${booking.paymentDueDate}</span></span>
+                    </div>
+                    <div class="flex space-x-2 space-x-reverse">
+                        <a href="#" class="bg-yellow-500 hover:bg-yellow-600 text-white text-sm py-1 px-3 rounded-md transition duration-300">
+                            <i class="bi bi-pencil-square ml-1"></i> تعديل
+                        </a>
+                    </div>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        // Function to render bookings table
+        function renderBookingsTable() {
+            const tableBody = document.getElementById('bookingsTableBody');
+            tableBody.innerHTML = '';
+            bookings.forEach(booking => {
+                const tr = document.createElement('tr');
+                tr.className = `hover:bg-gray-100 transition duration-300`;
+                const remainingClass = booking.remainingAmount > 0 ? 'text-red-500 font-semibold' : 'text-green-600';
+                tr.innerHTML = `
+                    <td class="py-3 px-6 whitespace-nowrap">${booking.bookingNumber}</td>
+                    <td class="py-3 px-6 whitespace-nowrap">${booking.clientName}</td>
+                    <td class="py-3 px-6 whitespace-nowrap">${booking.netPrice}</td>
+                    <td class="py-3 px-6 whitespace-nowrap">${booking.salePrice}</td>
+                    <td class="py-3 px-6 whitespace-nowrap">${booking.profit}</td>
+                    <td class="py-3 px-6 whitespace-nowrap">${booking.paidAmount}</td>
+                    <td class="py-3 px-6 whitespace-nowrap ${remainingClass}">${booking.remainingAmount}</td>
+                    <td class="py-3 px-6 whitespace-nowrap">${booking.bookingDate}</td>
+                    <td class="py-3 px-6 whitespace-nowrap">
+                        <div class="flex space-x-2 space-x-reverse justify-center">
+                            <a href="#" class="bg-blue-500 hover:bg-blue-600 text-white text-sm py-1 px-3 rounded-md transition duration-300">
+                                <i class="bi bi-info-circle ml-1"></i> تفاصيل
+                            </a>
+                            <a href="#" class="bg-yellow-500 hover:bg-yellow-600 text-white text-sm py-1 px-3 rounded-md transition duration-300">
+                                <i class="bi bi-pencil-square ml-1"></i> تعديل
+                            </a>
+                            <button class="bg-red-500 hover:bg-red-600 text-white text-sm py-1 px-3 rounded-md transition duration-300 delete-btn">
+                                <i class="bi bi-trash ml-1"></i> حذف
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tableBody.appendChild(tr);
+            });
+
+            // Add event listeners for delete buttons
+            document.querySelectorAll('.delete-btn').forEach(button => {
+                button.addEventListener('click', () => {
+                    document.getElementById('deleteModal').classList.remove('hidden');
+                });
+            });
+        }
+
+        // Modal functionality
+        document.getElementById('cancelDelete').addEventListener('click', () => {
+            document.getElementById('deleteModal').classList.add('hidden');
+        });
+
+        document.getElementById('confirmDelete').addEventListener('click', () => {
+            // Here you would implement your delete logic
+            console.log('Booking confirmed for deletion.');
+            document.getElementById('deleteModal').classList.add('hidden');
+        });
+
+        // Initial render
+        document.addEventListener('DOMContentLoaded', () => {
+            renderUpcomingPayments();
+            renderBookingsTable();
+        });
+    </script>
+</body>
+</html>

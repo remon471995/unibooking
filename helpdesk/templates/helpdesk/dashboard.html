@@ -1,0 +1,51 @@
+{% extends "core/base.html" %}
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+  {% include "helpdesk/_topbar.html" %}
+
+  <h2 class="text-lg font-bold">لوحة المؤشرات</h2>
+
+  <!-- بطاقات سريعة -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="bg-white rounded-xl p-4 shadow">
+      <div class="text-sm text-gray-500">متوسط زمن الحل (ساعات) للتذاكر المُغلقة</div>
+      <div class="text-3xl font-bold">{{ avg_hours }}</div>
+    </div>
+    <div class="bg-white rounded-xl p-4 shadow">
+      <div class="text-sm text-gray-500">عدد الأقسام</div>
+      <div class="text-3xl font-bold">{{ by_dept|length }}</div>
+    </div>
+  </div>
+
+  <!-- توزيعات -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="bg-white rounded-xl p-4 shadow">
+      <div class="font-bold mb-2">حسب الحالة</div>
+      <ul class="space-y-1">
+        {% for row in by_status %}
+          <li class="flex justify-between text-sm">
+            <span>{{ row.status }}</span>
+            <b>{{ row.c }}</b>
+          </li>
+        {% empty %}
+          <li class="text-gray-500">لا بيانات</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div class="bg-white rounded-xl p-4 shadow">
+      <div class="font-bold mb-2">حسب القسم</div>
+      <ul class="space-y-1">
+        {% for row in by_dept %}
+          <li class="flex justify-between text-sm">
+            <span>{{ row.department__name }}</span>
+            <b>{{ row.c }}</b>
+          </li>
+        {% empty %}
+          <li class="text-gray-500">لا بيانات</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}

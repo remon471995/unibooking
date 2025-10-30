@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}إدارة المستخدمين{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <h1 class="text-xl font-bold">إدارة المستخدمين</h1>
+  <a href="{% url 'accounts:user_create' %}" class="px-3 py-2 bg-blue-600 text-white rounded">+ مستخدم جديد</a>
+</div>
+
+<form method="get" class="mb-3">
+  <input type="text" name="q" placeholder="بحث..." value="{{ q }}" class="px-3 py-2 border rounded w-64">
+  <button class="px-3 py-2 bg-gray-200 rounded">بحث</button>
+</form>
+
+<table class="w-full bg-white rounded shadow">
+  <thead class="bg-gray-100">
+    <tr>
+      <th class="p-2">الاسم</th>
+      <th class="p-2">البريد</th>
+      <th class="p-2">القسم</th>
+      <th class="p-2">نوع الحساب</th>
+      <th class="p-2">الحالة</th>
+      <th class="p-2">أدوات</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for u in users %}
+      <tr class="border-t">
+        <td class="p-2">{{ u.get_full_name|default:u.username }}</td>
+        <td class="p-2">{{ u.email }}</td>
+        <td class="p-2">{{ u.profile.department|default:"-" }}</td>
+        <td class="p-2">
+          {% if u.is_superuser %}Super{% elif u.is_staff %}Leader{% else %}Employee{% endif %}
+        </td>
+        <td class="p-2">{{ "مفعل" if u.is_active else "معطل" }}</td>
+        <td class="p-2">
+          <a class="px-2 py-1 bg-gray-200 rounded" href="{% url 'accounts:user_edit' u.pk %}">تعديل</a>
+          <a class="px-2 py-1 bg-gray-200 rounded" href="{% url 'accounts:user_set_password' u.pk %}">باسورد</a>
+          <a class="px-2 py-1 bg-red-100 text-red-700 rounded" href="{% url 'accounts:user_toggle_active' u.pk %}">{{ "تعطيل" if u.is_active else "تفعيل" }}</a>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6" class="p-4 text-center">لا يوجد مستخدمين</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

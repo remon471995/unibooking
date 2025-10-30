@@ -1,0 +1,116 @@
+{% extends "core/base.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 py-8 space-y-6">
+
+  <!-- العنوان + فلاتر الحالة -->
+  <div class="flex flex-col md:flex-row items-start md:items-end justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-extrabold text-gray-800">التنبيهات</h1>
+      <p class="text-sm text-gray-500 mt-1">تابع التنبيهات الجديدة واتخذ الإجراء المناسب سريعًا.</p>
+    </div>
+
+    <div class="bg-white border rounded-xl p-2 flex items-center gap-2">
+      <a href="?status=all" class="px-3 py-1.5 rounded-lg text-sm border
+         {% if status == 'all' %}bg-blue-600 text-white border-blue-600{% else %}bg-white text-gray-700{% endif %}">
+        الكل ({{ counts.total|intcomma }})
+      </a>
+      <a href="?status=unread" class="px-3 py-1.5 rounded-lg text-sm border
+         {% if status == 'unread' %}bg-amber-600 text-white border-amber-600{% else %}bg-white text-gray-700{% endif %}">
+        غير المقروء ({{ counts.unread|intcomma }})
+      </a>
+      <a href="?status=read" class="px-3 py-1.5 rounded-lg text-sm border
+         {% if status == 'read' %}bg-emerald-600 text-white border-emerald-600{% else %}bg-white text-gray-700{% endif %}">
+        المقروء ({{ counts.read|intcomma }})
+      </a>
+    </div>
+  </div>
+
+  <!-- قائمة التنبيهات -->
+  <div class="bg-white border rounded-xl shadow">
+    <div class="flex items-center justify-between px-4 py-3 border-b">
+      <h2 class="font-bold text-gray-800">أحدث التنبيهات</h2>
+      <span class="text-xs text-gray-500">صفحة {{ page_obj.number }} من {{ page_obj.paginator.num_pages }}</span>
+    </div>
+
+    {% if rows %}
+      <ul class="divide-y">
+        {% for n in rows %}
+          <li class="px-4 py-4 flex items-start gap-4 {% if not n.is_read %}bg-amber-50{% endif %}">
+            <!-- الشارة -->
+            <div class="mt-1 shrink-0">
+              {% if n.is_read %}
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-700">مقروء</span>
+              {% else %}
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-800">غير مقروء</span>
+              {% endif %}
+            </div>
+
+            <!-- المحتوى -->
+            <div class="flex-1">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="font-semibold text-gray-800">
+                  {{ n.message|linebreaksbr }}
+                </div>
+                <div class="text-xs text-gray-500 whitespace-nowrap">
+                  {{ n.created_at|date:"Y-m-d H:i" }}
+                </div>
+              </div>
+
+              <div class="mt-2 flex flex-wrap items-center gap-3 text-sm">
+                {% if n.due_date %}
+                  <span class="inline-flex items-center px-2 py-0.5 rounded bg-indigo-50 text-indigo-700">
+                    تاريخ مستهدف: {{ n.due_date }}
+                  </span>
+                {% endif %}
+
+                {% if n.target_url %}
+                  <a href="{{ n.target_url }}" class="text-blue-600 hover:underline">فتح الرابط</a>
+                {% endif %}
+              </div>
+            </div>
+
+            <!-- زر التمييز -->
+            <div class="flex flex-col gap-2">
+              {% if not n.is_read %}
+                <a href="{% url 'notification_mark_read' n.id %}"
+                   class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700">
+                  تم
+                </a>
+              {% else %}
+                <span class="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 text-sm">—</span>
+              {% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+
+      <!-- الترقيم -->
+      <div class="px-4 py-3 border-t flex items-center justify-between text-sm">
+        <div class="text-gray-500">عرض {{ rows|length }} عنصر</div>
+        <div class="flex items-center gap-2">
+          {% if page_obj.has_previous %}
+            <a class="px-3 py-1 border rounded hover:bg-gray-50"
+               href="?status={{ status }}&page={{ page_obj.previous_page_number }}">السابق</a>
+          {% else %}
+            <span class="px-3 py-1 border rounded text-gray-400">السابق</span>
+          {% endif %}
+
+          <span class="px-2">|</span>
+
+          {% if page_obj.has_next %}
+            <a class="px-3 py-1 border rounded hover:bg-gray-50"
+               href="?status={{ status }}&page={{ page_obj.next_page_number }}">التالي</a>
+          {% else %}
+            <span class="px-3 py-1 border rounded text-gray-400">التالي</span>
+          {% endif %}
+        </div>
+      </div>
+    {% else %}
+      <div class="px-4 py-10 text-center text-gray-500">لا توجد تنبيهات.</div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

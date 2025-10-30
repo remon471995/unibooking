@@ -460,3 +460,32 @@ class FlightBookingForm(forms.ModelForm):
         pnr = (self.cleaned_data.get("pnr") or "").strip().upper()
         return pnr
 
+from django import forms
+from core.models import TargetCycle, StaffTarget, LeaderTarget, BookingAdjustment
+
+class TargetCycleForm(forms.ModelForm):
+    class Meta:
+        model = TargetCycle
+        fields = ["year", "month", "start_date", "end_date", "locked"]
+        widgets = {
+            "start_date": forms.DateInput(attrs={"type": "date"}),
+            "end_date": forms.DateInput(attrs={"type": "date"}),
+        }
+
+class StaffTargetForm(forms.ModelForm):
+    class Meta:
+        model = StaffTarget
+        fields = [
+            "cycle", "employee", "leader", "set_by", "grade", "target_amount",
+            "thr1", "rate1", "thr2", "rate2", "thr3", "rate3", "notes"
+        ]
+
+class LeaderTargetForm(forms.ModelForm):
+    class Meta:
+        model = LeaderTarget
+        fields = ["cycle", "leader", "target_amount", "set_by", "notes"]
+
+class BookingAdjustmentForm(forms.ModelForm):
+    class Meta:
+        model = BookingAdjustment
+        fields = ["booking_type", "booking_id", "amount", "adj_type", "apply_in_cycle", "cycle", "reason"]

@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>تسجيل مواعيد التريننج</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body{font-family: system-ui, -apple-system, Segoe UI, Roboto, Cairo, Tajawal, sans-serif}
+  </style>
+</head>
+<body class="bg-gray-100">
+  <div class="max-w-4xl mx-auto p-4 md:p-8">
+    <h1 class="text-2xl md:text-3xl font-extrabold mb-6">📅 تسجيل مواعيد التريننج</h1>
+
+    <div id="sessions" class="grid gap-4 md:grid-cols-2"></div>
+
+    <div class="mt-8 p-4 bg-white rounded-xl shadow">
+      <h2 class="text-xl font-bold mb-4">📝 بيانات التسجيل</h2>
+      <form id="regForm" class="grid gap-4">
+        <input required name="name" class="border rounded-lg p-3" placeholder="الاسم الكامل" />
+        <input required name="email" type="email" class="border rounded-lg p-3" placeholder="الإيميل" />
+        <input name="phone" class="border rounded-lg p-3" placeholder="الموبايل (اختياري)" />
+        <input name="team" class="border rounded-lg p-3" placeholder="الفريق/القسم (اختياري)" />
+        <textarea name="notes" class="border rounded-lg p-3" placeholder="ملاحظات (اختياري)"></textarea>
+        <input type="hidden" name="session_id" id="session_id" required />
+        <button class="bg-blue-600 text-white rounded-lg p-3 font-semibold hover:bg-blue-700 disabled:opacity-50" id="submitBtn" disabled>
+          تأكيد التسجيل
+        </button>
+      </form>
+      <p id="msg" class="mt-4 font-semibold"></p>
+    </div>
+  </div>
+
+<script>
+  // ضع هنا رابط Web App (exec)
+  const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxHeL7r6Uqv_VSqiwQp7nyGw4Q_TniQwUKV5TPq7F6rB2Wm3_7Y3H94Yi1AVNOd-aaX/exec';
+
+  const sessionsEl = document.getElementById('sessions');
+  const sessionIdInput = document.getElementById('session_id');
+  const submitBtn = document.getElementById('submitBtn');
+  const msgEl = document.getElementById('msg');
+
+  async function loadSessions(){
+    sessionsEl.innerHTML = '<div class="text-gray-600">جارِ التحميل…</div>';
+    try{
+      const res = await fetch(`${WEB_APP_URL}?action=sessions`);
+      const data = await res.json();
+      if(!Array.isArray(data)) throw new Error('Bad sessions payload');
+
+      if(data.length === 0){
+        sessionsEl.innerHTML = '<div class="p-6 bg-white rounded-xl shadow">لا توجد مواعيد متاحة حاليًا.</div>';
+        return;
+      }
+
+      sessionsEl.innerHTML = '';
+      data.forEach(s => {
+        const full = s.remaining <= 0;
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-xl shadow p-4 flex flex-col gap-2';
+        card.innerHTML = `
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <div class="text-lg font-bold">${s.title}</div>
+              <div class="text-sm text-gray-600">${s.date} • ${s.start_time}–${s.end_time} • ${s.location||''}</div>
+              ${s.notes ? `<div class="text-sm text-gray-500">${s.notes}</div>` : ''}
+            </div>
+            <span class="text-sm ${full?'text-red-600':'text-green-700'} font-semibold">المقاعد المتبقية: ${s.remaining}</span>
+          </div>
+          <button ${full?'disabled':''}
+            class="mt-2 px-3 py-2 rounded-lg border font-semibold ${full?'opacity-40 cursor-not-allowed':'hover:bg-gray-50'}"
+            data-id="${s.id}">
+            ${full ? 'ممتلئ' : 'اختيار هذا الميعاد'}
+          </button>
+        `;
+        card.querySelector('button').addEventListener('click', () => {
+          Array.from(document.querySelectorAll('#sessions button')).forEach(b=>b.classList.remove('ring-2','ring-blue-600'));
+          card.querySelector('button').classList.add('ring-2','ring-blue-600');
+          sessionIdInput.value = s.id;
+          submitBtn.disabled = false;
+          msgEl.className = 'mt-4 font-semibold text-gray-800';
+          msgEl.textContent = `اخترت: ${s.title} — ${s.date} ${s.start_time}`;
+        });
+        sessionsEl.appendChild(card);
+      });
+
+    }catch(err){
+      sessionsEl.innerHTML = `<div class="p-4 bg-white rounded-xl shadow text-red-700">حدث خطأ في تحميل المواعيد: ${err.message}</div>`;
+    }
+  }
+
+  // إرسال بـ GET لتفادي CORS
+  document.getElementById('regForm').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    msgEl.textContent = '';
+    if(!sessionIdInput.value){
+      msgEl.className = 'mt-4 font-semibold text-red-700';
+      msgEl.textContent = 'من فضلك اختر ميعادًا أولًا.';
+      return;
+    }
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'جارِ الإرسال…';
+
+    try{
+      const formObj = Object.fromEntries(new FormData(e.target));
+      const qs = new URLSearchParams({ action: 'register', ...formObj });
+      const res = await fetch(`${WEB_APP_URL}?${qs.toString()}`, { method: 'GET' });
+      const data = await res.json();
+
+      if(!data.ok){
+        msgEl.className = 'mt-4 font-semibold text-red-700';
+        msgEl.textContent = data.error || 'تعذّر إتمام التسجيل';
+      }else{
+        msgEl.className = 'mt-4 font-semibold text-green-700';
+        msgEl.textContent = data.message + (typeof data.remaining==='number' ? ` — المقاعد المتبقية الآن: ${data.remaining}` : '');
+        e.target.reset();
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'تأكيد التسجيل';
+        sessionIdInput.value = '';
+        loadSessions();
+      }
+    }catch(err){
+      msgEl.className = 'mt-4 font-semibold text-red-700';
+      msgEl.textContent = 'خطأ بالشبكة: ' + err.message;
+    }finally{
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'تأكيد التسجيل';
+    }
+  });
+
+  loadSessions();
+</script>
+</body>
+</html>

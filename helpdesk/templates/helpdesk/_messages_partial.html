@@ -1,0 +1,24 @@
+<div class="p-4 border-b font-bold">المحادثة</div>
+<div class="divide-y">
+  {% for m in messages %}
+  <div class="p-4">
+    <div class="text-sm text-gray-500 mb-1">
+      {{ m.created_at|date:"Y-m-d H:i" }} • {{ m.sender }}
+      {% if m.is_internal_note %}
+      <span class="ml-2 inline-block px-2 py-0.5 text-xs rounded bg-yellow-100">ملاحظة داخلية</span>
+      {% endif %}
+    </div>
+    <div class="whitespace-pre-wrap">{{ m.body }}</div>
+
+    {% if m.attachments.all %}
+    <div class="mt-2 flex gap-2 flex-wrap">
+      {% for a in m.attachments.all %}
+      <a class="text-blue-700 underline" href="{{ a.file.url }}" target="_blank">📎 {{ a.file.name|slice:"20" }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% empty %}
+  <div class="p-4 text-center text-gray-500">لا توجد رسائل.</div>
+  {% endfor %}
+</div>

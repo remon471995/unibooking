@@ -1,0 +1,24 @@
+<div class="mb-4">
+  <div class="bg-white rounded-xl shadow px-4 py-3 flex flex-wrap items-center gap-2">
+    <a href="/helpdesk/" class="px-3 py-1.5 rounded bg-gray-900 text-white">واردى</a>
+    <a href="/helpdesk/ticket/new/" class="px-3 py-1.5 rounded bg-green-600 text-white">+ تذكرة جديدة</a>
+    <a href="/helpdesk/dashboard/" class="px-3 py-1.5 rounded bg-gray-100">لوحة التذاكر</a>
+    <a href="/helpdesk/search/" class="px-3 py-1.5 rounded bg-gray-100">بحث</a>
+
+    <div class="mx-2 h-6 w-px bg-gray-200"></div>
+
+    <span class="text-sm text-gray-500">الأقسام:</span>
+    <a href="/helpdesk/department/sales/" class="px-2 py-1 rounded bg-gray-50 hover:bg-gray-100">Sales</a>
+    <a href="/helpdesk/department/product/" class="px-2 py-1 rounded bg-gray-50 hover:bg-gray-100">Product</a>
+    <a href="/helpdesk/department/operations/" class="px-2 py-1 rounded bg-gray-50 hover:bg-gray-100">Operations</a>
+    <a href="/helpdesk/department/after_sales/" class="px-2 py-1 rounded bg-gray-50 hover:bg-gray-100">After Sales</a>
+    <a href="/helpdesk/department/hr/" class="px-2 py-1 rounded bg-gray-50 hover:bg-gray-100">HR</a>
+
+    <div class="ms-auto">
+      <form method="get" action="/helpdesk/search/" class="flex items-center gap-2">
+        <input type="text" name="q" placeholder="ابحث..." class="border rounded px-3 py-1.5 text-sm" />
+        <button class="px-3 py-1.5 rounded bg-gray-800 text-white text-sm">بحث</button>
+      </form>
+    </div>
+  </div>
+</div>

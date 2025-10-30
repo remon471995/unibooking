@@ -1,0 +1,101 @@
+{% extends "core/base.html" %}
+{% block title %}نتائج البحث{% endblock %}
+
+{% block content %}
+<h1 class="text-xl font-bold mb-4">
+  نتائج البحث عن: <span class="text-blue-600">{{ q }}</span>
+</h1>
+
+<div class="grid md:grid-cols-4 gap-3 mb-6">
+  <div class="p-3 rounded-lg bg-white dark:bg-gray-900 shadow">
+    <div class="text-sm text-gray-500 dark:text-gray-400">الكروت</div>
+    <div class="text-2xl font-semibold">{{ results.cards|length }}</div>
+  </div>
+  <div class="p-3 rounded-lg bg-white dark:bg-gray-900 shadow">
+    <div class="text-sm text-gray-500 dark:text-gray-400">حجوزات الفنادق</div>
+    <div class="text-2xl font-semibold">{{ results.hotels|length }}</div>
+  </div>
+  <div class="p-3 rounded-lg bg-white dark:bg-gray-900 shadow">
+    <div class="text-sm text-gray-500 dark:text-gray-400">حجوزات الطيران</div>
+    <div class="text-2xl font-semibold">{{ results.flights|length }}</div>
+  </div>
+  <div class="p-3 rounded-lg bg-white dark:bg-gray-900 shadow">
+    <div class="text-sm text-gray-500 dark:text-gray-400">خدمات أخرى</div>
+    <div class="text-2xl font-semibold">{{ results.others|length }}</div>
+  </div>
+</div>
+
+{% if results.cards %}
+<section class="mb-8">
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="font-semibold text-lg">الكروت</h2>
+    <span class="text-sm text-gray-500 dark:text-gray-400">{{ results.cards|length }} نتيجة</span>
+  </div>
+  <div class="grid lg:grid-cols-2 gap-3">
+    {% for it in results.cards %}
+      <a href="{{ it.url }}" class="block p-4 rounded-lg bg-white dark:bg-gray-900 shadow hover:shadow-lg transition">
+        <div class="font-medium truncate">{{ it.title }}</div>
+        {% if it.sub %}<div class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ it.sub }}</div>{% endif %}
+      </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if results.hotels %}
+<section class="mb-8">
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="font-semibold text-lg">حجوزات الفنادق</h2>
+    <span class="text-sm text-gray-500 dark:text-gray-400">{{ results.hotels|length }} نتيجة</span>
+  </div>
+  <div class="grid lg:grid-cols-2 gap-3">
+    {% for it in results.hotels %}
+      <a href="{{ it.url }}" class="block p-4 rounded-lg bg-white dark:bg-gray-900 shadow hover:shadow-lg transition">
+        <div class="font-medium truncate">{{ it.title }}</div>
+        {% if it.sub %}<div class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ it.sub }}</div>{% endif %}
+      </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if results.flights %}
+<section class="mb-8">
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="font-semibold text-lg">حجوزات الطيران</h2>
+    <span class="text-sm text-gray-500 dark:text-gray-400">{{ results.flights|length }} نتيجة</span>
+  </div>
+  <div class="grid lg:grid-cols-2 gap-3">
+    {% for it in results.flights %}
+      <a href="{{ it.url }}" class="block p-4 rounded-lg bg-white dark:bg-gray-900 shadow hover:shadow-lg transition">
+        <div class="font-medium truncate">{{ it.title }}</div>
+        {% if it.sub %}<div class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ it.sub }}</div>{% endif %}
+      </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if results.others %}
+<section class="mb-8">
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="font-semibold text-lg">خدمات أخرى</h2>
+    <span class="text-sm text-gray-500 dark:text-gray-400">{{ results.others|length }} نتيجة</span>
+  </div>
+  <div class="grid lg:grid-cols-2 gap-3">
+    {% for it in results.others %}
+      <a href="{{ it.url }}" class="block p-4 rounded-lg bg-white dark:bg-gray-900 shadow hover:shadow-lg transition">
+        <div class="font-medium truncate">{{ it.title }}</div>
+        {% if it.sub %}<div class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ it.sub }}</div>{% endif %}
+      </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if not results.cards and not results.hotels and not results.flights and not results.others %}
+  <div class="p-6 rounded-lg bg-white dark:bg-gray-900 shadow text-gray-600 dark:text-gray-300">
+    لا توجد نتائج مطابقة لعبارتك.
+  </div>
+{% endif %}
+{% endblock %}

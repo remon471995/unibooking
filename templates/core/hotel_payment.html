@@ -5,8 +5,8 @@
 <div class="max-w-7xl mx-auto mt-8 bg-white shadow rounded-lg p-6">
 
   <div class="border-b pb-6 mb-6">
-    <h1 class="text-3xl font-bold text-gray-800">💳 إدارة الدفع</h1>
-    <p class="text-lg text-gray-600">{{ booking.hotel_name }} - <span class="font-mono">{{ booking.voucher_code }}</span></p>
+    <h1 class="text-3xl font-bold text-gray-800"> إدارة دفع الفندق</h1>
+    <p class="text-lg text-gray-600">{{ booking.airline }} - <span class="font-mono">{{ booking.pnr }}</span></p>
 
     <div class="mt-4 grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
       <div class="p-4 border rounded-lg bg-gray-50">
@@ -33,15 +33,16 @@
   </div>
 
   <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
-    
+    <!-- ✅ إضافة دفعة جديدة -->
     <div class="lg:col-span-2">
       {% if remaining > 0 or not payments %}
         <div class="bg-gray-50 p-5 rounded-lg border">
           <h2 class="text-lg font-semibold mb-4">➕ إضافة دفعة جديدة</h2>
           <form method="post" enctype="multipart/form-data" class="space-y-4">
             {% csrf_token %}
-            
-            {% if not payments %}
+
+            {# في أول دفعة فقط نظهر حقلي النت/البيع #}
+            {% if not has_existing %}
               <div class="grid grid-cols-2 gap-4">
                 <div>
                   <label class="block text-sm font-medium">سعر النت (Net)</label>
@@ -66,13 +67,21 @@
             <div id="payment-extra-fields" class="mt-3 space-y-4">
               <div id="payment-link-field" class="hidden"><label class="block text-sm font-medium">🔗 رابط السداد</label>{{ form.payment_link }}</div>
               <div id="bank-file-field" class="hidden"><label class="block text-sm font-medium">📎 رفع إيصال</label>{{ form.bank_file }}</div>
-              <div id="installment-deadline-field" class="hidden"><label class="block text-sm font-medium">📅 آخر ميعاد للدفع</label>{{ form.installment_date }}</div>
+
+              {# ❗ حقل آخر موعد سداد يظهر فقط في أول دفعة #}
+              {% if not has_existing %}
+                <div id="installment-deadline-field" class="hidden">
+                  <label class="block text-sm font-medium">📅 آخر ميعاد للدفع</label>
+                  {{ form.installment_date }}
+                </div>
+              {% endif %}
             </div>
-            
-            {% if not payments %}
+
+            {# مرفقات أول دفعة فقط #}
+            {% if not has_existing %}
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
-                <div><label class="block text-sm font-medium">📄 الفاتورة</label>{{ form.invoice_file }}</div>
-                <div><label class="block text-sm font-medium">🧾 الفاوتشر الأصلي</label>{{ form.voucher_original }}</div>
+              <div><label class="block text-sm font-medium">📄 الفاتورة</label>{{ form.invoice_file }}</div>
+              <div><label class="block text-sm font-medium">🧾 الفاوتشر الأصلي</label>{{ form.voucher_original }}</div>
             </div>
             {% endif %}
 
@@ -86,6 +95,7 @@
       {% endif %}
     </div>
 
+    <!-- ✅ قائمة الدفعات -->
     <div class="lg:col-span-3">
       <h2 class="text-lg font-semibold mb-4">📑 قائمة الدفعات المسجلة</h2>
       <div class="overflow-x-auto border rounded-lg">
@@ -106,15 +116,16 @@
                 {% if pay.method == 'cash' %}<i class="fa fa-money-bill-wave text-green-500"></i>
                 {% elif pay.method == 'bank' %}<i class="fa fa-university text-blue-500"></i>
                 {% elif pay.method == 'link' %}<i class="fa fa-link text-purple-500"></i>
+                {% elif pay.method == 'installment' %}<i class="fa fa-calendar text-orange-500"></i>
                 {% endif %}
                 {{ pay.get_method_display }}
               </td>
               <td class="px-4 py-3 text-sm text-green-700 font-bold">{{ pay.paid_amount|floatformat:2 }}</td>
               <td class="px-4 py-3 text-sm space-x-2">
-                  {% if pay.payment_link %}<a href="{{ pay.payment_link }}" target="_blank" class="text-blue-500 hover:underline">الرابط</a>{% endif %}
-                  {% if pay.bank_file %}<a href="{{ pay.bank_file.url }}" target="_blank" class="text-blue-500 hover:underline">الإيصال</a>{% endif %}
-                  {% if pay.invoice_file %}<a href="{{ pay.invoice_file.url }}" target="_blank" class="text-blue-500 hover:underline">الفاتورة</a>{% endif %}
-                  {% if pay.voucher_original %}<a href="{{ pay.voucher_original.url }}" target="_blank" class="text-blue-500 hover:underline">الفاوتشر</a>{% endif %}
+                {% if pay.payment_link %}<a href="{{ pay.payment_link }}" target="_blank" class="text-blue-500 hover:underline">الرابط</a>{% endif %}
+                {% if pay.bank_file %}<a href="{{ pay.bank_file.url }}" target="_blank" class="text-blue-500 hover:underline">الإيصال</a>{% endif %}
+                {% if pay.invoice_file %}<a href="{{ pay.invoice_file.url }}" target="_blank" class="text-blue-500 hover:underline">الفاتورة</a>{% endif %}
+                {% if pay.voucher_original %}<a href="{{ pay.voucher_original.url }}" target="_blank" class="text-blue-500 hover:underline">الفاوتشر</a>{% endif %}
               </td>
             </tr>
             {% empty %}
@@ -132,81 +143,43 @@
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
-  const form = document.querySelector("form");
-  const sellPriceInput = document.querySelector("input[name='sell_price']");
-  const netPriceInput = document.querySelector("input[name='net_price']");
-  const paidAmountInput = document.querySelector("input[name='paid_amount']");
-  const paymentMethodSelect = document.querySelector("select[name='method']");
-  const installmentDateInput = document.querySelector("input[name='installment_date']");
-  const checkinDate = "{{ booking.checkin|date:'Y-m-d' }}";
+  const hasExisting = {{ has_existing|yesno:"true,false" }};
+  const sellPriceInput   = document.querySelector("input[name='sell_price']");
+  const paidAmountInput  = document.querySelector("input[name='paid_amount']");
+  const paymentMethodSel = document.querySelector("select[name='method']");
 
-  const linkField = document.getElementById("payment-link-field");
-  const fileField = document.getElementById("bank-file-field");
-  const deadlineField = document.getElementById("installment-deadline-field");
+  const linkField     = document.getElementById("payment-link-field");
+  const fileField     = document.getElementById("bank-file-field");
+  const deadlineField = document.getElementById("installment-deadline-field"); // قد لا يكون موجودًا لو ليست أول دفعة
 
   const remainingAmount = parseFloat("{{ remaining|floatformat:'2'|default:'0' }}");
 
   function toggleFields() {
-    if (!paidAmountInput) return;
+    if (!paymentMethodSel) return;
 
-    linkField.classList.add('hidden');
-    fileField.classList.add('hidden');
-    deadlineField.classList.add('hidden');
+    linkField?.classList.add("hidden");
+    fileField?.classList.add("hidden");
+    deadlineField?.classList.add("hidden");
 
-    const method = paymentMethodSelect.value;
+    const method = paymentMethodSel.value;
     if (method === "link") {
-      linkField.classList.remove('hidden');
+      linkField?.classList.remove("hidden");
     } else if (method === "cash" || method === "bank") {
-      fileField.classList.remove('hidden');
+      fileField?.classList.remove("hidden");
     }
 
-    const paidAmount = parseFloat(paidAmountInput.value || '0');
-    let targetAmount;
+    // ❗ لا نظهر "آخر ميعاد للسداد" إلا في أول دفعة فقط
+    if (!hasExisting && deadlineField) {
+      const paid = parseFloat(paidAmountInput?.value || "0");
+      const target = sellPriceInput ? parseFloat(sellPriceInput.value || "0") : remainingAmount;
 
-    if (sellPriceInput) {
-      targetAmount = parseFloat(sellPriceInput.value || '0');
-    } else {
-      targetAmount = remainingAmount;
-    }
-
-    if (paidAmount > 0 && paidAmount < targetAmount) {
-      deadlineField.classList.remove('hidden');
+      if (paid > 0 && paid < target) {
+        deadlineField.classList.remove("hidden");
+      }
     }
   }
 
-  // تحقق قبل الإرسال
-  form.addEventListener("submit", function(e) {
-    const netPrice = parseFloat(netPriceInput?.value || 0);
-    const sellPrice = parseFloat(sellPriceInput?.value || 0);
-    const paidAmount = parseFloat(paidAmountInput?.value || 0);
-    const method = paymentMethodSelect?.value;
-    const installmentDate = installmentDateInput?.value;
-
-    // شرط: سعر البيع > سعر النت
-    if (sellPrice && netPrice && sellPrice <= netPrice) {
-      alert("⚠️ سعر البيع يجب أن يكون أكبر من سعر النت");
-      e.preventDefault();
-      return;
-    }
-
-    // شرط: الحقول الأساسية
-    if (!sellPrice || !netPrice || !paidAmount || !method) {
-      alert("⚠️ من فضلك املأ كل الحقول المطلوبة");
-      e.preventDefault();
-      return;
-    }
-
-    // شرط: آخر ميعاد للدفع قبل الدخول
-    if (installmentDate && checkinDate) {
-      if (new Date(installmentDate) >= new Date(checkinDate)) {
-        alert("⚠️ آخر ميعاد للدفع يجب أن يكون قبل تاريخ دخول الفندق");
-        e.preventDefault();
-        return;
-      }
-    }
-  });
-
-  paymentMethodSelect?.addEventListener("change", toggleFields);
+  paymentMethodSel?.addEventListener("change", toggleFields);
   paidAmountInput?.addEventListener("input", toggleFields);
   sellPriceInput?.addEventListener("input", toggleFields);
   toggleFields();

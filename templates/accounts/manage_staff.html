@@ -1,0 +1,78 @@
+{% extends "core/base.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto mt-8 bg-white shadow rounded-lg p-6">
+
+  <div class="flex items-center justify-between border-b pb-4 mb-6">
+    <h1 class="text-2xl font-bold">إدارة الموظفين</h1>
+    <a href="{% url 'accounts:create_user' %}" class="bg-blue-600 text-white px-4 py-2 rounded-lg">+ إنشاء مستخدم جديد</a>
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="grid md:grid-cols-5 gap-4 items-end">
+      <div class="md:col-span-2">
+        <label class="block text-sm font-medium mb-1">الإجراء الجماعي</label>
+        {{ bulk_form.action }}
+      </div>
+      <div class="md:col-span-1">
+        <label class="block text-sm font-medium mb-1">القسم</label>
+        {{ bulk_form.department }}
+      </div>
+      <div class="md:col-span-1">
+        <label class="block text-sm font-medium mb-1">الدور</label>
+        {{ bulk_form.role }}
+      </div>
+      <div class="md:col-span-1">
+        <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg">تطبيق</button>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto mt-6 border rounded">
+      <table class="min-w-full text-sm text-center">
+        <thead class="bg-gray-100">
+          <tr>
+            <th class="p-2"><input id="select-all" type="checkbox"></th>
+            <th class="p-2">الاسم</th>
+            <th class="p-2">اسم المستخدم</th>
+            <th class="p-2">القسم</th>
+            <th class="p-2">الدور</th>
+            <th class="p-2">الحالة</th>
+            <th class="p-2">البريد</th>
+            <th class="p-2">اجراءات</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+          <tr class="hover:bg-gray-50">
+            <td class="p-2"><input type="checkbox" name="selected" value="{{ u.id }}" class="select-user"></td>
+            <td class="p-2">{{ u.get_full_name|default:"-" }}</td>
+            <td class="p-2">{{ u.username }}</td>
+            <td class="p-2">{{ u.profile.department|default:"-" }}</td>
+            <td class="p-2">{{ u.profile.role|default:"-" }}</td>
+            <td class="p-2">{% if u.is_active %}مفعل{% else %}موقوف{% endif %}</td>
+            <td class="p-2">{{ u.email|default:"-" }}</td>
+            <td class="p-2">
+              <a href="{% url 'accounts:edit_user' u.id %}">تعديل</a> |
+              <a href="{% url 'accounts:change_user_password' u.id %}">كلمة المرور</a> |
+              <a href="{% url 'accounts:toggle_active' u.id %}">تفعيل/إيقاف</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="8" class="p-4 text-gray-500">لا يوجد مستخدمون.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </form>
+</div>
+
+<script>
+document.getElementById('select-all')?.addEventListener('change', function(e){
+  document.querySelectorAll('.select-user').forEach(cb => cb.checked = e.target.checked);
+});
+</script>
+{% endblock %}

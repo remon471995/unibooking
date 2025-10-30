@@ -1,0 +1,1379 @@
+# core/views.py
+import io, base64, csv, re, tempfile
+from collections import Counter
+from decimal import Decimal
+from datetime import datetime, timedelta
+
+# Django ORM / DB funcs
+from django.db.models import (
+    OuterRef, Subquery, Sum, Count, Q, DecimalField, F, Value as V, Max
+)
+from django.db.models.functions import Coalesce, TruncDate, ExtractMonth, TruncMonth
+
+# Django shortcuts & utils
+from django.views.decorators.http import require_POST, require_http_methods
+from django.http import JsonResponse, HttpResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.template.loader import get_template
+from django.urls import reverse
+from django.utils import timezone
+from django.utils.dateparse import parse_date
+from django.utils.html import format_html
+from django.forms import inlineformset_factory
+from django.core.paginator import Paginator
+from django.conf import settings
+
+# Models & Forms
+from .models import (
+    UniBookingCard, HotelBooking, FlightBooking, OtherBooking,
+    Payment, FlightPayment, OtherPayment, Room, Notification
+)
+from .forms import (
+    UniBookingCardForm, HotelBookingForm, PaymentForm,
+    FlightBookingForm, FlightPaymentForm, RoomForm,
+    OtherBookingForm, OtherPaymentForm
+)
+
+# External libs
+import qrcode
+from qrcode.image.pil import PilImage
+from weasyprint import HTML
+
+
+# ===================== Helpers عامة =====================
+
+def _build_qr_data_url(text: str) -> str:
+    qr = qrcode.QRCode(version=1, box_size=4, border=1)
+    qr.add_data(text)
+    qr.make(fit=True)
+    img: PilImage = qr.make_image(fill_color="black", back_color="white")
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    return f"data:image/png;base64,{base64.b64encode(buf.getvalue()).decode('ascii')}"
+
+def _render_pdf_from_template(template_name: str, context: dict, request) -> bytes:
+    html_string = get_template(template_name).render(context)
+    base_url = request.build_absolute_uri('/')
+    return HTML(string=html_string, base_url=base_url).write_pdf()
+
+def _cards_base_qs(request):
+    return UniBookingCard.objects.all()
+
+def _latest_emp_subquery(model, fk_name):
+    return Subquery(
+        model.objects.filter(**{fk_name: OuterRef('pk')})
+        .order_by('-created_at').values('employee_name')[:1]
+    )
+
+# تاريخ محاسبي موحّد لكل الحجوزات
+def _with_acc_date(qs):
+    # acc_date = accounting_date -> booking_date -> TruncDate(created_at)
+    return qs.annotate(
+        acc_date=Coalesce('accounting_date', 'booking_date', TruncDate('created_at'))
+    )
+
+def _date_filter_using_acc(qs, date_from, date_to):
+    qs = _with_acc_date(qs)
+    if date_from:
+        qs = qs.filter(acc_date__gte=date_from)
+    if date_to:
+        qs = qs.filter(acc_date__lte=date_to)
+    return qs
+
+def _norm_airline(name: str) -> str:
+    raw = (name or '').strip()
+    key = ' '.join(raw.replace('_', ' ').lower().split())
+    iata = raw.upper()
+    if len(iata) == 2 and iata.isalnum():
+        iata_map = {
+            'KU': 'Kuwait Airways', 'EK': 'Emirates', 'EY': 'Etihad Airways',
+            'QR': 'Qatar Airways', 'SV': 'Saudia', 'MS': 'EGYPTAIR', 'FZ': 'flydubai',
+            'WY': 'Oman Air', 'RJ': 'Royal Jordanian', 'GF': 'Gulf Air', 'J9': 'Jazeera Airways',
+        }
+        return iata_map.get(iata, iata)
+    name_map = {
+        'kuwait airways': 'Kuwait Airways', 'emirates': 'Emirates',
+        'emirates airlines': 'Emirates', 'etihad airways': 'Etihad Airways',
+        'qatar airways': 'Qatar Airways', 'egyptair': 'EGYPTAIR', 'saudia': 'Saudia',
+        'flydubai': 'flydubai', 'oman air': 'Oman Air', 'royal jordanian': 'Royal Jordanian',
+        'gulf air': 'Gulf Air', 'jazeera airways': 'Jazeera Airways', '-': '-', '': '-',
+    }
+    return name_map.get(key, raw.title() if raw else '-')
+
+def _norm_supplier(name: str) -> str:
+    raw = (name or '').strip()
+    key = ' '.join(raw.replace('_', ' ').lower().split())
+    sup_map = {
+        'smile': 'Smile', 'smil': 'Smile', 'tbo': 'TBO', 't b o': 'TBO',
+        'amadeus': 'Amadeus', 'amaedus': 'Amadeus', 'amadeus gds': 'Amadeus',
+        'sabre': 'Sabre', 'galileo': 'Galileo', 'apollo': 'Apollo',
+        '': '-', '-': '-', 'none': '-',
+    }
+    return sup_map.get(key, raw.title() if raw else '-')
+
+
+# ===================== Notifications =====================
+
+@login_required
+def notifications_list(request):
+    status = (request.GET.get("status") or "all").strip()   # all | unread | read
+    page   = int(request.GET.get("page") or 1)
+
+    # الصلاحيات
+    if request.user.is_superuser:
+        base = Q(to_superusers=True) | Q(to_user=request.user)
+    else:
+        base = Q(to_user=request.user)
+
+    qs = Notification.objects.filter(base).order_by('-created_at')
+
+    # فلترة حسب الحالة
+    if status == "unread":
+        qs = qs.filter(is_read=False)
+    elif status == "read":
+        qs = qs.filter(is_read=True)
+
+    # أرقام ملخصة
+    counts = {
+        "total": Notification.objects.filter(base).count(),
+        "unread": Notification.objects.filter(base, is_read=False).count(),
+        "read": Notification.objects.filter(base, is_read=True).count(),
+    }
+
+    paginator = Paginator(qs, 20)
+    page_obj = paginator.get_page(page)
+
+    return render(request, 'core/notifications.html', {
+        'page_obj': page_obj,
+        'rows': list(page_obj.object_list),
+        'status': status,
+        'counts': counts,
+    })
+
+@login_required
+def notification_mark_read(request, pk):
+    n = get_object_or_404(Notification, pk=pk)
+    if request.user.is_superuser or n.to_user_id == request.user.id:
+        n.is_read = True
+        n.save(update_fields=['is_read'])
+        messages.success(request, "تم تمييز التنبيه كمقروء.")
+    return redirect(n.target_url or 'notifications_list')
+
+
+# ===================== Dashboard / Cards =====================
+
+@login_required
+def dashboard(request):
+    qs = _cards_base_qs(request)
+    q = request.GET.get("q", "").strip()
+    if q:
+        qs = qs.filter(
+            Q(customer_name__icontains=q) |
+            Q(ub_code__icontains=q) |
+            Q(mobile__icontains=q)
+        )
+    paginator = Paginator(qs.order_by("-created_at"), 12)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    return render(request, "core/dashboard.html", {"cards": page_obj, "q": q})
+
+@login_required
+def card_create(request):
+    if request.method == 'POST':
+        form = UniBookingCardForm(request.POST)
+        if form.is_valid():
+            card = form.save(commit=False)
+            card.created_by = request.user
+            card.save()
+            messages.success(request, "تم إنشاء كارت العميل.")
+            return redirect('card_detail', pk=card.pk)
+        else:
+            errs = [f"{f}: {', '.join(e)}" for f, e in form.errors.items()]
+            messages.error(request, format_html("تحقق من المدخلات: {}", "; ".join(errs)))
+    else:
+        form = UniBookingCardForm()
+    return render(request, 'core/card_form.html', {'form': form})
+
+@login_required
+def card_detail(request, pk):
+    card = get_object_or_404(UniBookingCard, pk=pk)
+    hotel_bookings  = HotelBooking.objects.filter(card=card)
+    flight_bookings = FlightBooking.objects.filter(card=card)
+    other_bookings  = OtherBooking.objects.filter(card=card)
+
+    totals = {
+        "total_net": (
+            sum(h.net or 0 for h in hotel_bookings) +
+            sum(f.net_price or 0 for f in flight_bookings) +
+            sum(o.net_price or 0 for o in other_bookings)
+        ),
+        "total_sell": (
+            sum(h.sell or 0 for h in hotel_bookings) +
+            sum(f.sell_price or 0 for f in flight_bookings) +
+            sum(o.sell_price or 0 for o in other_bookings)
+        ),
+        "total_paid": (
+            sum(h.total_paid or 0 for h in hotel_bookings) +
+            sum(f.total_paid or 0 for f in flight_bookings) +
+            sum(o.total_paid or 0 for o in other_bookings)
+        ),
+    }
+    totals["total_profit"]    = totals["total_sell"] - totals["total_net"]
+    totals["total_remaining"] = totals["total_sell"] - totals["total_paid"]
+
+    return render(request, "core/card_detail.html", {
+        "card": card,
+        "hotel_bookings": hotel_bookings,
+        "flight_bookings": flight_bookings,
+        "other_bookings": other_bookings,
+        "totals": totals,
+    })
+
+
+# ===================== Cards Bulk Export/Delete =====================
+
+@login_required
+def cards_bulk_export(request):
+    ids = request.GET.getlist('ids[]') or request.GET.getlist('ids')
+    qs = _cards_base_qs(request)
+    if ids:
+        qs = qs.filter(id__in=ids)
+    qs = qs.annotate(
+        hotels_count=Count('hotels', distinct=True),
+        flights_count=Count('flights', distinct=True),
+        others_count=Count('others', distinct=True),
+    )
+
+    resp = HttpResponse(content_type='text/csv; charset=utf-8')
+    resp['Content-Disposition'] = 'attachment; filename="cards_export.csv"'
+    writer = csv.writer(resp)
+    writer.writerow([
+        'ID','UB Code','Customer','Mobile','Nationality','Country',
+        'Hotels','Flights','Created At'
+    ])
+    for c in qs:
+        writer.writerow([
+            c.id, c.ub_code, c.customer_name, c.mobile or '',
+            c.nationality or '', c.country or '',
+            c.hotels_count, c.flights_count,
+            c.created_at.isoformat() if c.created_at else ''
+        ])
+    return resp
+
+@login_required
+def cards_bulk_delete(request):
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Invalid method'}, status=405)
+
+    ids = request.POST.getlist('ids[]') or request.POST.getlist('ids')
+    if not ids:
+        return JsonResponse({'ok': False, 'error': 'No IDs'}, status=400)
+
+    qs = _cards_base_qs(request).filter(id__in=ids)
+    count = qs.count()
+    if not count:
+        return JsonResponse({'ok': False, 'error': 'No cards found or not permitted'}, status=404)
+
+    qs.delete()
+    return JsonResponse({'ok': True, 'deleted': count})
+
+
+# ===================== Hotel =====================
+
+@login_required
+def hotel_create(request, card_pk):
+    card = get_object_or_404(UniBookingCard, pk=card_pk)
+    if not request.user.is_superuser and card.created_by != request.user:
+        messages.error(request, "غير مسموح.")
+        return redirect('dashboard')
+
+    RoomFormSet = inlineformset_factory(
+        HotelBooking, Room, form=RoomForm,
+        extra=1, max_num=5, can_delete=False,
+    )
+
+    if request.method == 'POST':
+        form = HotelBookingForm(request.POST)
+        room_formset = RoomFormSet(request.POST, prefix='rooms')
+        if form.is_valid() and room_formset.is_valid():
+            hb = form.save(commit=False)
+            hb.card = card
+            hb.employee_name = request.user.get_full_name() or request.user.username
+            if hb.checkin and hb.checkout and hb.checkout > hb.checkin:
+                hb.nights = (hb.checkout - hb.checkin).days
+            hb.save()
+            room_formset.instance = hb
+            room_formset.save()
+            messages.success(request, f"تم حفظ حجز الفندق. فوّتشر: {hb.voucher_code}")
+            return redirect('hotel_payment', booking_pk=hb.pk)
+        else:
+            if not form.is_valid():
+                messages.error(request, "يرجى التحقق من بيانات الحجز الأساسية.")
+            if not room_formset.is_valid():
+                messages.error(request, "يرجى التحقق من بيانات أسماء النزلاء في الغرف.")
+    else:
+        form = HotelBookingForm()
+        room_formset = RoomFormSet(prefix='rooms')
+
+    return render(request, 'core/hotel_form.html', {
+        'card': card, 'form': form, 'room_formset': room_formset
+    })
+
+@login_required
+def hotel_voucher(request, booking_pk):
+    booking = get_object_or_404(HotelBooking, pk=booking_pk)
+    qr_data_url = _build_qr_data_url(
+        request.build_absolute_uri(reverse('hotel_voucher', args=[booking.pk]))
+    )
+    rooms = booking.rooms.all()
+    return render(request, 'core/voucher.html', {
+        'booking': booking,
+        'today': timezone.localdate(),
+        'nights': booking.nights,
+        'qr_data_url': qr_data_url,
+        'rooms': rooms,
+    })
+
+@login_required
+def hotel_voucher_pdf(request, booking_pk):
+    booking = get_object_or_404(HotelBooking, pk=booking_pk)
+    qr_data_url = _build_qr_data_url(
+        request.build_absolute_uri(reverse('hotel_voucher', args=[booking.pk]))
+    )
+    rooms = booking.rooms.all()
+    context = {
+        'booking': booking,
+        'today': timezone.localdate(),
+        'nights': booking.nights,
+        'qr_data_url': qr_data_url,
+        'rooms': rooms,
+    }
+    pdf_bytes = _render_pdf_from_template('core/voucher_pdf.html', context, request)
+    if pdf_bytes is None:
+        return HttpResponse("PDF render error", status=500)
+    resp = HttpResponse(pdf_bytes, content_type='application/pdf')
+    resp['Content-Disposition'] = f'attachment; filename="Voucher_{booking.voucher_code}.pdf"'
+    return resp
+
+
+# ===================== إدارة دفع الفنادق =====================
+
+@login_required
+def hotel_payment(request, booking_pk):
+    booking = get_object_or_404(HotelBooking, pk=booking_pk)
+    payments = booking.payments.order_by("-created_at")
+
+    total_paid = payments.aggregate(total=Sum("paid_amount"))["total"] or Decimal("0.00")
+    total_sell = booking.sell or Decimal("0.00")
+    total_net  = booking.net  or Decimal("0.00")
+    remaining  = total_sell - total_paid
+    profit     = total_sell - total_net
+    has_existing = payments.exists()
+
+    if request.method == "POST":
+        form = PaymentForm(request.POST, request.FILES,
+                           booking=booking, has_existing_payments=has_existing)
+        if form.is_valid():
+            p = form.save(commit=False)
+            p.booking_hotel = booking
+            p.employee_name = request.user.get_full_name() or request.user.username
+
+            if not has_existing:
+                # أول دفعة: نسمح بتحديد Net/Sell ونحدّث الحجز
+                booking.net  = form.cleaned_data.get("net_price")  or Decimal("0")
+                booking.sell = form.cleaned_data.get("sell_price") or Decimal("0")
+
+                paid_amount = form.cleaned_data.get("paid_amount") or Decimal("0")
+                if paid_amount < booking.sell:
+                    first_due = form.cleaned_data.get("installment_date")
+                    if not first_due:
+                        form.add_error("installment_date", "مطلوب عند أول دفعة غير كاملة.")
+                        return render(request, "core/hotel_payment.html", {
+                            "booking": booking, "form": form, "payments": payments,
+                            "remaining": remaining, "total_paid": total_paid,
+                            "total_sell": total_sell, "total_net": total_net,
+                            "profit": profit, "has_existing": has_existing,
+                        })
+                    booking.agreed_last_due = first_due
+                    p.installment_date = first_due
+                else:
+                    p.installment_date = None
+
+                booking.save()
+                # اربط الدفعة الأولى بقيم الحجز (تفادي NULL)
+                p.net_price  = booking.net
+                p.sell_price = booking.sell
+            else:
+                # دفعات لاحقة: لا تاريخ قسط، وخُد Net/Sell من الحجز لتفادي NULL
+                p.installment_date = None
+                p.net_price  = booking.net  or Decimal("0")
+                p.sell_price = booking.sell or Decimal("0")
+
+            p.save()
+            messages.success(request, "✅ تم حفظ بيانات الدفع بنجاح.")
+            return redirect("hotel_payment", booking_pk=booking.pk)
+        else:
+            messages.error(request, "⚠️ يوجد خطأ في البيانات.")
+    else:
+        form = PaymentForm(booking=booking, has_existing_payments=has_existing)
+
+    return render(request, "core/hotel_payment.html", {
+        "booking": booking, "form": form, "payments": payments,
+        "remaining": remaining, "total_paid": total_paid,
+        "total_sell": total_sell, "total_net": total_net,
+        "profit": profit, "has_existing": has_existing,
+    })
+
+
+# --------------- FLIGHT ----------------
+@login_required
+def flight_payment(request, booking_pk):
+    booking = get_object_or_404(FlightBooking, pk=booking_pk)
+    payments = booking.payments.order_by("-created_at")
+
+    total_paid  = payments.aggregate(total=Sum("paid_amount"))["total"] or Decimal("0.00")
+    total_net   = booking.net_price  or Decimal("0.00")
+    total_sell  = booking.sell_price or Decimal("0.00")
+    remaining   = total_sell - total_paid
+    profit      = total_sell - total_net
+    has_existing = payments.exists()
+
+    if request.method == "POST":
+        form = FlightPaymentForm(request.POST, request.FILES,
+                                 booking=booking, has_existing_payments=has_existing)
+        if form.is_valid():
+            p = form.save(commit=False)
+            p.booking_flight = booking
+            p.employee_name  = request.user.get_full_name() or request.user.username
+
+            if not has_existing:
+                # أول دفعة: نسمح بتحديد Net/Sell ونحدّث الحجز
+                booking.net_price  = form.cleaned_data.get("net_price")  or Decimal("0")
+                booking.sell_price = form.cleaned_data.get("sell_price") or Decimal("0")
+
+                paid_amount = form.cleaned_data.get("paid_amount") or Decimal("0")
+                if paid_amount < booking.sell_price:
+                    first_due = form.cleaned_data.get("installment_date")
+                    if not first_due:
+                        form.add_error("installment_date", "مطلوب عند أول دفعة غير كاملة.")
+                        return render(request, "core/flight_payment.html", {
+                            "booking": booking, "form": form, "payments": payments,
+                            "total_net": total_net, "total_sell": total_sell,
+                            "total_paid": total_paid, "remaining": remaining,
+                            "profit": profit, "has_existing": has_existing,
+                        })
+                    booking.agreed_last_due = first_due
+                    p.installment_date = first_due
+                else:
+                    p.installment_date = None
+
+                booking.save()
+                p.net_price  = booking.net_price
+                p.sell_price = booking.sell_price
+            else:
+                # دفعات لاحقة: لا تاريخ قسط، وخُد Net/Sell من الحجز لتفادي NULL
+                p.installment_date = None
+                p.net_price  = booking.net_price  or Decimal("0")
+                p.sell_price = booking.sell_price or Decimal("0")
+
+            p.save()
+            messages.success(request, "✅ تم حفظ بيانات الدفع بنجاح.")
+            return redirect("flight_payment", booking_pk=booking.pk)
+        else:
+            messages.error(request, "⚠️ يوجد خطأ في البيانات.")
+    else:
+        form = FlightPaymentForm(booking=booking, has_existing_payments=has_existing)
+
+    return render(request, "core/flight_payment.html", {
+        "booking": booking, "form": form, "payments": payments,
+        "total_net": total_net, "total_sell": total_sell,
+        "total_paid": total_paid, "remaining": remaining,
+        "profit": profit, "has_existing": has_existing,
+    })
+
+
+# ---------------- Other ----------------
+@login_required
+def other_payment(request, pk):
+    booking = get_object_or_404(OtherBooking, pk=pk)
+    payments = booking.payments.order_by("-created_at")
+    has_existing = payments.exists()
+
+    total_paid = payments.aggregate(total=Sum("paid_amount"))["total"] or Decimal("0.00")
+    total_net  = booking.net_price  or Decimal("0.00")
+    total_sell = booking.sell_price or Decimal("0.00")
+    remaining  = total_sell - total_paid
+    profit     = total_sell - total_net
+
+    if request.method == "POST":
+        form = OtherPaymentForm(request.POST, request.FILES,
+                                booking=booking, has_existing_payments=has_existing)
+        if form.is_valid():
+            p = form.save(commit=False)
+            p.booking_other = booking
+            p.employee_name = request.user.get_full_name() or request.user.username
+
+            if not has_existing:
+                booking.net_price  = form.cleaned_data.get("net_price")  or Decimal("0")
+                booking.sell_price = form.cleaned_data.get("sell_price") or Decimal("0")
+
+                paid_amount = form.cleaned_data.get("paid_amount") or Decimal("0")
+                if paid_amount < booking.sell_price:
+                    first_due = form.cleaned_data.get("installment_date")
+                    if not first_due:
+                        form.add_error("installment_date", "مطلوب عند أول دفعة غير كاملة.")
+                        return render(request, "core/other_payment.html", {
+                            "booking": booking,
+                            "payments": payments,
+                            "form": form,
+                            "has_existing": has_existing,
+                            "total_paid": total_paid,
+                            "total_sell": total_sell,
+                            "total_net": total_net,
+                            "remaining": remaining,
+                            "profit": profit,
+                        })
+                    booking.agreed_last_due = first_due
+                    p.installment_date = first_due
+                else:
+                    p.installment_date = None
+
+                booking.save()
+                p.net_price  = booking.net_price
+                p.sell_price = booking.sell_price
+            else:
+                p.installment_date = None
+                p.net_price  = booking.net_price  or Decimal("0")
+                p.sell_price = booking.sell_price or Decimal("0")
+
+            p.save()
+            messages.success(request, "✅ تم حفظ الدفعة بنجاح.")
+            return redirect("other_payment", pk=booking.pk)
+        else:
+            messages.error(request, "⚠️ يوجد خطأ في البيانات.")
+    else:
+        form = OtherPaymentForm(booking=booking, has_existing_payments=has_existing)
+
+    return render(request, "core/other_payment.html", {
+        "booking": booking,
+        "payments": payments,
+        "form": form,
+        "has_existing": has_existing,
+        "total_paid": total_paid,
+        "total_sell": total_sell,
+        "total_net": total_net,
+        "remaining": remaining,
+        "profit": profit,
+    })
+# ===================== Flight =====================
+
+@login_required
+def flight_create(request, card_pk):
+    card = get_object_or_404(UniBookingCard, pk=card_pk)
+    if not request.user.is_superuser and card.created_by != request.user:
+        messages.error(request, "غير مسموح بإنشاء حجز طيران في كارت ليس ملكك.")
+        return redirect('dashboard')
+
+    if request.method == "POST":
+        form = FlightBookingForm(request.POST, request.FILES)
+        if form.is_valid():
+            booking = form.save(commit=False)
+            booking.card = card
+            booking.employee_name = request.user.get_full_name() or request.user.username
+            booking.save()
+            return redirect("flight_payment", booking_pk=booking.pk)
+    else:
+        form = FlightBookingForm()
+    return render(request, "core/flight_form.html", {"form": form, "card": card})
+
+@login_required
+def flight_voucher(request, booking_pk):
+    b = get_object_or_404(FlightBooking, pk=booking_pk)
+    qr = _build_qr_data_url(request.build_absolute_uri(reverse("flight_voucher", args=[b.pk])))
+    return render(request, "core/flight_voucher.html", {
+        "b": b, "today": timezone.localdate(), "qr_data_url": qr,
+    })
+
+@login_required
+def flight_voucher_pdf(request, booking_pk):
+    b = get_object_or_404(FlightBooking, pk=booking_pk)
+    qr = _build_qr_data_url(request.build_absolute_uri(reverse('flight_voucher', args=[b.pk])))
+    pdf_bytes = _render_pdf_from_template(
+        'core/flight_voucher_pdf.html',
+        {'b': b, 'today': timezone.localdate(), 'qr_data_url': qr},
+        request,
+    )
+    if pdf_bytes is None:
+        return HttpResponse("PDF render error", status=500)
+    resp = HttpResponse(pdf_bytes, content_type='application/pdf')
+    resp['Content-Disposition'] = f'attachment; filename="Flight_{b.voucher_code}.pdf"'
+    return resp
+
+
+# ===================== Other =====================
+
+@login_required
+def other_create(request, card_pk):
+    card = get_object_or_404(UniBookingCard, pk=card_pk)
+    if request.method == "POST":
+        form = OtherBookingForm(request.POST)
+        if form.is_valid():
+            other = form.save(commit=False)
+            other.card = card
+            other.employee_name = request.user.get_full_name() or request.user.username
+            other.save()
+            messages.success(request, "تم حفظ الخدمة بنجاح.")
+            return redirect("other_payment", pk=other.pk)
+        else:
+            messages.error(request, "من فضلك املأ الحقول الإلزامية بشكل صحيح.")
+    else:
+        form = OtherBookingForm()
+    return render(request, "core/other_form.html", {"form": form, "card": card})
+
+# ===================== Installments Board (لوحة الأقساط) =====================
+
+@login_required
+def installments_board(request):
+    # فلاتر GET
+    q_from   = request.GET.get("from") or ""
+    q_to     = request.GET.get("to") or ""
+    q_q      = (request.GET.get("q") or "").strip()
+    only_due = request.GET.get("only_due") == "1"
+
+    date_from = parse_date(q_from) if q_from else None
+    date_to   = parse_date(q_to) if q_to else None
+    today     = timezone.localdate()
+
+    # صلاحيات
+    if request.user.is_superuser:
+        base_b = {}
+        base_p = {}
+    else:
+        emp = (request.user.get_full_name() or request.user.username or "").strip()
+        base_b = {"employee_name__iexact": emp}
+        base_p = {"employee_name__iexact": emp}
+
+    # تذكير الأقساط القريبة (خلال n أيام) — من دفعة أولى فقط
+    remind_days = int(getattr(settings, "INSTALLMENT_REMINDER_DAYS", 5))
+    soon = today + timezone.timedelta(days=remind_days)
+
+    def _installments_qs(PModel, rel, kind, urlname):
+        qs = (
+            PModel.objects
+            .filter(**base_p, installment_date__range=(today, soon))
+            .select_related(rel)
+            .order_by("installment_date")
+        )
+        rows_ = []
+        for p in qs[:15]:
+            b = getattr(p, rel)
+            cust = b.card.customer_name if b and b.card_id else "-"
+            rows_.append({
+                "kind": kind,
+                "customer": cust,
+                "due": p.installment_date,
+                "amount": p.paid_amount or Decimal("0"),
+                "url": reverse(urlname, args=[getattr(b, "pk", None)]) if b else "#",
+                "days": (p.installment_date - today).days if p.installment_date else None,
+            })
+        return rows_
+
+    reminders = []
+    reminders += _installments_qs(Payment,       "booking_hotel",  "فندق",  "hotel_payment")
+    reminders += _installments_qs(FlightPayment, "booking_flight", "طيران", "flight_payment")
+    reminders += _installments_qs(OtherPayment,  "booking_other",  "أخرى",  "other_payment")
+    reminders.sort(key=lambda r: (r["due"], r["customer"]))
+
+    # مصدر الحجوزات (فلترة بتاريخ الحجز)
+    h_b = HotelBooking.objects.filter(**base_b).select_related("card")
+    f_b = FlightBooking.objects.filter(**base_b).select_related("card")
+    o_b = OtherBooking.objects.filter(**base_b).select_related("card")
+
+    if date_from:
+        h_b = h_b.filter(booking_date__gte=date_from)
+        f_b = f_b.filter(booking_date__gte=date_from)
+        o_b = o_b.filter(booking_date__gte=date_from)
+    if date_to:
+        h_b = h_b.filter(booking_date__lte=date_to)
+        f_b = f_b.filter(booking_date__lte=date_to)
+        o_b = o_b.filter(booking_date__lte=date_to)
+
+    if q_q:
+        h_b = h_b.filter(card__customer_name__icontains=q_q)
+        f_b = f_b.filter(card__customer_name__icontains=q_q)
+        o_b = o_b.filter(card__customer_name__icontains=q_q)
+
+    # دفعات كل نوع
+    p_h = Payment.objects.filter(booking_hotel__in=h_b)
+    p_f = FlightPayment.objects.filter(booking_flight__in=f_b)
+    p_o = OtherPayment.objects.filter(booking_other__in=o_b)
+
+    # KPIs من الدفعات
+    dec0 = V(Decimal("0.00"), output_field=DecimalField(max_digits=12, decimal_places=2))
+    def _sum(qs, field): return qs.aggregate(v=Coalesce(Sum(field), dec0))["v"] or Decimal("0")
+
+    total_net  = _sum(p_h, "net_price")  + _sum(p_f, "net_price")  + _sum(p_o, "net_price")
+    total_sell = _sum(p_h, "sell_price") + _sum(p_f, "sell_price") + _sum(p_o, "sell_price")
+    total_paid = _sum(p_h, "paid_amount") + _sum(p_f, "paid_amount") + _sum(p_o, "paid_amount")
+    total_remaining = total_sell - total_paid
+    total_profit    = total_sell - total_net
+
+    # مجاميع المدفوع لكل حجز
+    paid_by_h = dict(p_h.values_list("booking_hotel_id").annotate(Sum("paid_amount")))
+    paid_by_f = dict(p_f.values_list("booking_flight_id").annotate(Sum("paid_amount")))
+    paid_by_o = dict(p_o.values_list("booking_other_id").annotate(Sum("paid_amount")))
+
+    # صفوف العرض — “آخر ميعاد قسط” من agreed_last_due
+    rows = []
+
+    def _row_from_booking(b, kind, sell, net, paid):
+        remain = (sell or 0) - (paid or 0)
+        return {
+            "voucher": getattr(b, "voucher_code", "") or "-",
+            "kind": kind,
+            "date": b.created_at,
+            "book_date": getattr(b, "booking_date", None),
+            "customer": b.card.customer_name if getattr(b, "card_id", None) else "",
+            "employee": b.employee_name or "-",
+            "sell": sell or Decimal("0"),
+            "net": net or Decimal("0"),
+            "paid": paid or Decimal("0"),
+            "remain": remain,
+            "profit": (sell or 0) - (net or 0),
+            "last_due": getattr(b, "agreed_last_due", None),
+            "detail_url": reverse("card_detail", args=[b.card_id]) if getattr(b, "card_id", None) else "#",
+            "pay_url": reverse(
+                "hotel_payment" if kind == "فندق"
+                else "flight_payment" if kind == "طيران"
+                else "other_payment",
+                args=[b.pk]
+            ),
+            "ref": getattr(b, "booking_ref", "") or getattr(b, "voucher_code", "") or "",
+        }
+
+    for b in h_b.only("id","sell","net","employee_name","card_id","created_at","booking_ref","booking_date","voucher_code","agreed_last_due"):
+        rows.append(_row_from_booking(b, "فندق",  b.sell,       b.net,       paid_by_h.get(b.id, Decimal("0"))))
+    for b in f_b.only("id","sell_price","net_price","employee_name","card_id","created_at","pnr","booking_date","voucher_code","agreed_last_due"):
+        rows.append(_row_from_booking(b, "طيران", b.sell_price, b.net_price, paid_by_f.get(b.id, Decimal("0"))))
+    for b in o_b.only("id","sell_price","net_price","employee_name","card_id","created_at","booking_date","voucher_code","agreed_last_due"):
+        rows.append(_row_from_booking(b, "أخرى",  b.sell_price, b.net_price, paid_by_o.get(b.id, Decimal("0"))))
+
+    if only_due:
+        rows = [r for r in rows if r["remain"] > 0]
+
+    rows.sort(key=lambda r: r["date"], reverse=True)
+
+    return render(request, "core/installments_board.html", {
+        "q_from": q_from, "q_to": q_to, "q": q_q,
+        "kpis": {
+            "total_sell": total_sell,
+            "total_net": total_net,
+            "total_paid": total_paid,
+            "total_profit": total_profit,
+            "total_remaining": total_remaining,
+        },
+        "reminders": reminders,
+        "rows": rows[:300],
+        "remind_days": remind_days,
+        "only_due": only_due,
+        "today": today,
+    })
+
+
+# ===================== Agent Board (ملخّص الموظف) =====================
+
+@login_required
+def agent_board(request):
+    me = (request.user.get_full_name() or request.user.username).strip()
+    owned = Q(employee_name__iexact=me) if not request.user.is_superuser else Q()
+
+    d_from = request.GET.get("from") or ""
+    d_to   = request.GET.get("to") or ""
+    date_h, date_flt, date_o = {}, {}, {}
+    if d_from:
+        date_h["booking_date__gte"]   = d_from
+        date_flt["booking_date__gte"] = d_from
+        date_o["booking_date__gte"]   = d_from
+    if d_to:
+        date_h["booking_date__lte"]   = d_to
+        date_flt["booking_date__lte"] = d_to
+        date_o["booking_date__lte"]   = d_to
+
+    h = HotelBooking.objects.filter(owned, **date_h).select_related("card")
+    f = FlightBooking.objects.filter(owned, **date_flt).select_related("card")
+    o = OtherBooking.objects.filter(owned, **date_o).select_related("card")
+
+    def sum_or0(qs, field):
+        v = qs.aggregate(s=Sum(field))["s"]
+        return Decimal(v or 0)
+
+    pays_h = Payment.objects.filter(booking_hotel__in=h)
+    pays_f = FlightPayment.objects.filter(booking_flight__in=f)
+    pays_o = OtherPayment.objects.filter(booking_other__in=o)
+
+    total_sell = sum_or0(h, "sell") + sum_or0(f, "sell_price") + sum_or0(o, "sell_price")
+    total_net  = sum_or0(h, "net")  + sum_or0(f, "net_price")  + sum_or0(o, "net_price")
+    total_paid = sum_or0(pays_h, "paid_amount") + sum_or0(pays_f, "paid_amount") + sum_or0(pays_o, "paid_amount")
+    total_profit    = total_sell - total_net
+    total_remaining = total_sell - total_paid
+
+    # أقساط قريبة (5 أيام) — تظهر فقط إن كانت أول دفعة مسجّل لها installment_date
+    today = timezone.localdate()
+    soon  = today + timedelta(days=5)
+    due_installments = []
+
+    def add_dues(qs, title, url_name, id_field):
+        for p in qs.filter(method="installment", installment_date__range=(today, soon)).select_related():
+            b = getattr(p, f"booking_{title}") if title != "hotel" else p.booking_hotel
+            due_installments.append({
+                "date": p.installment_date,
+                "amount": p.paid_amount,
+                "customer": b.card.customer_name if getattr(b, "card_id", None) else "-",
+                "ref": getattr(b, "voucher_code", None) or getattr(b, "booking_ref", None) or getattr(b, "pnr", "") or "",
+                "url": reverse(url_name, args=[getattr(p, id_field)]),
+                "kind": title,
+            })
+
+    add_dues(Payment.objects.all(),       "hotel",  "hotel_payment",  "booking_hotel_id")
+    add_dues(FlightPayment.objects.all(), "flight", "flight_payment", "booking_flight_id")
+    add_dues(OtherPayment.objects.all(),  "other",  "other_payment",  "booking_other_id")
+    due_installments.sort(key=lambda x: (x["date"], x["kind"]))
+
+    rows = []
+    for b in h.only("id","booking_date","created_at","sell","net","card_id","voucher_code","booking_ref"):
+        sell = b.sell or Decimal("0"); net = b.net or Decimal("0")
+        rows.append(("hotel", {
+            "id": b.id,
+            "book_date": b.booking_date,
+            "created_at": b.created_at,
+            "sell": sell,
+            "net": net,
+            "profit": sell - net,
+            "card_id": b.card_id,
+            "ref_full": (b.voucher_code or b.booking_ref or ""),
+        }))
+
+    for b in f.only("id","booking_date","created_at","sell_price","net_price","card_id","voucher_code","pnr"):
+        sell = b.sell_price or Decimal("0"); net = b.net_price or Decimal("0")
+        rows.append(("flight", {
+            "id": b.id,
+            "book_date": b.booking_date,
+            "created_at": b.created_at,
+            "sell_price": sell,
+            "net_price": net,
+            "profit": sell - net,
+            "card_id": b.card_id,
+            "ref_full": (b.voucher_code or b.pnr or ""),
+        }))
+
+    for b in o.only("id","booking_date","created_at","sell_price","net_price","card_id","voucher_code","booking_ref"):
+        sell = b.sell_price or Decimal("0"); net = b.net_price or Decimal("0")
+        rows.append(("other", {
+            "id": b.id,
+            "book_date": b.booking_date,
+            "created_at": b.created_at,
+            "sell_price": sell,
+            "net_price": net,
+            "profit": sell - net,
+            "card_id": b.card_id,
+            "ref_full": (b.voucher_code or b.booking_ref or ""),
+        }))
+
+    rows.sort(key=lambda x: x[1]["book_date"], reverse=True)
+    rows = rows[:100]
+
+    return render(request, "core/agent_board.html", {
+        "kpis": {
+            "total_remaining": total_remaining,
+            "total_paid": total_paid,
+            "total_sell": total_sell,
+            "total_profit": total_profit,
+        },
+        "due_installments": due_installments,
+        "rows": rows,
+        "d_from": d_from,
+        "d_to": d_to,
+    })
+
+
+# ===================== Reports + Exports =====================
+
+@login_required
+def reports(request):
+    # Inputs
+    preset    = (request.GET.get('preset') or '').strip()
+    q_from    = parse_date(request.GET.get('from') or '')
+    q_to      = parse_date(request.GET.get('to') or '')
+    q_emp     = (request.GET.get('employee') or '').strip()
+    q_kind    = (request.GET.get('kind') or '').strip()
+    q_group   = (request.GET.get('group') or '').strip()
+    q_scope   = (request.GET.get('scope') or ('all' if request.user.is_superuser else 'mine')).strip()
+    page_num  = int(request.GET.get('page') or 1)
+
+    today = timezone.localdate()
+    if preset == 'today':
+        q_from, q_to = today, today
+    elif preset == 'week':
+        start = today - timezone.timedelta(days=today.weekday())
+        q_from, q_to = start, today
+    elif preset == 'month':
+        q_from, q_to = today.replace(day=1), today
+    elif preset == 'quarter':
+        m = ((today.month-1)//3)*3 + 1
+        q_from, q_to = today.replace(month=m, day=1), today
+
+    # Permissions scope
+    if request.user.is_superuser:
+        base_filter = {}
+        can_choose_scope = True
+    else:
+        current_emp = (request.user.get_full_name() or request.user.username or '').strip()
+        base_filter = {'employee_name__iexact': current_emp}
+        can_choose_scope = False
+        q_scope = 'mine'
+
+    rows, labels = [], []
+
+    def _append(qs, kname, fmt, payments_rel, emp_model, emp_fk):
+        qs = qs.filter(**base_filter)
+        qs = _date_filter_using_acc(qs, q_from, q_to)
+        if q_emp:
+            qs = qs.filter(**{f'{payments_rel}__employee_name__icontains': q_emp})
+
+        qs = qs.annotate(last_emp=Subquery(
+            emp_model.objects.filter(**{emp_fk: OuterRef('pk')})
+            .order_by('-created_at').values('employee_name')[:1]
+        ))
+        qs = _with_acc_date(qs).select_related('card').only(
+            'id','booking_ref','voucher_code','created_at','card__customer_name'
+        )
+
+        cnt = qs.count()
+        labels.append((kname, cnt))
+
+        for r in qs[:2000]:
+            rows.append({
+                'kind': kname,
+                'ref': getattr(r, 'booking_ref', '') or '',
+                'voucher': getattr(r, 'voucher_code', '') or '',
+                'employee': r.last_emp or '-',
+                'customer': r.card.customer_name if getattr(r, 'card_id', None) else '',
+                'created': r.acc_date,
+                'extra': fmt(r),
+            })
+
+    if q_kind in ('hotel',''):
+        _append(HotelBooking.objects.all(), 'Hotel',
+                lambda r: f'{getattr(r,"hotel_name","-")}/{getattr(r,"country","-") or "-"}',
+                'payments', Payment, 'booking_hotel')
+    if q_kind in ('flight',''):
+        _append(FlightBooking.objects.all(), 'Flight',
+                lambda r: f'{getattr(r,"airline","-")}/{getattr(r,"pnr","-")}',
+                'payments', FlightPayment, 'booking_flight')
+    if q_kind in ('other',''):
+        _append(OtherBooking.objects.all(), 'Other',
+                lambda r: f'{r.get_service_type_display()}/{getattr(r,"provider_name","-") or "-"}',
+                'payments', OtherPayment, 'booking_other')
+
+    rows.sort(key=lambda x: x['created'] or today, reverse=True)
+    chart_labels = [k for k,_ in labels]
+    chart_values = [c for _,c in labels]
+
+    # Pagination
+    paginator = Paginator(rows, 100)
+    page_obj = paginator.get_page(page_num)
+    rows_page = list(page_obj.object_list)
+
+    # KPIs (acc_date)
+    def _sum(qs, field): return qs.aggregate(v=Sum(field))['v'] or Decimal('0')
+    def _filtered(model_qs, payments_rel):
+        qs = model_qs.filter(**base_filter)
+        qs = _date_filter_using_acc(qs, q_from, q_to)
+        if q_emp:
+            qs = qs.filter(**{f'{payments_rel}__employee_name__icontains': q_emp})
+        return qs.distinct()
+
+    h_qs = _filtered(HotelBooking.objects.all(), 'payments')
+    f_qs = _filtered(FlightBooking.objects.all(), 'payments')
+    o_qs = _filtered(OtherBooking.objects.all(), 'payments')
+
+    total_sell = _sum(h_qs,'sell') + _sum(f_qs,'sell_price') + _sum(o_qs,'sell_price')
+    total_net  = _sum(h_qs,'net')  + _sum(f_qs,'net_price')  + _sum(o_qs,'net_price')
+    paid_hotel = _sum(Payment.objects.filter(booking_hotel__in=h_qs), 'paid_amount')
+    paid_flight= _sum(FlightPayment.objects.filter(booking_flight__in=f_qs), 'paid_amount')
+    paid_other = _sum(OtherPayment.objects.filter(booking_other__in=o_qs), 'paid_amount')
+    total_paid = paid_hotel + paid_flight + paid_other
+    totals = {
+        'sell': total_sell,
+        'net': total_net,
+        'profit': total_sell - total_net,
+        'paid': total_paid,
+        'remaining': total_sell - total_paid,
+    }
+
+    # Group by employee (اختياري)
+    emp_rows = []
+    if q_group == 'employee':
+        agg = {}
+        def _add(emp, sell=0, net=0, paid=0, count=0):
+            d = agg.setdefault(emp or '-', {'sell':Decimal('0'), 'net':Decimal('0'),
+                                            'paid':Decimal('0'), 'count':0})
+            d['sell'] += Decimal(sell); d['net'] += Decimal(net)
+            d['paid'] += Decimal(paid); d['count'] += int(count)
+
+        for p in Payment.objects.filter(booking_hotel__in=h_qs).only('employee_name','sell_price','net_price','paid_amount'):
+            _add(p.employee_name, sell=p.sell_price or 0, net=p.net_price or 0, paid=p.paid_amount or 0)
+        for p in FlightPayment.objects.filter(booking_flight__in=f_qs).only('employee_name','sell_price','net_price','paid_amount'):
+            _add(p.employee_name, sell=p.sell_price or 0, net=p.net_price or 0, paid=p.paid_amount or 0)
+        for p in OtherPayment.objects.filter(booking_other__in=o_qs).only('employee_name','sell_price','net_price','paid_amount'):
+            _add(p.employee_name, sell=p.sell_price or 0, net=p.net_price or 0, paid=p.paid_amount or 0)
+
+        def _count_by_latest(qs, model, fk):
+            sub = Subquery(model.objects.filter(**{fk:OuterRef('pk')}).order_by('-created_at').values('employee_name')[:1])
+            for rec in _with_acc_date(qs).annotate(last_emp=sub).values('last_emp'):
+                _add(rec['last_emp'] or '-', count=1)
+        _count_by_latest(h_qs, Payment, 'booking_hotel')
+        _count_by_latest(f_qs, FlightPayment, 'booking_flight')
+        _count_by_latest(o_qs, OtherPayment, 'booking_other')
+
+        for emp, v in agg.items():
+            profit = (v['sell'] - v['net'])
+            emp_rows.append({
+                'employee': emp,
+                'count': v['count'],
+                'sell': v['sell'],
+                'net': v['net'],
+                'profit': profit,
+                'paid': v['paid'],
+                'remaining': (v['sell'] - v['paid']),
+            })
+        emp_rows.sort(key=lambda x: x['profit'], reverse=True)
+
+    # Top-5 employees by profit
+    if emp_rows:
+        top_emp = emp_rows[:5]
+    else:
+        profit_map = {}
+        def _add_profit(qs, sell_field, net_field):
+            for p in qs.values('employee_name').annotate(
+                sell=Sum(sell_field), net=Sum(net_field)
+            ):
+                nm = p['employee_name'] or '-'
+                profit_map[nm] = profit_map.get(nm, Decimal('0')) + (p['sell'] or 0) - (p['net'] or 0)
+        _add_profit(Payment.objects.filter(booking_hotel__in=h_qs), 'sell_price', 'net_price')
+        _add_profit(FlightPayment.objects.filter(booking_flight__in=f_qs), 'sell_price', 'net_price')
+        _add_profit(OtherPayment.objects.filter(booking_other__in=o_qs), 'sell_price', 'net_price')
+        top_emp = sorted(
+            [{'employee': k, 'profit': v} for k,v in profit_map.items()],
+            key=lambda x: x['profit'], reverse=True
+        )[:5]
+    top_emp_labels = [t['employee'] for t in top_emp]
+    top_emp_values = [float(t['profit']) for t in top_emp]
+
+    # Monthly sales (current year) عبر acc_date
+    cur_year = today.year
+    months = list(range(1,13))
+    month_totals = {m: Decimal('0') for m in months}
+
+    def _add_monthly(qs, field):
+        qs = _with_acc_date(qs).filter(acc_date__year=cur_year)
+        for r in qs.values(m=ExtractMonth('acc_date')).annotate(s=Sum(field)):
+            if r['m'] in month_totals:
+                month_totals[r['m']] += r['s'] or 0
+
+    _add_monthly(h_qs, 'sell')
+    _add_monthly(f_qs, 'sell_price')
+    _add_monthly(o_qs, 'sell_price')
+
+    month_labels = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"]
+    month_values = [float(month_totals[m]) for m in months]
+
+    # Suppliers summary
+    def _norm_supplier(name: str) -> str:
+        raw = (name or '').strip()
+        key = ' '.join(raw.replace('_', ' ').lower().split())
+        sup_map = {
+            'smile': 'Smile', 'smil': 'Smile', 'tbo': 'TBO', 't b o': 'TBO',
+            'amadeus': 'Amadeus', 'amaedus': 'Amadeus', 'amadeus gds': 'Amadeus',
+            'sabre': 'Sabre', 'galileo': 'Galileo', 'apollo': 'Apollo',
+            '': '-', '-': '-', 'none': '-',
+        }
+        return sup_map.get(key, raw.title() if raw else '-')
+
+    sup_map = {}
+    for b in _with_acc_date(h_qs).only('provider_name', 'sell'):
+        nm = _norm_supplier(getattr(b, 'provider_name', '') or '-')
+        row = sup_map.setdefault(nm, {'count': 0, 'sell': Decimal('0')})
+        row['count'] += 1
+        row['sell']  += (b.sell or Decimal('0'))
+    for b in _with_acc_date(o_qs).only('provider_name', 'sell_price'):
+        nm = _norm_supplier(getattr(b, 'provider_name', '') or '-')
+        row = sup_map.setdefault(nm, {'count': 0, 'sell': Decimal('0')})
+        row['count'] += 1
+        row['sell']  += (b.sell_price or Decimal('0'))
+    supplier_rows = [{'supplier': k, 'count': v['count'], 'sell': v['sell']} for k,v in sup_map.items()]
+    supplier_rows.sort(key=lambda x: (-x['count'], -x['sell']))
+
+    # Airlines summary
+    air_map = {}
+    for b in _with_acc_date(f_qs).only('airline', 'sell_price'):
+        nm = _norm_airline(getattr(b, 'airline', '') or '-')
+        row = air_map.setdefault(nm, {'count': 0, 'sell': Decimal('0')})
+        row['count'] += 1
+        row['sell']  += (b.sell_price or Decimal('0'))
+    airline_rows = [{'airline': k, 'count': v['count'], 'sell': v['sell']} for k,v in air_map.items()]
+    airline_rows.sort(key=lambda x: (-x['count'], -x['sell']))
+
+    return render(request, 'core/reports.html', {
+        'rows_page': rows_page,
+        'page_obj': page_obj,
+        'rows': rows,
+        'chart_labels': chart_labels,
+        'chart_values': chart_values,
+        'top_emp_labels': top_emp_labels,
+        'top_emp_values': top_emp_values,
+        'month_labels': month_labels,
+        'month_values': month_values,
+        'totals': totals,
+        'emp_rows': emp_rows,
+        'supplier_rows': supplier_rows,
+        'airline_rows': airline_rows,
+        'q_from': q_from.isoformat() if q_from else '',
+        'q_to': q_to.isoformat() if q_to else '',
+        'q_employee': q_emp,
+        'q_kind': q_kind,
+        'q_group': q_group,
+        'q_scope': q_scope,
+        'can_choose_scope': can_choose_scope,
+        'cur_year': cur_year,
+    })
+
+@login_required
+def reports_export_csv(request):
+    date_from = parse_date(request.GET.get('from') or '')
+    date_to   = parse_date(request.GET.get('to') or '')
+    employee  = (request.GET.get('employee') or '').strip()
+    kind      = (request.GET.get('kind') or '').strip()
+    scope     = (request.GET.get('scope') or ('all' if request.user.is_superuser else 'mine')).strip()
+
+    if request.user.is_superuser:
+        base_filter = {} if scope == 'all' else {'card__created_by': request.user}
+    else:
+        base_filter = {'card__created_by': request.user}
+
+    rows = []
+
+    def _append(qs, kname, fmt, payments_rel, emp_model, emp_fk):
+        qs = _date_filter_using_acc(qs.filter(**base_filter), date_from, date_to)
+        if employee:
+            qs = qs.filter(**{f'{payments_rel}__employee_name__icontains': employee})
+        qs = qs.annotate(last_emp=_latest_emp_subquery(emp_model, emp_fk))
+        qs = _with_acc_date(qs).select_related('card')
+        for r in qs[:5000]:
+            rows.append([
+                kname,
+                getattr(r, 'booking_ref', '') or '',
+                getattr(r, 'voucher_code', '') or '',
+                r.last_emp or '-',
+                (r.card.customer_name if getattr(r, 'card_id', None) else ''),
+                (r.acc_date.isoformat() if getattr(r, 'acc_date', None) else ''),
+                fmt(r),
+            ])
+
+    if kind in ('hotel', ''):
+        _append(HotelBooking.objects.all(), 'Hotel',
+                lambda r: f'{r.hotel_name or "-"} / {getattr(r,"country","-") or "-"}',
+                'payments', Payment, 'booking_hotel')
+    if kind in ('flight', ''):
+        _append(FlightBooking.objects.all(), 'Flight',
+                lambda r: f'{getattr(r,"airline","-")} / {getattr(r,"pnr","-")}',
+                'payments', FlightPayment, 'booking_flight')
+    if kind in ('other', ''):
+        _append(OtherBooking.objects.all(), 'Other',
+                lambda r: f'{r.get_service_type_display()} / {r.provider_name or "-"}',
+                'payments', OtherPayment, 'booking_other')
+
+    resp = HttpResponse(content_type='text/csv; charset=utf-8')
+    resp['Content-Disposition'] = 'attachment; filename="reports.csv"'
+    writer = csv.writer(resp)
+    writer.writerow(['Kind','Booking Ref','Voucher','Employee','Customer','Accounting Date','Extra'])
+    writer.writerows(rows)
+    return resp
+
+@login_required
+def reports_export_xlsx(request):
+    from openpyxl import Workbook
+
+    date_from = parse_date(request.GET.get('from') or '')
+    date_to   = parse_date(request.GET.get('to') or '')
+    employee  = (request.GET.get('employee') or '').strip()
+    kind      = (request.GET.get('kind') or '').strip()
+    scope     = (request.GET.get('scope') or ('all' if request.user.is_superuser else 'mine')).strip()
+
+    if request.user.is_superuser:
+        base_filter = {} if scope == 'all' else {'card__created_by': request.user}
+    else:
+        base_filter = {'card__created_by': request.user}
+
+    rows = []
+
+    def _append(qs, kname, fmt, payments_rel, emp_model, emp_fk):
+        qs = _date_filter_using_acc(qs.filter(**base_filter), date_from, date_to)
+        if employee:
+            qs = qs.filter(**{f'{payments_rel}__employee_name__icontains': employee})
+        qs = qs.annotate(last_emp=_latest_emp_subquery(emp_model, emp_fk))
+        qs = _with_acc_date(qs).select_related('card')
+        for r in qs[:5000]:
+            rows.append([
+                kname,
+                getattr(r, 'booking_ref', '') or '',
+                getattr(r, 'voucher_code', '') or '',
+                r.last_emp or '-',
+                (r.card.customer_name if getattr(r, 'card_id', None) else ''),
+                (r.acc_date.isoformat() if getattr(r, 'acc_date', None) else ''),
+                fmt(r),
+            ])
+
+    if kind in ('hotel', ''):
+        _append(HotelBooking.objects.all(), 'Hotel',
+                lambda r: f'{r.hotel_name or "-"} / {getattr(r,"country","-") or "-"}',
+                'payments', Payment, 'booking_hotel')
+    if kind in ('flight', ''):
+        _append(FlightBooking.objects.all(), 'Flight',
+                lambda r: f'{getattr(r,"airline","-")} / {getattr(r,"pnr","-")}',
+                'payments', FlightPayment, 'booking_flight')
+    if kind in ('other', ''):
+        _append(OtherBooking.objects.all(), 'Other',
+                lambda r: f'{r.get_service_type_display()} / {r.provider_name or "-"}',
+                'payments', OtherPayment, 'booking_other')
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Reports"
+    ws.append(['Kind','Booking Ref','Voucher','Employee','Customer','Accounting Date','Extra'])
+    for r in rows:
+        ws.append(r)
+
+    resp = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    resp['Content-Disposition'] = 'attachment; filename="reports.xlsx"'
+    wb.save(resp)
+    return resp
+
+@login_required
+def reports_export_pdf(request):
+    date_from = parse_date(request.GET.get('from') or '')
+    date_to   = parse_date(request.GET.get('to') or '')
+    employee  = (request.GET.get('employee') or '').strip()
+    kind      = (request.GET.get('kind') or '').strip()
+    scope     = (request.GET.get('scope') or ('all' if request.user.is_superuser else 'mine')).strip()
+
+    if request.user.is_superuser:
+        base_filter = {} if scope == 'all' else {'card__created_by': request.user}
+    else:
+        base_filter = {'card__created_by': request.user}
+
+    rows = []
+
+    def _append(qs, kname, formatter, payments_rel, emp_model, emp_fk):
+        qs = _date_filter_using_acc(qs.filter(**base_filter), date_from, date_to)
+        if employee:
+            qs = qs.filter(**{f'{payments_rel}__employee_name__icontains': employee})
+        qs = qs.annotate(last_emp=_latest_emp_subquery(emp_model, emp_fk))
+        qs = _with_acc_date(qs).select_related('card')
+        for r in qs[:2000]:
+            rows.append({
+                'type': kname,
+                'ref': getattr(r, 'booking_ref', '') or '',
+                'voucher': getattr(r, 'voucher_code', '') or '',
+                'employee': r.last_emp or '-',
+                'customer': r.card.customer_name if getattr(r, 'card_id', None) else '',
+                'created': r.acc_date,
+                'extra': formatter(r),
+            })
+
+    if kind in ('hotel',''):
+        _append(HotelBooking.objects.all(),'Hotel',
+                lambda r:f'{r.hotel_name or "-"} / {getattr(r,"country","-") or "-"}',
+                'payments', Payment, 'booking_hotel')
+    if kind in ('flight',''):
+        _append(FlightBooking.objects.all(),'Flight',
+                lambda r:f'{getattr(r,"airline","-")} / {getattr(r,"pnr","-")}',
+                'payments', FlightPayment, 'booking_flight')
+    if kind in ('other',''):
+        _append(OtherBooking.objects.all(),'Other',
+                lambda r:f'{r.get_service_type_display()} / {r.provider_name or "-"}',
+                'payments', OtherPayment, 'booking_other')
+
+    rows.sort(key=lambda x: x['created'] or timezone.localdate(), reverse=True)
+
+    pdf_bytes = _render_pdf_from_template('core/reports_pdf.html', {
+        'rows': rows,
+        'q_from': request.GET.get('from',''),
+        'q_to': request.GET.get('to',''),
+        'q_employee': employee,
+        'q_kind': kind,
+        'scope': scope,
+        'generated_at': timezone.now(),
+        'user': request.user,
+    }, request)
+
+    if pdf_bytes is None:
+        return HttpResponse("PDF render error", status=500)
+
+    resp = HttpResponse(pdf_bytes, content_type='application/pdf')
+    resp['Content-Disposition'] = 'attachment; filename="reports.pdf"'
+    return resp
+
+
+# ===================== Misc =====================
+
+def not_implemented(request, *args, **kwargs):
+    return HttpResponse("🚧 تحت الإنشاء: لم يتم تفعيل هذا القسم بعد.")
+
+@login_required
+def dashboard_overview(request):
+    return render(request, "core/dashboard_overview.html", {})
+
+# تعديل/حذف دفعات الفندق (صلاحيات/24ساعة)
+@login_required
+def payment_edit(request, payment_pk):
+    payment = get_object_or_404(Payment, pk=payment_pk)
+    booking = payment.booking_hotel
+
+    if not request.user.is_superuser:
+        messages.error(request, "ليس لديك صلاحية لتعديل الدفعات.")
+        return redirect('card_detail', pk=booking.card_id)
+
+    if not payment.is_editable:
+        messages.error(request, "لا يمكن تعديل هذه الدفعة بعد مرور 24 ساعة.")
+        return redirect('card_detail', pk=booking.card_id)
+
+    if request.method == 'POST':
+        form = PaymentForm(request.POST, request.FILES, instance=payment, booking=booking)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "تم تعديل الدفعة بنجاح.")
+            return redirect('card_detail', pk=booking.card_id)
+    else:
+        form = PaymentForm(instance=payment, booking=booking)
+
+    return render(request, 'core/payment_edit_form.html', {'form': form, 'payment': payment})
+
+@login_required
+@require_POST
+def payment_delete(request, payment_pk):
+    payment = get_object_or_404(Payment, pk=payment_pk)
+    card_id = payment.booking_hotel.card_id
+
+    if not request.user.is_superuser:
+        messages.error(request, "ليس لديك صلاحية لحذف الدفعات.")
+        return redirect('card_detail', pk=card_id)
+
+    if not payment.is_editable:
+        messages.error(request, "لا يمكن حذف هذه الدفعة بعد مرور 24 ساعة.")
+        return redirect('card_detail', pk=card_id)
+
+    payment.delete()
+    messages.success(request, "تم حذف الدفعة بنجاح.")
+    return redirect('card_detail', pk=card_id)

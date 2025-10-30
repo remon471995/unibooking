@@ -1,0 +1,26 @@
+{% extends "core/base.html" %}
+{% block content %}
+<div class="max-w-2xl mx-auto mt-8 bg-white shadow rounded-lg p-6">
+  <h1 class="text-2xl font-bold mb-4">إنشاء مستخدم جديد</h1>
+  <form method="post">
+    {% csrf_token %}
+    <div class="grid gap-4">
+      {{ form.username.label_tag }}{{ form.username }}
+      {{ form.email.label_tag }}{{ form.email }}
+      {{ form.first_name.label_tag }}{{ form.first_name }}
+      {{ form.last_name.label_tag }}{{ form.last_name }}
+      {{ form.password.label_tag }}{{ form.password }}
+      {{ form.password_confirm.label_tag }}{{ form.password_confirm }}
+      <div class="flex gap-2 items-center">
+        {{ form.is_active }} {{ form.is_active.label_tag }}
+      </div>
+      {{ form.department.label_tag }}{{ form.department }}
+      {{ form.role.label_tag }}{{ form.role }}
+      <div>
+        <button class="bg-blue-600 text-white px-4 py-2 rounded">إنشاء</button>
+        <a href="{% url 'accounts:manage_staff' %}" class="ml-2 text-gray-600">إلغاء</a>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}

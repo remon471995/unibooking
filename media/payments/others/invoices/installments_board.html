@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}لوحة الأقساط{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">لوحة تحكم الأقساط</h1>
+
+<!-- KPIs -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+  <div class="p-4 rounded-xl bg-red-100">
+    <div class="text-sm">إجمالي المتبقي</div>
+    <div class="text-3xl font-bold">{{ kpis.total_remaining|floatformat:2 }}</div>
+  </div>
+  <div class="p-4 rounded-xl bg-yellow-100">
+    <div class="text-sm">إجمالي المدفوع</div>
+    <div class="text-3xl font-bold">{{ kpis.total_paid|floatformat:2 }}</div>
+  </div>
+  <div class="p-4 rounded-xl bg-green-100">
+    <div class="text-sm">إجمالي المبيعات</div>
+    <div class="text-3xl font-bold">{{ kpis.total_sell|floatformat:2 }}</div>
+  </div>
+  <div class="p-4 rounded-xl bg-blue-100">
+    <div class="text-sm">إجمالي الربح</div>
+    <div class="text-3xl font-bold">{{ kpis.total_profit|floatformat:2 }}</div>
+  </div>
+</div>
+
+<!-- تذكير بالأقساط القادمة -->
+<div class="bg-white rounded-xl shadow p-4 mb-6">
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="font-semibold">تذكير بالدفعات القادمة <span class="text-xs text-gray-500">(خلال {{ remind_days }} يوم)</span></h2>
+  </div>
+  {% if reminders %}
+    <ul class="space-y-2">
+      {% for r in reminders %}
+        <li class="rounded p-2
+            {% if r.days != None and r.days <= 1 %} bg-red-50
+            {% elif r.days != None and r.days <= 3 %} bg-yellow-50
+            {% else %} bg-green-50 {% endif %}">
+          <a href="{{ r.url }}" class="hover:underline">
+            <span class="font-medium">{{ r.kind }}</span> —
+            <span>{{ r.customer }}</span> —
+            <span>المبلغ: {{ r.amount|floatformat:2 }}</span> —
+            <span>الاستحقاق: {{ r.due }}</span>
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="text-sm text-gray-500">لا توجد أقساط خلال الفترة المحددة.</div>
+  {% endif %}
+</div>
+
+<!-- فلتر -->
+<form class="bg-white rounded-xl shadow p-4 mb-4" method="get">
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+    <input type="date" name="from" value="{{ q_from }}" class="border rounded p-2">
+    <input type="date" name="to" value="{{ q_to }}" class="border rounded p-2">
+    <input type="text" name="q" value="{{ q }}" placeholder="اسم العميل" class="border rounded p-2">
+    <button class="bg-blue-600 text-white rounded p-2">بحث</button>
+  </div>
+</form>
+
+<!-- جدول الحجوزات -->
+<div class="bg-white rounded-xl shadow overflow-x-auto">
+  <table class="min-w-full text-sm">
+    <thead class="bg-gray-100">
+      <tr class="text-right">
+        <th class="p-2">النوع</th>
+        <th class="p-2">التاريخ</th>
+        <th class="p-2">العميل</th>
+        <th class="p-2">الموظف</th>
+        <th class="p-2">السعر</th>
+        <th class="p-2">الصافي</th>
+        <th class="p-2">المدفوع</th>
+        <th class="p-2">المتبقي</th>
+        <th class="p-2">الربح</th>
+        <th class="p-2">إجراءات</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+        <tr class="border-b">
+          <td class="p-2">{{ r.kind }}</td>
+          <td class="p-2">{{ r.date|date:"Y-m-d" }}</td>
+          <td class="p-2"><a href="{{ r.detail_url }}" class="text-blue-600 hover:underline">{{ r.customer }}</a></td>
+          <td class="p-2">{{ r.employee }}</td>
+          <td class="p-2">{{ r.sell|floatformat:2 }}</td>
+          <td class="p-2">{{ r.net|floatformat:2 }}</td>
+          <td class="p-2">{{ r.paid|floatformat:2 }}</td>
+          <td class="p-2">{{ r.remain|floatformat:2 }}</td>
+          <td class="p-2">{{ r.profit|floatformat:2 }}</td>
+          <td class="p-2">
+            <a href="{{ r.pay_url }}" class="px-2 py-1 text-xs rounded bg-indigo-600 text-white">إدارة الدفع</a>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td class="p-4 text-center text-gray-500" colspan="10">لا توجد بيانات</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

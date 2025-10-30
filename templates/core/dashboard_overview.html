@@ -18,18 +18,13 @@
   </script>
 
   <!-- Tailwind + Chart.js -->
-  <script>
-    window.tailwind = { config: { darkMode: 'class' } };
-  </script>
+  <script> window.tailwind = { config: { darkMode: 'class' } }; </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
     body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Tajawal", "Noto Kufi Arabic", Arial, sans-serif; }
-    .card {
-      background:#fff; border-radius:.75rem; padding:1rem;
-      box-shadow:0 1px 2px rgba(0,0,0,.06),0 1px 3px rgba(0,0,0,.1);
-    }
+    .card { background:#fff; border-radius:.75rem; padding:1rem; box-shadow:0 1px 2px rgba(0,0,0,.06),0 1px 3px rgba(0,0,0,.1); }
     .dark .card { background:#111827; }
     .kpi  { font-size:1.5rem; font-weight:700; }
   </style>
@@ -54,7 +49,6 @@
         الرجوع للداشبورد
       </a>
 
-      <!-- زر المظهر الداكن -->
       <button id="darkToggle" class="text-sm px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-800 hover:opacity-90">
         المظهر الداكن
       </button>
@@ -67,17 +61,22 @@
       <h3 class="text-gray-500 dark:text-gray-400 text-sm">إجمالي الكروت</h3>
       <p class="kpi text-blue-600 dark:text-blue-400">{{ total_cards }}</p>
     </div>
+
     <div class="card">
       <h3 class="text-gray-500 dark:text-gray-400 text-sm">إجمالي الحجوزات</h3>
       <p class="kpi text-green-600 dark:text-green-400">{{ counts.all }}</p>
       <p class="text-xs mt-1 text-gray-500 dark:text-gray-400">
-        فنادق: {{ counts.hotels }} | طيران: {{ counts.flights }} | ترانسفير: {{ counts.transfers }} | فيزا: {{ counts.visas }}
+        فنادق: {{ counts.hotels }} |
+        طيران: {{ counts.flights }} |
+        أخرى: {{ counts.others|default:0 }}
       </p>
     </div>
+
     <div class="card">
       <h3 class="text-gray-500 dark:text-gray-400 text-sm">إجمالي المبيعات</h3>
       <p class="kpi text-indigo-600 dark:text-indigo-400">{{ total_sell }}</p>
     </div>
+
     <div class="card">
       <h3 class="text-gray-500 dark:text-gray-400 text-sm">مدفوع / متبقي</h3>
       <p class="kpi">
@@ -159,7 +158,20 @@
     const months = {{ months|safe }};
     const salesData = {{ sales_data|safe }};
     const netData = {{ net_data|safe }};
-    const kindData = {{ booking_types_data|safe }};
+    // لو الـ view لسه بيبعت 4 قيم قديمة، نأمّن fallback بتجميعها لثلاث فئات:
+    (function(){
+      try {
+        let kd = {{ booking_types_data|safe }};
+        if (Array.isArray(kd) && kd.length === 4) {
+          // [فنادق, طيران, ترانسفير, فيزا] → [فنادق, طيران, أخرى]
+          kd = [kd[0] || 0, kd[1] || 0, (kd[2]||0) + (kd[3]||0)];
+          window.__kindData = kd;
+        } else {
+          window.__kindData = kd; // متوقع 3 عناصر بالفعل
+        }
+      } catch(e){ window.__kindData = [0,0,0]; }
+    })();
+
     const agentLabels = [{% for name, c in top_agents %}"{{ name|escapejs }}",{% endfor %}];
     const agentCounts = [{% for name, c in top_agents %}{{ c }},{% endfor %}];
     const customerLabels = [{% for name, c in top_customers %}"{{ name|escapejs }}",{% endfor %}];
@@ -168,10 +180,13 @@
     // Line: Sell vs Net
     new Chart(document.getElementById('salesLine').getContext('2d'), {
       type: 'line',
-      data: { labels: months, datasets: [
-        { label: 'Sell', data: salesData, borderWidth: 2, fill: false },
-        { label: 'Net', data: netData, borderWidth: 2, fill: false }
-      ]},
+      data: {
+        labels: months,
+        datasets: [
+          { label: 'Sell', data: salesData, borderWidth: 2, fill: false },
+          { label: 'Net', data: netData, borderWidth: 2, fill: false }
+        ]
+      },
       options: {
         maintainAspectRatio: false,
         responsive: true,
@@ -181,10 +196,10 @@
       }
     });
 
-    // Doughnut: kinds
+    // Doughnut: الأنواع (فنادق/طيران/أخرى)
     new Chart(document.getElementById('kindDoughnut').getContext('2d'), {
       type: 'doughnut',
-      data: { labels: ['فنادق', 'طيران', 'ترانسفير', 'فيزا'], datasets: [{ data: kindData }] },
+      data: { labels: ['فنادق', 'طيران', 'أخرى'], datasets: [{ data: window.__kindData }] },
       options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
     });
 

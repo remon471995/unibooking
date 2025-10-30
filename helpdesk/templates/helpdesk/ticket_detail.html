@@ -1,0 +1,103 @@
+{% extends "core/base.html" %}
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 py-6 space-y-6">
+  {% include "helpdesk/_topbar.html" %}
+
+  <!-- هيدر التذكرة -->
+  <div class="bg-white rounded-xl shadow p-4">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <h2 class="text-lg font-bold">#{{ ticket.id }} — {{ ticket.subject }}</h2>
+        <div class="text-sm text-gray-600 mt-1">
+          قسم: <b>{{ ticket.department.name }}</b>
+          • حالة: <b>{{ ticket.get_status_display }}</b>
+          • أولوية: <b>{{ ticket.get_priority_display }}</b>
+        </div>
+
+        {% if ticket.tags.all %}
+        <div class="mt-1 flex gap-2 flex-wrap">
+          {% for tag in ticket.tags.all %}
+          <span class="px-2 py-0.5 rounded text-xs"
+                style="background: {{ tag.color }}20; color: {{ tag.color }}; border: 1px solid {{ tag.color }}">
+            #{{ tag.name }}
+          </span>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if ticket.related_ref or ticket.related_url %}
+        <div class="text-sm text-gray-600 mt-1">
+          مرجع: {{ ticket.related_ref|default:"-" }}
+          {% if ticket.related_url %} • <a class="text-blue-700" href="{{ ticket.related_url }}" target="_blank">رابط</a>{% endif %}
+        </div>
+        {% endif %}
+
+        {% if ticket.sla_due_at %}
+        <div class="text-xs text-gray-500 mt-1">SLA حتى: {{ ticket.sla_due_at|date:"Y-m-d H:i" }}</div>
+        {% endif %}
+      </div>
+
+      <div class="text-right space-y-2">
+        <div class="text-sm text-gray-600">المُسند إليه: {{ ticket.assigned_to|default:"—" }}</div>
+        <div class="flex gap-2 justify-end">
+          <a href="{% url 'helpdesk:assign_me' ticket.id %}" class="px-3 py-1.5 rounded bg-gray-900 text-white">اسندها لي</a>
+          <div class="relative">
+            <details class="inline-block">
+              <summary class="px-3 py-1.5 rounded bg-gray-100 cursor-pointer">تغيير الحالة</summary>
+              <div class="absolute right-0 mt-2 w-48 bg-white border rounded-lg shadow">
+                {% for code, label in status_choices %}
+                  <a class="block px-3 py-2 hover:bg-gray-50"
+                     href="{% url 'helpdesk:change_status' ticket.id code %}">
+                    {{ label }}{% if code == ticket.status %} ✓{% endif %}
+                  </a>
+                {% endfor %}
+              </div>
+            </details>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- المحادثة (HTMX poll) -->
+  <div class="bg-white rounded-xl shadow" id="messages-wrapper"
+       hx-get="{% url 'helpdesk:ticket_messages_partial' ticket.id %}"
+       hx-trigger="load, every 5s"
+       hx-swap="innerHTML">
+    <div class="p-4 text-center text-gray-500">جاري التحميل...</div>
+  </div>
+
+  <!-- نموذج الرد -->
+  <div class="bg-white rounded-xl shadow p-4">
+    <form method="post" enctype="multipart/form-data" class="space-y-3">
+      {% csrf_token %}
+      <div class="grid md:grid-cols-4 gap-4 items-end">
+        <div class="md:col-span-3">
+          <label class="block text-sm text-gray-600 mb-1">رسالتك</label>
+          {{ form.body }}
+          <div class="text-xs text-gray-500 mt-1">استخدم @username لعمل Mention لزميلك.</div>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-600 mb-1">رد جاهز</label>
+          {{ form.canned }}
+        </div>
+      </div>
+
+      <div class="flex items-center gap-4">
+        <label class="flex items-center gap-2 text-sm">{{ form.is_internal_note }} <span>ملاحظة داخلية</span></label>
+        <div>
+          <label class="text-sm text-gray-600">مرفق</label>
+          {{ form.attachment }}
+        </div>
+      </div>
+
+      <div>
+        <button class="px-4 py-2 rounded bg-gray-900 text-white">إرسال</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- HTMX (لو مش مضاف بالفعل في base.html) -->
+<script src="https://unpkg.com/htmx.org@1.9.12"></script>
+{% endblock %}

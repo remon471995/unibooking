@@ -1,0 +1,160 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <title>لوحة الأداء</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body{font-family:system-ui,"Tajawal","Noto Kufi Arabic",sans-serif}
+    .card{background:#fff;border-radius:.9rem;padding:1rem;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+    .btn{background:#2563eb;color:#fff;border-radius:.6rem}
+    .btn:hover{background:#1e40af}
+    .btn-lite{background:#e2e8f0;color:#0f172a;border-radius:.6rem}
+    .btn-lite:hover{background:#cbd5e1}
+    .table-head{background:#f8fafc}
+    /* تحكم ثابت لارتفاع الرسوم */
+    .chart-box{height:320px;max-height:320px}
+    .chart-box>canvas{width:100%!important;height:100%!important;display:block}
+  </style>
+</head>
+<body class="bg-gray-100 p-4 md:p-6">
+  <div class="max-w-7xl mx-auto space-y-5">
+
+    <!-- روابط سريعة أعلى الصفحة -->
+    <div class="flex gap-2 mb-3">
+      <a class="px-3 py-2 rounded bg-slate-200 hover:bg-slate-300" href="{% url 'reports_analysis' %}">تحليل الأداء والمبيعات</a>
+      <a class="px-3 py-2 rounded bg-slate-200 hover:bg-slate-300" href="{% url 'suppliers_report' %}">تقرير المزوّدين</a>
+    </div>
+
+    <!-- Header -->
+    <div class="flex items-center justify-between gap-3">
+      <div>
+        <h1 class="text-2xl font-extrabold">لوحة الأداء</h1>
+        <p class="text-sm text-gray-600 mt-1">نظرة سريعة على مؤشرات الأداء الرئيسية</p>
+      </div>
+      <a href="{% url 'reports' %}" class="btn-lite px-3 py-2">رجوع للتقارير</a>
+    </div>
+
+    <!-- فلاتر -->
+    <form id="filters" method="get" class="card grid grid-cols-1 md:grid-cols-6 gap-3">
+      <div class="md:col-span-2">
+        <label class="block text-xs mb-1">من</label>
+        <input type="date" name="from" value="{{ q_from }}" class="w-full border rounded px-2 py-1.5">
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-xs mb-1">إلى</label>
+        <input type="date" name="to" value="{{ q_to }}" class="w-full border rounded px-2 py-1.5">
+      </div>
+      <div>
+        <label class="block text-xs mb-1">الترتيب</label>
+        <select name="sort" class="w-full border rounded px-2 py-1.5">
+          <option value="profit"    {% if sort == 'profit' %}selected{% endif %}>أعلى ربح</option>
+          <option value="sell"      {% if sort == 'sell' %}selected{% endif %}>أعلى مبيعات</option>
+          <option value="count"     {% if sort == 'count' %}selected{% endif %}>أكثر عمليات</option>
+          <option value="paid"      {% if sort == 'paid' %}selected{% endif %}>أعلى تحصيل</option>
+          <option value="remaining" {% if sort == 'remaining' %}selected{% endif %}>أعلى متبقي</option>
+          <option value="employee"  {% if sort == 'employee' %}selected{% endif %}>بالاسم</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs mb-1">الاتجاه</label>
+        <select name="dir" class="w-full border rounded px-2 py-1.5">
+          <option value="desc" {% if dir != 'asc' %}selected{% endif %}>تنازلي</option>
+          <option value="asc"  {% if dir == 'asc' %}selected{% endif %}>تصاعدي</option>
+        </select>
+      </div>
+
+      <div class="md:col-span-6 flex items-end justify-end">
+        <button class="btn px-4 py-2">تطبيق</button>
+      </div>
+    </form>
+
+    <!-- KPIs -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="card">
+        <div class="text-xs text-gray-500">إجمالي البيع</div>
+        <div class="text-2xl font-bold">{{ kpis.total_sell|floatformat:2|intcomma }}</div>
+      </div>
+      <div class="card">
+        <div class="text-xs text-gray-500">الصافي</div>
+        <div class="text-2xl font-bold">{{ kpis.total_net|floatformat:2|intcomma }}</div>
+      </div>
+      <div class="card">
+        <div class="text-xs text-gray-500">الربح</div>
+        <div class="text-2xl font-bold text-green-700">{{ kpis.total_profit|floatformat:2|intcomma }}</div>
+      </div>
+      <div class="card">
+        <div class="text-xs text-gray-500">المتحصل</div>
+        <div class="text-2xl font-bold">{{ kpis.total_paid|floatformat:2|intcomma }}</div>
+      </div>
+    </div>
+
+    <!-- رسم بياني -->
+    <div class="card">
+      <h3 class="font-semibold mb-2">Top الموظفين — حسب {{ sort }}</h3>
+      <div class="chart-box">
+        <canvas id="rankChart"></canvas>
+      </div>
+    </div>
+
+    <!-- جدول تفصيلي -->
+    <div class="card overflow-x-auto">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-semibold">تفاصيل</h3>
+        <div class="text-xs text-gray-500">تاريخ اليوم: {{ today }}</div>
+      </div>
+      <table class="min-w-full text-sm">
+        <thead class="table-head">
+          <tr>
+            <th class="p-2 text-right">الموظف</th>
+            <th class="p-2 text-right">العمليات</th>
+            <th class="p-2 text-right">البيع</th>
+            <th class="p-2 text-right">الصافي</th>
+            <th class="p-2 text-right">الربح</th>
+            <th class="p-2 text-right">المتحصل</th>
+            <th class="p-2 text-right">المتبقي</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          <tr class="border-t hover:bg-gray-50">
+            <td class="p-2 text-right">{{ r.employee }}</td>
+            <td class="p-2 text-right">{{ r.count }}</td>
+            <td class="p-2 text-right">{{ r.sell|floatformat:2|intcomma }}</td>
+            <td class="p-2 text-right">{{ r.net|floatformat:2|intcomma }}</td>
+            <td class="p-2 text-right text-green-700">{{ r.profit|floatformat:2|intcomma }}</td>
+            <td class="p-2 text-right">{{ r.paid|floatformat:2|intcomma }}</td>
+            <td class="p-2 text-right {% if r.remaining > 0 %}text-red-700{% endif %}">{{ r.remaining|floatformat:2|intcomma }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" class="p-4 text-center text-gray-500">لا توجد بيانات</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <script>
+    // بيانات الرسم
+    const labels = {{ labels|default:"[]"|safe }};
+    const values = {{ values|default:"[]"|safe }};
+
+    if (labels.length && values.length) {
+      new Chart(document.getElementById('rankChart'), {
+        type: 'bar',
+        data: { labels, datasets: [{ data: values }] },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+    }
+  </script>
+</body>
+</html>

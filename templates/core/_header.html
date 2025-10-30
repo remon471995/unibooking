@@ -1,0 +1,179 @@
+{% load static %}
+
+<header class="bg-white dark:bg-gray-900 shadow px-4 md:px-6 py-3">
+  <div class="mx-auto max-w-7xl flex items-center gap-4">
+
+    {# ========== يسار: اللوجو + الروابط ========== #}
+    <div class="shrink-0 flex items-center gap-5">
+      <a class="font-bold text-lg text-blue-600 dark:text-blue-400" href="{% url 'dashboard' %}">UniBooking</a>
+
+      <nav class="hidden md:flex gap-2 items-center text-sm">
+        <a href="{% url 'dashboard' %}"
+           class="px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10">الرئيسية</a>
+
+        {# التقارير #}
+        {% url 'reports' as reports_url %}
+        {% if reports_url %}
+          <a href="{{ reports_url }}"
+             class="px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10">التقارير</a>
+        {% endif %}
+
+        {# ========= 🔽 هنا التعديل 🔽 ========= #}
+        {# الأداء (يظهر للسوبر والليدر/المدير فقط) #}
+        {% if request.user.is_superuser or request.user.profile.role == 'LEADER' or request.user.profile.role == 'MANAGER' %}
+          {% url 'performance_dashboard' as performance_url %}
+          {% if performance_url %}
+            <a href="{{ performance_url }}"
+               class="px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10">الأداء</a>
+          {% endif %}
+        {% endif %}
+        {# ========= 🔼 نهاية التعديل 🔼 ========= #}
+
+        <a href="{% url 'agent_board' %}"
+           class="px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10">لوحة الإيجنت</a>
+
+        <a href="{% url 'installments_board' %}"
+           class="px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10">لوحة الأقساط</a>
+
+        <a href="{% url 'card_create' %}"
+           class="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow">+ كارت عميل</a>
+
+        {% if is_manager %}
+          {# ▼ التارجت الشهري (مدير) #}
+          <details class="relative">
+            <summary class="px-3 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/20 flex items-center gap-2 cursor-pointer list-none">
+              <i class="fa-solid fa-bullseye"></i><span>التارجت الشهري</span><i class="fa-solid fa-chevron-down text-xs"></i>
+            </summary>
+            <div class="menu absolute right-0 top-full z-50 mt-2 w-64 bg-white dark:bg-gray-900 shadow rounded-xl p-2">
+              <a href="{% url 'targets:dashboard' %}" class="flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
+                <i class="fa-solid fa-chart-line"></i> لوحة التارجت
+              </a>
+              <a href="{% url 'targets:staff_target_bulk' %}" class="flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
+                <i class="fa-solid fa-table"></i> إعداد جماعي
+              </a>
+              <div class="my-1 border-t border-gray-200 dark:border-gray-800"></div>
+              <a href="{% url 'targets:staff_target_create' %}" class="flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
+                <i class="fa-solid fa-user-plus"></i> + تارجت موظف
+              </a>
+              <a href="{% url 'targets:leader_target_create' %}" class="flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
+                <i class="fa-solid fa-user-tie"></i> + تارجت ليدر
+              </a>
+              <a href="{% url 'targets:adjustment_create' %}" class="flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
+                <i class="fa-solid fa-pen-to-square"></i> + تعديل/إلغاء
+              </a>
+            </div>
+          </details>
+        {% else %}
+          <a href="{% url 'targets:dashboard' %}"
+             class="px-3 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/20">
+            <i class="fa-solid fa-bullseye"></i> {% if is_leader %}لوحة التارجت{% else %}تارجتي{% endif %}
+          </a>
+        {% endif %}
+
+        {# الهيلب دِسك السريع #}
+        <a href="{% url 'helpdesk:my_inbox' %}"
+           class="px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10">وارد الهيلب دِسك</a>
+
+        <a href="{% url 'helpdesk:ticket_create' %}"
+           class="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow">+ تذكرة دعم</a>
+
+        <details class="relative">
+          <summary class="px-3 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/20 flex items-center gap-2 cursor-pointer list-none">
+            <i class="fa-solid fa-headset"></i><span>الدعم الفني</span><i class="fa-solid fa-chevron-down text-xs"></i>
+          </summary>
+          <div class="menu absolute right-0 top-full z-50 mt-2 w-64 bg-white dark:bg-gray-900 shadow rounded-xl p-2">
+            <a href="{% url 'helpdesk:dashboard' %}" class="flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
+              <i class="fa-solid fa-chart-line"></i> لوحة التذاكر
+            </a>
+            <a href="{% url 'helpdesk:search' %}" class="flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
+              <i class="fa-solid fa-magnifying-glass"></i> بحث التذاكر
+            </a>
+            <div class="my-1 border-t border-gray-200 dark:border-gray-800"></div>
+            <a href="{% url 'helpdesk:department_inbox' 'sales' %}" class="block px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800">Sales</a>
+            <a href="{% url 'helpdesk:department_inbox' 'product' %}" class="block px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800">Product</a>
+            <a href="{% url 'helpdesk:department_inbox' 'operations' %}" class="block px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800">Operations</a>
+            <a href="{% url 'helpdesk:department_inbox' 'after_sales' %}" class="block px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800">After Sales</a>
+            <a href="{% url 'helpdesk:department_inbox' 'hr' %}" class="block px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800">HR</a>
+          </div>
+        </details>
+      </nav>
+    </div>
+
+    {# ========== الوسط: البحث الموحد ========== #}
+    <div class="flex-1 flex justify-center">
+      <form action="{% url 'global_search' %}" method="get" class="w-full max-w-xl flex items-center">
+        <input
+          type="text" name="q" value="{{ request.GET.q|default:'' }}"
+          placeholder="ابحث بالاسم، الكود (UB/H/F/O)، المرجع/PNR، أو الموبايل…"
+          class="flex-1 px-3 py-2 rounded-l-lg border border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800 focus:outline-none"
+        />
+        <button class="px-3 py-2 rounded-r-lg bg-blue-600 hover:bg-blue-700 text-white">بحث</button>
+      </form>
+    </div>
+
+    {# ========== يمين: المظهر + الإشعارات + الحساب ========== #}
+    <div class="shrink-0 flex items-center gap-2">
+      <button id="darkToggle"
+              class="px-3 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/20 text-sm"
+              onclick="(function(){const r=document.documentElement;r.classList.toggle('dark');try{localStorage.setItem('unibooking.dark',r.classList.contains('dark')?'1':'0')}catch(e){}})()">
+        <i class="fa-regular fa-moon me-1"></i> المظهر
+      </button>
+
+      <details class="relative">
+        <summary class="px-3 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/20 flex items-center gap-2 cursor-pointer list-none">
+          <i class="fa-regular fa-bell"></i>
+          <span>التنبيهات ({% if nav_notifications %}{{ nav_notifications|length }}{% else %}0{% endif %})</span>
+        </summary>
+        <div class="menu absolute right-0 top-full z-50 mt-2 w-80 bg-white dark:bg-gray-900 shadow rounded-xl p-2">
+          {% if nav_notifications %}
+            {% for n in nav_notifications %}
+              <a class="block px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+                 href="{% url 'notification_mark_read' n.pk %}">
+                <div class="text-sm leading-5">{{ n.message }}</div>
+                <div class="text-xs text-gray-500 flex items-center gap-2 mt-0.5">
+                  <span>استحقاق: {{ n.due_date }}</span>
+                  {% if n.target_url %}<span class="text-blue-600">— انتقال</span>{% endif %}
+                </div>
+              </a>
+            {% endfor %}
+            <div class="px-3 py-2 text-right border-t mt-1">
+              <a class="text-sm text-blue-600 hover:underline" href="{% url 'notifications_list' %}">عرض كل التنبيهات</a>
+            </div>
+          {% else %}
+            <div class="px-3 py-2 text-sm text-gray-500">لا توجد تنبيهات</div>
+          {% endif %}
+        </div>
+      </details>
+
+      <details class="relative">
+        <summary class="px-3 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/20 flex items-center gap-2 cursor-pointer list-none">
+          <i class="fa-regular fa-circle-user"></i>
+          <span class="font-medium">{{ request.user.get_full_name|default:request.user.username }}</span>
+          <i class="fa-solid fa-chevron-down text-xs"></i>
+        </summary>
+        <div class="menu absolute right-0 top-full z-50 mt-2 w-56 bg-white dark:bg-gray-900 shadow rounded-xl p-2">
+          <a href="{% url 'accounts:my_profile' %}" class="flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
+            <i class="fa-regular fa-user"></i> حسابي
+          </a>
+          {% url 'accounts:change_password' as chpass_url %}
+          {% if chpass_url %}
+            <a href="{{ chpass_url }}" class="flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
+              <i class="fa-solid fa-key"></i> تغيير كلمة المرور
+            </a>
+          {% endif %}
+          <div class="my-1 border-t border-gray-200 dark:border-gray-800"></div>
+          <a href="{% url 'logout' %}" class="flex items-center gap-2 px-3 py-2 rounded text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
+            <i class="fa-solid fa-right-from-bracket"></i> تسجيل الخروج
+          </a>
+        </div>
+      </details>
+    </div>
+
+  </div>
+</header>
+
+{# تشغيل قوائم details كمنسدلة #}
+<style>
+  details > .menu{display:none}
+  details[open] > .menu{display:block}
+</style>

@@ -1,0 +1,64 @@
+{% extends "core/base.html" %}
+{% load widget_tweaks %}
+
+{% block content %}
+<div class="max-w-lg mx-auto bg-white p-8 shadow rounded-lg">
+  <h1 class="text-2xl font-bold mb-6 text-gray-800">إضافة خدمة أخرى 📦</h1>
+
+  {% if messages %}
+    <ul class="mb-4 space-y-1">
+      {% for m in messages %}
+        <li class="text-sm {% if m.tags == 'error' %}text-red-600{% else %}text-emerald-600{% endif %}">
+          {{ m }}
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    <!-- نوع الخدمة -->
+    <div class="mb-4">
+      <label class="block text-sm font-medium text-gray-600 mb-1">نوع الخدمة</label>
+      {% render_field form.service_type class+="w-full px-3 py-2 rounded-lg border" required="required" %}
+      {% if form.service_type.errors %}
+        <p class="text-xs text-red-600 mt-1">{{ form.service_type.errors.0 }}</p>
+      {% endif %}
+    </div>
+
+    <!-- المورد -->
+    <div class="mb-4">
+      <label class="block text-sm font-medium text-gray-600 mb-1">المورد</label>
+      {% render_field form.provider_name class+="w-full px-3 py-2 rounded-lg border" required="required" %}
+      {% if form.provider_name.errors %}
+        <p class="text-xs text-red-600 mt-1">{{ form.provider_name.errors.0 }}</p>
+      {% endif %}
+    </div>
+
+    <!-- المرجع -->
+    <div class="mb-4">
+      <label class="block text-sm font-medium text-gray-600 mb-1">المرجع</label>
+      {% render_field form.booking_ref class+="w-full px-3 py-2 rounded-lg border" required="required" %}
+      {% if form.booking_ref.errors %}
+        <p class="text-xs text-red-600 mt-1">{{ form.booking_ref.errors.0 }}</p>
+      {% endif %}
+    </div>
+
+    <!-- ✅ تاريخ الحجز -->
+    <div class="mb-6">
+      <label class="block text-sm font-medium text-gray-600 mb-1">تاريخ الحجز</label>
+      {% render_field form.booking_date class+="w-full px-3 py-2 rounded-lg border" type="date" required="required" %}
+      {% if form.booking_date.errors %}
+        <p class="text-xs text-red-600 mt-1">{{ form.booking_date.errors.0 }}</p>
+      {% endif %}
+    </div>
+
+    <!-- الأزرار -->
+    <div class="flex justify-end gap-3 pt-4 border-t mt-6">
+      <a href="{% url 'card_detail' card.id %}" class="px-5 py-2 rounded bg-gray-200 hover:bg-gray-300">إلغاء</a>
+      <button type="submit" class="px-5 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">حفظ</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

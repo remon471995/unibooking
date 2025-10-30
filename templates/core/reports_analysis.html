@@ -1,0 +1,269 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <title>تحليل الأداء والمبيعات</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body{font-family:system-ui,"Tajawal","Noto Kufi Arabic",sans-serif}
+    .card{background:#fff;border-radius:.9rem;padding:1rem;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+    .chip{background:#f1f5f9;border-radius:999px;padding:.15rem .6rem}
+    .btn{background:#2563eb;color:#fff;border-radius:.6rem}
+    .btn:hover{background:#1e40af}
+    .btn-secondary{background:#f1f5f9;color:#0f172a;border-radius:.6rem}
+    .btn-secondary:hover{background:#e2e8f0}
+    .table-head{background:#f8fafc}
+  </style>
+</head>
+<body class="bg-gray-100 p-4 md:p-6">
+  <div class="max-w-7xl mx-auto space-y-5">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between gap-3">
+      <div>
+        <h1 class="text-2xl font-extrabold">تحليل الأداء والمبيعات</h1>
+        <p class="text-sm text-gray-600 mt-1">عرض تفاعلي للفلاتر والرسوم والجداول</p>
+
+        <!-- روابط تنقل سريعة -->
+        <div class="flex gap-2 mt-3">
+          <a class="px-3 py-2 rounded bg-slate-200 hover:bg-slate-300" href="{% url 'performance_dashboard' %}">لوحة الأداء</a>
+          <a class="px-3 py-2 rounded bg-slate-200 hover:bg-slate-300" href="{% url 'suppliers_report' %}">تقرير المزوّدين</a>
+        </div>
+      </div>
+      <a href="{% url 'reports' %}" class="btn-secondary px-3 py-2">رجوع للتقارير</a>
+    </div>
+
+    <!-- Filters + Excel -->
+    <form id="filters" method="get" class="card grid grid-cols-1 md:grid-cols-7 gap-3">
+      <div>
+        <label class="block text-xs mb-1">من</label>
+        <input type="date" name="from" value="{{ q_from }}" class="w-full border rounded px-2 py-1.5">
+      </div>
+      <div>
+        <label class="block text-xs mb-1">إلى</label>
+        <input type="date" name="to" value="{{ q_to }}" class="w-full border rounded px-2 py-1.5">
+      </div>
+      <div>
+        <label class="block text-xs mb-1">الترتيب</label>
+        <select name="sort" class="w-full border rounded px-2 py-1.5">
+          <option value="profit"    {% if sort == 'profit'    %}selected{% endif %}>أعلى ربح</option>
+          <option value="sell"      {% if sort == 'sell'      %}selected{% endif %}>أعلى مبيعات</option>
+          <option value="count"     {% if sort == 'count'     %}selected{% endif %}>أكثر عمليات</option>
+          <option value="paid"      {% if sort == 'paid'      %}selected{% endif %}>أعلى تحصيل</option>
+          <option value="remaining" {% if sort == 'remaining' %}selected{% endif %}>أعلى متبقي</option>
+          <option value="score"     {% if sort == 'score'     %}selected{% endif %}>Score مركب</option>
+          <option value="employee"  {% if sort == 'employee'  %}selected{% endif %}>الاسم</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs mb-1">الاتجاه</label>
+        <select name="dir" class="w-full border rounded px-2 py-1.5">
+          <option value="desc" {% if dir != 'asc' %}selected{% endif %}>تنازلي</option>
+          <option value="asc"  {% if dir == 'asc' %}selected{% endif %}>تصاعدي</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs mb-1">النطاق</label>
+        <select name="scope" class="w-full border rounded px-2 py-1.5" {% if not can_choose_scope %}disabled{% endif %}>
+          <option value="all"  {% if scope == 'all'  %}selected{% endif %}>كل البيانات</option>
+          <option value="mine" {% if scope == 'mine' %}selected{% endif %}>حجوزاتي</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs mb-1">Top N</label>
+        <input type="number" min="3" max="50" name="top" value="{{ TOP_N }}" class="w-full border rounded px-2 py-1.5">
+      </div>
+      <div class="flex items-end gap-2">
+        <button class="btn px-3 py-2 w-full">تطبيق</button>
+      </div>
+
+      <!-- زر التحميل (Excel فقط) -->
+      <div class="md:col-span-7 flex items-center gap-2 justify-end">
+        <a id="btnXlsx"
+           href="{% url 'reports_analysis_export_xlsx' %}?from={{ q_from }}&to={{ q_to }}&sort={{ sort }}&dir={{ dir }}&scope={{ scope }}&top={{ TOP_N }}"
+           class="btn px-3 py-2 inline-flex items-center gap-2"
+           title="تحميل Excel">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M21 15v4a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Excel
+        </a>
+      </div>
+    </form>
+
+    <!-- Top row -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div class="card h-80">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="font-semibold">أكثر مزوّدين (عدد الحجوزات)</h3>
+          <span class="chip text-xs">Top {{ TOP_N }}</span>
+        </div>
+        <canvas id="providerChart"></canvas>
+      </div>
+
+      <div class="card h-80">
+        <h3 class="font-semibold mb-2">مزيج المبيعات (نِسَب %)</h3>
+        <canvas id="mixChart"></canvas>
+      </div>
+
+      <div class="card h-80">
+        <h3 class="font-semibold mb-2">كل الموظفين — {{ sort }}</h3>
+        <canvas id="rankChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Employee bars -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div class="card h-72"><h3 class="font-semibold mb-2">الربح حسب الموظف</h3><canvas id="empProfitBar"></canvas></div>
+      <div class="card h-72"><h3 class="font-semibold mb-2">إجمالي المبيعات حسب الموظف</h3><canvas id="empSellBar"></canvas></div>
+      <div class="card h-72"><h3 class="font-semibold mb-2">عدد العمليات حسب الموظف</h3><canvas id="empCountBar"></canvas></div>
+    </div>
+
+    <!-- Market -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div class="card h-72"><h3 class="font-semibold mb-2">أكثر جنسيات</h3><canvas id="natChart"></canvas></div>
+      <div class="card h-72"><h3 class="font-semibold mb-2">أكثر دول/وجهات</h3><canvas id="countryChart"></canvas></div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div class="card h-72"><h3 class="font-semibold mb-2">أكثر فنادق</h3><canvas id="hotelChart"></canvas></div>
+      <div class="card h-72"><h3 class="font-semibold mb-2">أكثر شركات طيران</h3><canvas id="airChart"></canvas></div>
+    </div>
+
+    <!-- Employees table -->
+    <div class="card overflow-x-auto">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-semibold">جدول الموظفين (كامل)</h3>
+        <div class="text-xs text-gray-500">تاريخ اليوم: {{ today }}</div>
+      </div>
+      <table class="min-w-full text-sm">
+        <thead class="table-head">
+          <tr>
+            <th class="p-2 text-right">الموظف</th>
+            <th class="p-2 text-right">عدد الحجوزات</th>
+            <th class="p-2 text-right">إجمالي البيع</th>
+            <th class="p-2 text-right">الصافي</th>
+            <th class="p-2 text-right">الربح</th>
+            <th class="p-2 text-right">المتحصل</th>
+            <th class="p-2 text-right">المتبقي</th>
+            <th class="p-2 text-right">Score</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in emp_rank %}
+            <tr class="border-t hover:bg-gray-50">
+              <td class="p-2 text-right">{{ r.employee }}</td>
+              <td class="p-2 text-right">{{ r.count }}</td>
+              <td class="p-2 text-right">{{ r.sell|floatformat:2|intcomma }}</td>
+              <td class="p-2 text-right">{{ r.net|floatformat:2|intcomma }}</td>
+              <td class="p-2 text-right text-green-700">{{ r.profit|floatformat:2|intcomma }}</td>
+              <td class="p-2 text-right">{{ r.paid|floatformat:2|intcomma }}</td>
+              <td class="p-2 text-right {% if r.remaining > 0 %}text-red-700{% endif %}">{{ r.remaining|floatformat:2|intcomma }}</td>
+              <td class="p-2 text-right">{{ r.score|floatformat:2 }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="8" class="p-4 text-center text-gray-500">لا توجد بيانات</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Providers table -->
+    <div class="card">
+      <h3 class="font-semibold mb-3">ملخص المزوّدين (Top {{ TOP_N }})</h3>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="table-head">
+            <tr>
+              <th class="p-2 text-right">المزوّد</th>
+              <th class="p-2 text-right">COUNT</th>
+              <th class="p-2 text-right">البيع</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in supplier_rows %}
+            <tr class="border-t">
+              <td class="p-2 text-right">{{ s.supplier }}</td>
+              <td class="p-2 text-right">{{ s.count }}</td>
+              <td class="p-2 text-right">{{ s.sell|floatformat:2|intcomma }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="p-3 text-center text-gray-500">لا توجد بيانات</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // ===== Server Data =====
+    const empLabels = {{ emp_labels|safe }};
+    const empProfit = {{ emp_profit|safe }};
+    const empSell   = {{ emp_sell|safe }};
+    const empCount  = {{ emp_count|safe }};
+
+    const mixLabels = {{ mix_labels|safe }};
+    const mixValues = {{ mix_values|safe }};
+
+    const supplierLabels = {{ supplier_labels|safe }};
+    const supplierValues = {{ supplier_values|safe }};
+
+    const natLabels = {{ nat_labels|safe }};
+    const natValues = {{ nat_values|safe }};
+
+    const countryLabels = {{ country_labels|safe }};
+    const countryValues = {{ country_values|safe }};
+
+    const hotelLabels = {{ hotel_labels|safe }};
+    const hotelValues = {{ hotel_values|safe }};
+
+    const airLabels = {{ air_labels|safe }};
+    const airValues = {{ air_values|safe }};
+
+    // Rank dataset per current sort
+    const rankData = {% if sort == 'sell' %}
+                       {{ emp_sell|safe }}
+                     {% elif sort == 'count' %}
+                       {{ emp_count|safe }}
+                     {% else %}
+                       {{ emp_profit|safe }}
+                     {% endif %};
+
+    const baseOpts = {responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}}};
+
+    new Chart(document.getElementById('providerChart'), { type:'bar', data:{ labels:supplierLabels, datasets:[{ data:supplierValues }]}, options:baseOpts });
+    new Chart(document.getElementById('mixChart'), { type:'doughnut', data:{ labels:mixLabels, datasets:[{ data:mixValues }]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}} }});
+    new Chart(document.getElementById('rankChart'), { type:'bar', data:{ labels:empLabels, datasets:[{ data:rankData }]}, options:baseOpts });
+
+    new Chart(document.getElementById('empProfitBar'), { type:'bar', data:{ labels:empLabels, datasets:[{ data:empProfit }]}, options:baseOpts });
+    new Chart(document.getElementById('empSellBar'),   { type:'bar', data:{ labels:empLabels, datasets:[{ data:empSell   }]}, options:baseOpts });
+    new Chart(document.getElementById('empCountBar'),  { type:'bar', data:{ labels:empLabels, datasets:[{ data:empCount  }]}, options:baseOpts });
+
+    new Chart(document.getElementById('natChart'),     { type:'bar', data:{ labels:natLabels,     datasets:[{ data:natValues     }]}, options:baseOpts });
+    new Chart(document.getElementById('countryChart'), { type:'bar', data:{ labels:countryLabels, datasets:[{ data:countryValues }]}, options:baseOpts });
+    new Chart(document.getElementById('hotelChart'),   { type:'bar', data:{ labels:hotelLabels,   datasets:[{ data:hotelValues   }]}, options:baseOpts });
+    new Chart(document.getElementById('airChart'),     { type:'bar', data:{ labels:airLabels,     datasets:[{ data:airValues     }]}, options:baseOpts });
+
+    // ===== Sync Excel link with filters =====
+    const btnXlsx = document.getElementById('btnXlsx');
+    function updateXlsxHref(){
+      const fd = new FormData(document.getElementById('filters'));
+      const params = new URLSearchParams(fd);
+      {% if not can_choose_scope %}
+        params.set('scope','{{ scope }}');
+      {% endif %}
+      if(!params.has('top')) params.set('top','{{ TOP_N }}');
+      btnXlsx.href = "{% url 'reports_analysis_export_xlsx' %}?" + params.toString();
+    }
+    document.getElementById('filters').addEventListener('change', updateXlsxHref);
+    updateXlsxHref();
+  </script>
+</body>
+</html>
