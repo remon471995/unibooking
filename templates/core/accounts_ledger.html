@@ -1,133 +1,143 @@
-{% extends 'core/base.html' %}
-{% load humanize %} {# لتحسين عرض الأرقام #}
+{# templates/core/accounts_ledger.html #}
+{% extends "core/base.html" %}
+{% load humanize %}
 
-{% block title %}دفتر الأستاذ العام{% endblock %}
+{% block title %}دفتر الحسابات{% endblock %}
 
 {% block content %}
-<div class="bg-white dark:bg-gray-900 shadow rounded-lg p-4 md:p-6 mb-6">
-  <h1 class="text-xl md:text-2xl font-bold mb-4">دفتر الأستاذ العام</h1>
+<style>
+  .ledger-table th, .ledger-table td { white-space: nowrap; }
+  .ledger-table th { font-size: 13px; }
+  .ledger-table td { font-size: 12px; }
+  .ledger-table .px { padding-left:.5rem; padding-right:.5rem; }
+  .ledger-btn{
+    display:inline-block; padding:.35rem .6rem; border-radius:.5rem;
+    background:#2563eb; color:#fff; font-size:12px;
+  }
+  .kpi { background:#f1f5f9; border-radius:.75rem; padding:10px }
+</style>
 
-  {# --- قسم الفلاتر --- #}
-  <form method="get" class="grid grid-cols-1 md:grid-cols-6 gap-3 mb-4 items-end">
-    <div>
-      <label class="block text-xs mb-1">من تاريخ</label>
-      <input type="date" name="from" value="{{ filter_from|default:'' }}" class="w-full px-3 py-1.5 rounded-md bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm">
-    </div>
-    <div>
-      <label class="block text-xs mb-1">إلى تاريخ</label>
-      <input type="date" name="to" value="{{ filter_to|default:'' }}" class="w-full px-3 py-1.5 rounded-md bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm">
-    </div>
-    <div>
-      <label class="block text-xs mb-1">اسم العميل</label>
-      <input type="text" name="customer" value="{{ filter_customer|default:'' }}" placeholder="بحث..." class="w-full px-3 py-1.5 rounded-md bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm">
-    </div>
-    <div>
-      <label class="block text-xs mb-1">الموظف</label>
-      <input type="text" name="employee" value="{{ filter_employee|default:'' }}" placeholder="بحث..." class="w-full px-3 py-1.5 rounded-md bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm">
-    </div>
-    <div>
-      <label class="block text-xs mb-1">نوع الحجز</label>
-      <select name="type" class="w-full px-3 py-1.5 rounded-md bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm">
-        <option value="" {% if not filter_type %}selected{% endif %}>الكل</option>
-        <option value="hotel" {% if filter_type == 'hotel' %}selected{% endif %}>فندق</option>
-        <option value="flight" {% if filter_type == 'flight' %}selected{% endif %}>طيران</option>
-        <option value="other" {% if filter_type == 'other' %}selected{% endif %}>أخرى</option>
-      </select>
-    </div>
-    <div class="flex items-center gap-2">
-       <button type="submit" class="w-full px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm">تطبيق</button>
-       <a href="{% url 'accounts_ledger' %}" class="w-full px-4 py-2 rounded-md bg-gray-200 dark:bg-gray-700 hover:opacity-90 text-center text-sm">إلغاء</a> {# رابط لإعادة تعيين الفلاتر #}
-    </div>
-  </form>
-  {# --- نهاية قسم الفلاتر --- #}
+<div class="max-w-[1400px] mx-auto space-y-6">
 
-</div>
+  <!-- فلاتر + تصدير -->
+  <div class="flex items-end justify-between gap-3">
+    <form method="get" class="flex flex-wrap items-end gap-3">
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">من تاريخ الحجز</label>
+        <input type="date" name="from" value="{{ filter_from }}" class="border rounded-lg px-3 py-2">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">إلى تاريخ الحجز</label>
+        <input type="date" name="to" value="{{ filter_to }}" class="border rounded-lg px-3 py-2">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">اسم العميل</label>
+        <input type="text" name="customer" value="{{ filter_customer }}" placeholder="اكتب اسم العميل" class="border rounded-lg px-3 py-2 w-44">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">اسم الموظف</label>
+        <input type="text" name="employee" value="{{ filter_employee }}" placeholder="اكتب اسم الموظف" class="border rounded-lg px-3 py-2 w-44">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">نوع الحجز</label>
+        <select name="type" class="border rounded-lg px-3 py-2">
+          <option value="" {% if not filter_type %}selected{% endif %}>كل الأنواع</option>
+          <option value="hotel" {% if filter_type == 'hotel' %}selected{% endif %}>فندق</option>
+          <option value="flight" {% if filter_type == 'flight' %}selected{% endif %}>طيران</option>
+          <option value="other" {% if filter_type == 'other' %}selected{% endif %}>أخرى</option>
+        </select>
+      </div>
+      <button class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">تطبيق</button>
+    </form>
 
-<div class="bg-white dark:bg-gray-900 shadow rounded-lg overflow-x-auto">
-  <table class="min-w-full text-sm">
-    <thead class="bg-gray-100 dark:bg-gray-800">
-      <tr>
-        <th class="px-3 py-2 text-right">تاريخ الإنشاء</th>
-        <th class="px-3 py-2 text-right">تاريخ الحجز</th>
-        <th class="px-3 py-2 text-right">النوع</th>
-        <th class="px-3 py-2 text-right">الكود/PNR</th>
-        <th class="px-3 py-2 text-right">العميل</th>
-        <th class="px-3 py-2 text-right">الموبايل</th>
-        <th class="px-3 py-2 text-right">الجنسية</th>
-        <th class="px-3 py-2 text-right">الموظف</th>
-        <th class="px-3 py-2 text-right">البيع</th>
-        <th class="px-3 py-2 text-right">النت</th>
-        <th class="px-3 py-2 text-right">الربح</th>
-        <th class="px-3 py-2 text-right">المدفوع</th>
-        <th class="px-3 py-2 text-right">المتبقي</th>
-        <th class="px-3 py-2 text-center">الإجراءات</th>
-        {# <th class="px-3 py-2 text-center">المرفقات</th> #} {# يمكن إضافتها لاحقاً #}
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-      {% for b in bookings_page.object_list %} {# استخدمنا bookings_page من الـ Paginator #}
-      <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-        <td class="px-3 py-2 whitespace-nowrap">{{ b.created_at|date:"Y-m-d H:i" }}</td>
-        <td class="px-3 py-2 whitespace-nowrap">{{ b.booking_date|date:"Y-m-d"|default:"-" }}</td>
-        <td class="px-3 py-2">{{ b.type }}</td>
-        <td class="px-3 py-2 whitespace-nowrap">{{ b.voucher_code|default:"-" }}</td>
-        <td class="px-3 py-2 whitespace-nowrap">
-          <a href="{{ b.card_url }}" class="text-blue-600 hover:underline" target="_blank">{{ b.customer_name|default:"-" }}</a>
-        </td>
-        <td class="px-3 py-2 whitespace-nowrap">{{ b.customer_mobile|default:"-" }}</td>
-        <td class="px-3 py-2">{{ b.customer_nationality|default:"-" }}</td>
-        <td class="px-3 py-2 whitespace-nowrap">{{ b.employee_name|default:"-" }}</td>
-        <td class="px-3 py-2 text-right">{{ b.sell_price|floatformat:2|intcomma }}</td>
-        <td class="px-3 py-2 text-right">{{ b.net_price|floatformat:2|intcomma }}</td>
-        <td class="px-3 py-2 text-right font-semibold {% if b.profit >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-          {{ b.profit|floatformat:2|intcomma }}
-        </td>
-        <td class="px-3 py-2 text-right text-emerald-600">{{ b.total_paid|floatformat:2|intcomma }}</td>
-        <td class="px-3 py-2 text-right font-semibold {% if b.remaining > 0.01 %}text-red-600{% else %}text-gray-500{% endif %}">
-          {{ b.remaining|floatformat:2|intcomma }}
-        </td>
-        <td class="px-3 py-2 text-center whitespace-nowrap">
-           <a href="{{ b.details_url }}" class="text-indigo-600 hover:underline" target="_blank">التفاصيل</a>
-        </td>
-        {# <td class="px-3 py-2 text-center">
-            أيقونات المرفقات هنا
-        </td> #}
-      </tr>
-      {% empty %}
-      <tr>
-        <td colspan="14" class="px-3 py-6 text-center text-gray-500">لا توجد حجوزات تطابق الفلاتر المحددة.</td> {# تم تحديث عدد الأعمدة #}
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+    <a
+      href="{% url 'accounts_ledger' %}?{% if filter_from %}from={{ filter_from }}&{% endif %}{% if filter_to %}to={{ filter_to }}&{% endif %}{% if filter_customer %}customer={{ filter_customer }}&{% endif %}{% if filter_employee %}employee={{ filter_employee }}&{% endif %}{% if filter_type %}type={{ filter_type }}&{% endif %}export=csv"
+      class="px-3 py-2 text-sm rounded-lg bg-gray-800 text-white hover:bg-black"
+    >تصدير CSV</a>
+  </div>
 
-  {# --- قسم الترقيم (Pagination) --- #}
-  {% if bookings_page.has_other_pages %}
-    <div class="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-center gap-2 text-sm">
-      {% if bookings_page.has_previous %}
-        <a class="px-3 py-1 border rounded hover:bg-gray-50 dark:hover:bg-gray-700"
-           href="?page={{ bookings_page.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
-           &laquo; السابق
-        </a>
-      {% else %}
-        <span class="px-3 py-1 border rounded text-gray-400 dark:text-gray-500">&laquo; السابق</span>
-      {% endif %}
+  <!-- KPIs -->
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+    <div class="kpi"><div class="text-xs text-gray-500">Net</div><div class="text-xl font-extrabold">{{ totals.net|default:0|floatformat:2 }}</div></div>
+    <div class="kpi"><div class="text-xs text-gray-500">Sell</div><div class="text-xl font-extrabold">{{ totals.sell|default:0|floatformat:2 }}</div></div>
+    <div class="kpi"><div class="text-xs text-gray-500">Paid</div><div class="text-xl font-extrabold">{{ totals.paid|default:0|floatformat:2 }}</div></div>
+    <div class="kpi"><div class="text-xs text-gray-500">Remaining</div><div class="text-xl font-extrabold">{{ totals.remain|default:0|floatformat:2 }}</div></div>
+    <div class="kpi"><div class="text-xs text-gray-500">Profit</div><div class="text-xl font-extrabold">{{ totals.profit|default:0|floatformat:2 }}</div></div>
+  </div>
 
-      <span class="px-2 text-gray-500 dark:text-gray-400">
-        صفحة {{ bookings_page.number }} من {{ bookings_page.paginator.num_pages }}
-      </span>
+  <!-- الجدول بالترتيب المطلوب -->
+  <div class="bg-white rounded-xl shadow overflow-x-auto">
+    <table class="ledger-table min-w-full text-sm">
+      <thead class="bg-gray-50 text-gray-700">
+        <tr>
+          <th class="px py-2">تاريخ/وقت الإنشاء</th>
+          <th class="px py-2">تاريخ الحجز</th>
+          <th class="px py-2">الموظف</th>
+          <th class="px py-2">اسم العميل</th>
+          <th class="px py-2">الجنسية</th>
+          <th class="px py-2">الموبايل</th>
+          <th class="px py-2">PNR/المرجع</th>
+          <th class="px py-2">كود H/F/O</th>
+          <th class="px py-2">النوع</th>
+          <th class="px py-2">المورّد</th>
+          <th class="px py-2">التفصيل</th>
+          <th class="px py-2">الدولة</th>
+          <th class="px py-2">الليالي</th>
+          <th class="px py-2">الغرف</th>
+          <th class="px py-2">إدارة</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y">
+        {% for r in bookings_page %}
+          <tr class="hover:bg-gray-50">
+            <td class="px py-2">{{ r.created_at|date:"Y-m-d H:i" }}</td>
+            <td class="px py-2">{{ r.booking_date|date:"Y-m-d" }}</td>
+            <td class="px py-2">{{ r.employee|default:"-" }}</td>
 
-      {% if bookings_page.has_next %}
-        <a class="px-3 py-1 border rounded hover:bg-gray-50 dark:hover:bg-gray-700"
-           href="?page={{ bookings_page.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
-           التالي &raquo;
-        </a>
-      {% else %}
-        <span class="px-3 py-1 border rounded text-gray-400 dark:text-gray-500">التالي &raquo;</span>
-      {% endif %}
-    </div>
-  {% endif %}
-  {# --- نهاية قسم الترقيم --- #}
+            <td class="px py-2">
+              {% if r.card_url and r.card_url != "#" %}
+                <a href="{{ r.card_url }}" class="text-blue-700 hover:underline">{{ r.customer|default:"-" }}</a>
+              {% else %}
+                {{ r.customer|default:"-" }}
+              {% endif %}
+            </td>
+
+            <td class="px py-2">{{ r.nationality|default:"-" }}</td>
+            <td class="px py-2">{{ r.mobile|default:"-" }}</td>
+            <td class="px py-2">{{ r.pnr|default:"-" }}</td>
+            <td class="px py-2">{{ r.hfo|default:"-" }}</td>
+            <td class="px py-2">{{ r.type|default:"-" }}</td>
+            <td class="px py-2">{{ r.provider|default:"-" }}</td>
+            <td class="px py-2">{{ r.item|default:"-" }}</td>
+            <td class="px py-2">{{ r.country|default:"-" }}</td>
+            <td class="px py-2">{{ r.nights|default:"-" }}</td>
+            <td class="px py-2">{{ r.rooms|default:"-" }}</td>
+
+            <td class="px py-2">
+              {% if r.details_url %}
+                <a href="{{ r.details_url }}" class="ledger-btn hover:bg-blue-700">تفاصيل</a>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="15" class="px-3 py-6 text-center text-gray-500">لا توجد بيانات ضمن نطاق الفلاتر.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ترقيم الصفحات -->
+  <div class="p-3 flex justify-center gap-2">
+    {% if bookings_page.has_previous %}
+      <a class="px-3 py-1 rounded bg-gray-100"
+         href="?page={{ bookings_page.previous_page_number }}&from={{ filter_from }}&to={{ filter_to }}&customer={{ filter_customer }}&employee={{ filter_employee }}&type={{ filter_type }}">السابق</a>
+    {% endif %}
+    <span class="px-3 py-1 text-sm">صفحة {{ bookings_page.number }} من {{ bookings_page.paginator.num_pages }}</span>
+    {% if bookings_page.has_next %}
+      <a class="px-3 py-1 rounded bg-gray-100"
+         href="?page={{ bookings_page.next_page_number }}&from={{ filter_from }}&to={{ filter_to }}&customer={{ filter_customer }}&employee={{ filter_employee }}&type={{ filter_type }}">التالي</a>
+    {% endif %}
+  </div>
 
 </div>
 {% endblock %}

@@ -216,3 +216,12 @@ class UserAdmin(BaseUserAdmin):
             obj.is_superuser = True
 
         obj.save(update_fields=["is_staff", "is_superuser"])
+
+from django.contrib import admin
+from .models import BookingAmendment
+
+@admin.register(BookingAmendment)
+class BookingAmendmentAdmin(admin.ModelAdmin):
+    list_display = ("id", "amendment_type", "status", "requested_by", "created_at")
+    list_filter  = ("amendment_type", "status", "created_at")
+    search_fields = ("notes",)

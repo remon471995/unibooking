@@ -1,75 +1,81 @@
-{% extends "core/base.html" %}
+{% extends "helpdesk/base.html" %}
+{% load widget_tweaks %}
+
+{% block title %}إنشاء تذكرة جديدة | UniBooking{% endblock %}
+
 {% block content %}
-<div class="max-w-3xl mx-auto px-4 py-6 space-y-4">
-  {% include "helpdesk/_topbar.html" %}
+<div class="max-w-3xl mx-auto">
+  
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">إنشاء تذكرة دعم</h1>
+    <p class="text-gray-500 text-sm mt-1">يرجى ملء البيانات بدقة لتسريع عملية الحل.</p>
+  </div>
 
-  <h2 class="text-lg font-bold">إنشاء تذكرة جديدة</h2>
-
-  <div class="bg-white rounded-xl shadow p-4">
-    <form method="post" enctype="multipart/form-data" class="space-y-4">
+  <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-6 md:p-8">
+    <form method="post" enctype="multipart/form-data" class="space-y-5">
       {% csrf_token %}
 
-      <div>
-        <label class="block text-sm text-gray-600 mb-1">الموضوع</label>
-        {{ form.subject }}
-      </div>
+      {% if form.non_field_errors %}
+        <div class="p-3 bg-red-50 text-red-700 rounded-lg text-sm border border-red-200">
+          {{ form.non_field_errors }}
+        </div>
+      {% endif %}
 
-      <div class="grid md:grid-cols-3 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label class="block text-sm text-gray-600 mb-1">القسم</label>
-          {{ form.department }}
+          <label class="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">القسم</label>
+          {% render_field form.department class="w-full rounded-xl border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm focus:ring-blue-500 focus:border-blue-500" %}
+          {{ form.department.errors }}
         </div>
         <div>
-          <label class="block text-sm text-gray-600 mb-1">الفئة</label>
-          {{ form.category }}
-        </div>
-        <div>
-          <label class="block text-sm text-gray-600 mb-1">الأولوية</label>
-          {{ form.priority }}
-        </div>
-      </div>
-
-      <div class="grid md:grid-cols-2 gap-4">
-        <div>
-          <label class="block text-sm text-gray-600 mb-1">مرجع داخلي (اختياري)</label>
-          {{ form.related_ref }}
-        </div>
-        <div>
-          <label class="block text-sm text-gray-600 mb-1">رابط داخلي (اختياري)</label>
-          {{ form.related_url }}
+          <label class="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">الفئة</label>
+          {% render_field form.category class="w-full rounded-xl border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm focus:ring-blue-500 focus:border-blue-500" %}
+          {{ form.category.errors }}
         </div>
       </div>
 
-      <div class="grid md:grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-[3fr_1fr] gap-4">
         <div>
-          <label class="block text-sm text-gray-600 mb-1">كيان مرتبط (اختياري)</label>
-          {{ form.related_model }}
+          <label class="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">الموضوع</label>
+          {% render_field form.subject class="w-full rounded-xl border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="وصف مختصر للمشكلة..." %}
         </div>
         <div>
-          <label class="block text-sm text-gray-600 mb-1">المعرف المرتبط (ID)</label>
-          {{ form.related_id }}
+          <label class="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">الأولوية</label>
+          {% render_field form.priority class="w-full rounded-xl border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm focus:ring-blue-500 focus:border-blue-500" %}
         </div>
       </div>
 
       <div>
-        <label class="block text-sm text-gray-600 mb-1">تصنيفات (Tags)</label>
-        {{ form.tags }}
-        <div class="text-xs text-gray-500 mt-1">اختر أكثر من Tag بالضغط مع Ctrl/⌘.</div>
+        <label class="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">التفاصيل</label>
+        {% render_field form.body class="w-full rounded-xl border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm focus:ring-blue-500 focus:border-blue-500 min-h-[120px]" rows="5" %}
       </div>
 
-      <div>
-        <label class="block text-sm text-gray-600 mb-1">تفاصيل الطلب</label>
-        {{ form.body }}
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">مرفق</label>
+          {% render_field form.attachment class="block w-full text-sm text-gray-900 border border-gray-300 rounded-xl cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-800 dark:border-gray-700" %}
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">الوسوم</label>
+          {% render_field form.tags class="w-full rounded-xl border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm focus:ring-blue-500 focus:border-blue-500" %}
+        </div>
       </div>
 
-      <div>
-        <label class="block text-sm text-gray-600 mb-1">مرفق (اختياري)</label>
-        {{ form.attachment }}
+      <div class="hidden">
+        {{ form.related_model }}
+        {{ form.related_id }}
+        {{ form.related_ref }}
       </div>
 
-      <div class="pt-2">
-        <button class="px-4 py-2 rounded bg-gray-900 text-white">إنشاء التذكرة</button>
+      <div class="pt-4 border-t border-gray-100 dark:border-gray-800 flex items-center gap-3">
+        <button type="submit" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium shadow-lg shadow-blue-500/30 transition-all">
+          إرسال التذكرة
+        </button>
+        <a href="{% url 'helpdesk:my_inbox' %}" class="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl text-sm font-medium transition-all">
+          إلغاء
+        </a>
       </div>
+
     </form>
   </div>
 </div>

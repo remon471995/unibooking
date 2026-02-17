@@ -1,21 +1,29 @@
+# core/models.py
 from __future__ import annotations
 
-from django.db import models
 from datetime import date, timedelta
-import random, string
-from django.utils.crypto import get_random_string
 from decimal import Decimal
+import random
+import string
+
+from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator, MaxValueValidator
+from django.db import models, transaction
 from django.db.models import Sum
 from django.utils import timezone
-from django.core.exceptions import ValidationError
-from django.conf import settings
-from django.db import transaction
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.utils.crypto import get_random_string
+
+# ContentTypes (Generic FK/Relation)
+from django.contrib.contenttypes.models import ContentType
+from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
+
 
 # ==============================
 # VOUCHER BASE MIXIN
 # ==============================
 class VoucherMixin(models.Model):
+    """Mixin موحّد لإدارة أكواد الفاوتشر والمرجع والموظف."""
     booking_ref   = models.CharField(max_length=100, blank=True, null=True, db_index=True)
     voucher_code  = models.CharField(max_length=100, blank=True, null=True, unique=True, db_index=True)
     employee_name = models.CharField(max_length=255, blank=True, null=True, db_index=True)
@@ -43,7 +51,12 @@ class UniBookingCard(models.Model):
     nationality   = models.CharField(max_length=100)
     country       = models.CharField(max_length=100)
     ub_code       = models.CharField(max_length=50, unique=True, editable=False, db_index=True)
-    created_by    = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="cards", db_index=True)
+    created_by    = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="cards",
+        db_index=True,
+    )
     created_at    = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
@@ -86,6 +99,17 @@ class UniBookingCard(models.Model):
 
     @property
     def total_paid(self):
+        # بنستورد المكتبات هنا عشان نتجنب مشاكل الترتيب
+        from django.apps import apps
+        from django.db.models import Sum
+        from decimal import Decimal
+        
+        # استدعاء الموديلات بطريقة آمنة
+        Payment = apps.get_model('core', 'Payment')
+        FlightPayment = apps.get_model('core', 'FlightPayment')
+        OtherPayment = apps.get_model('core', 'OtherPayment')
+
+        # حساب المدفوعات
         hotel_paid = (
             Payment.objects.filter(booking_hotel__in=self.hotels.all())
             .aggregate(total=Sum('paid_amount'))['total'] or Decimal("0.00")
@@ -98,6 +122,7 @@ class UniBookingCard(models.Model):
             OtherPayment.objects.filter(booking_other__in=self.others.all())
             .aggregate(total=Sum('paid_amount'))['total'] or Decimal("0.00")
         )
+        
         return hotel_paid + flight_paid + other_paid
 
     @property
@@ -143,18 +168,30 @@ class HotelBooking(VoucherMixin, models.Model):
     accounting_date = models.DateField(null=True, blank=True, db_index=True)
 
     # آخر موعد سداد متفق عليه (ثابت لا يتغير بعد ضبطه)
-    agreed_last_due = models.DateField(null=True, blank=True, db_index=True,
-                                       help_text="آخر موعد سداد متفق عليه (ثابت)")
+    agreed_last_due = models.DateField(
+        null=True, blank=True, db_index=True,
+        help_text="آخر موعد سداد متفق عليه (ثابت)",
+    )
 
     cancellation_policy = models.CharField(
         max_length=50, choices=POLICY_CHOICES, blank=True, null=True, default="refundable"
     )
     refundable_until           = models.DateField(blank=True, null=True)
     cancellation_penalty_value = models.DecimalField(max_digits=8, decimal_places=2, blank=True, null=True)
-    cancellation_penalty_type  = models.CharField(max_length=20, choices=PENALTY_TYPE_CHOICES, blank=True, null=True)
+    cancellation_penalty_type  = models.CharField(
+        max_length=20, choices=PENALTY_TYPE_CHOICES, blank=True, null=True
+    )
 
     net  = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"), db_index=True)
     sell = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"), db_index=True)
+
+    # علاقات عامة (تعديلات عامة مش على مستوى الدفعات)
+    amendments = GenericRelation(
+        'BookingAmendment',
+        content_type_field='booking_content_type',
+        object_id_field='booking_object_id',
+        related_query_name='hotel_booking'
+    )
 
     class Meta:
         ordering = ("-created_at",)
@@ -191,12 +228,33 @@ class HotelBooking(VoucherMixin, models.Model):
     def remaining_balance(self):
         return (self.sell or 0) - self.total_paid
 
+    @property
+    def payment_adjustments(self):
+        """ارجع كل BookingAdjustment الخاصة بهذا الحجز (بدون موديل PaymentAdjustment)."""
+        return BookingAdjustment.objects.filter(
+            booking_type="hotel",
+            booking_id=self.pk,
+        )
+
+    @property
+    def adjustments_total(self):
+        return self.payment_adjustments.aggregate(t=Sum('amount'))['t'] or Decimal('0.00')
+
+    @property
+    def profit_after_adjustments(self):
+        return self.profit + self.adjustments_total
+
     def __str__(self):
         return f"Hotel: {self.hotel_name} ({self.voucher_code})"
 
 
 class Room(models.Model):
-    hotel_booking = models.ForeignKey(HotelBooking, on_delete=models.CASCADE, related_name="rooms", db_index=True)
+    hotel_booking = models.ForeignKey(
+        HotelBooking,
+        on_delete=models.CASCADE,
+        related_name="rooms",
+        db_index=True,
+    )
     guest_names = models.TextField(help_text="أسماء النزلاء في هذه الغرفة، مفصولة بفاصلة")
 
     def __str__(self):
@@ -213,17 +271,40 @@ class Payment(models.Model):
         ("link", "رابط دفع"),
     ]
 
-    booking_hotel = models.ForeignKey("HotelBooking", on_delete=models.CASCADE, related_name="payments", db_index=True)
-    employee_name = models.CharField(max_length=255, blank=True, null=True, db_index=True)
+    booking_hotel = models.ForeignKey(
+        "HotelBooking",
+        on_delete=models.CASCADE,
+        related_name="payments",
+        db_index=True,
+    )
+
+    employee_name = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        db_index=True,
+    )
+
     net_price   = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     sell_price  = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     paid_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"), db_index=True)
+
     method = models.CharField(max_length=50, choices=METHODS, db_index=True)
     installment_date = models.DateField(null=True, blank=True, db_index=True)
-    payment_link    = models.URLField(null=True, blank=True)
-    bank_file       = models.FileField(upload_to="payments/banks/", null=True, blank=True)
-    invoice_file    = models.FileField(upload_to="payments/invoices/", null=True, blank=True)
-    voucher_original= models.FileField(upload_to="payments/vouchers/", null=True, blank=True)
+
+    payment_link     = models.URLField(null=True, blank=True)
+    bank_file        = models.FileField(upload_to="payments/banks/", null=True, blank=True)
+    invoice_file     = models.FileField(upload_to="payments/invoices/", null=True, blank=True)
+    voucher_original = models.FileField(upload_to="payments/vouchers/", null=True, blank=True)
+
+    # ✅ ملاحظة/سبب الدفع أو التعديل
+    note = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="سبب الدفع أو التعديل (اختياري).",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
@@ -247,14 +328,16 @@ class Payment(models.Model):
     def __str__(self):
         return f"{self.get_method_display()} - {self.paid_amount}"
 
-    # 👇 تثبيت agreed_last_due عند أول دفعة تقسيط فقط (بدون إضافة خيار "installment" لقائمة METHODS)
     def save(self, *args, **kwargs):
-        is_installment = (self.method == "installment" and self.installment_date is not None)
+        """
+        ثبت آخر موعد سداد عند أول دفعة فيها installment_date
+        """
+        is_first_installment = bool(self.installment_date)
         with transaction.atomic():
             super().save(*args, **kwargs)
-            if is_installment:
+            if is_first_installment:
                 b = self.booking_hotel
-                if b and not b.agreed_last_due:
+                if b and not getattr(b, "agreed_last_due", None):
                     b.agreed_last_due = self.installment_date
                     b.save(update_fields=["agreed_last_due"])
 
@@ -267,7 +350,7 @@ class FlightBooking(VoucherMixin, models.Model):
 
     card    = models.ForeignKey("UniBookingCard", on_delete=models.CASCADE, related_name="flights", db_index=True)
     airline = models.CharField(max_length=100, db_index=True)
-    pnr     = models.CharField(max_length=50, db_index=True)
+    pnr = models.CharField(max_length=50, db_index=True)
     booking_date = models.DateField(default=timezone.localdate, db_index=True)
 
     net_price  = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"), db_index=True)
@@ -280,6 +363,14 @@ class FlightBooking(VoucherMixin, models.Model):
     agreed_last_due = models.DateField(
         null=True, blank=True, db_index=True,
         help_text="آخر موعد سداد متفق عليه (ثابت)"
+    )
+
+    # علاقات عامة (تعديلات عامة)
+    amendments = GenericRelation(
+        'BookingAmendment',
+        content_type_field='booking_content_type',
+        object_id_field='booking_object_id',
+        related_query_name='flight_booking'
     )
 
     class Meta:
@@ -297,18 +388,12 @@ class FlightBooking(VoucherMixin, models.Model):
         ]
 
     def save(self, *args, **kwargs):
-        # تاريخ محاسبي افتراضي
         if not self.accounting_date:
             self.accounting_date = timezone.localdate()
-
-        # تأكيد تنسيق ال-PNR
         if self.pnr:
             self.pnr = self.pnr.strip().upper()
-
-        # اجعل المرجع = PNR لو booking_ref فاضي (booking_ref يأتي من VoucherMixin)
         if not getattr(self, "booking_ref", None):
             self.booking_ref = (self.pnr or "").upper()
-
         super().save(*args, **kwargs)
 
     def clean(self):
@@ -330,6 +415,21 @@ class FlightBooking(VoucherMixin, models.Model):
     def remaining_balance(self):
         return (self.sell_price or 0) - self.total_paid
 
+    @property
+    def payment_adjustments(self):
+        return BookingAdjustment.objects.filter(
+            booking_type="flight",
+            booking_id=self.pk,
+        )
+
+    @property
+    def adjustments_total(self):
+        return self.payment_adjustments.aggregate(t=Sum('amount'))['t'] or Decimal('0.00')
+
+    @property
+    def profit_after_adjustments(self):
+        return self.profit + self.adjustments_total
+
 
 # ==============================
 # FLIGHT PAYMENTS
@@ -341,8 +441,18 @@ class FlightPayment(models.Model):
         ("link", "رابط دفع"),
     ]
 
-    booking_flight = models.ForeignKey("FlightBooking", on_delete=models.CASCADE, related_name="payments", db_index=True)
-    employee_name  = models.CharField(max_length=255, blank=True, null=True, db_index=True)
+    booking_flight = models.ForeignKey(
+        "FlightBooking",
+        on_delete=models.CASCADE,
+        related_name="payments",
+        db_index=True,
+    )
+    employee_name  = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        db_index=True,
+    )
     net_price   = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     sell_price  = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     paid_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"), db_index=True)
@@ -352,6 +462,15 @@ class FlightPayment(models.Model):
     bank_file       = models.FileField(upload_to="payments/flights/banks/", null=True, blank=True)
     invoice_file    = models.FileField(upload_to="payments/flights/invoices/", null=True, blank=True)
     voucher_original= models.FileField(upload_to="payments/flights/vouchers/", null=True, blank=True)
+
+    # ✅ ملاحظة/سبب الدفع أو التعديل
+    note = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="سبب الدفع أو التعديل (اختياري).",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
@@ -375,12 +494,11 @@ class FlightPayment(models.Model):
     def __str__(self):
         return f"{self.get_method_display()} - {self.paid_amount}"
 
-    # 👇 تثبيت agreed_last_due عند أول دفعة تقسيط فقط (بدون إضافة خيار "installment")
     def save(self, *args, **kwargs):
-        is_installment = (self.method == "installment" and self.installment_date is not None)
+        is_first_installment = bool(self.installment_date)
         with transaction.atomic():
             super().save(*args, **kwargs)
-            if is_installment:
+            if is_first_installment:
                 b = self.booking_flight
                 if b and not b.agreed_last_due:
                     b.agreed_last_due = self.installment_date
@@ -408,7 +526,6 @@ class OtherBooking(VoucherMixin, models.Model):
 
     service_type  = models.CharField(max_length=50, choices=SERVICE_CHOICES, db_index=True)
     provider_name = models.CharField(max_length=150, db_index=True)
-    booking_ref   = models.CharField(max_length=100, db_index=True)
     booking_date  = models.DateField(default=timezone.localdate, db_index=True)
 
     net_price  = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"), db_index=True)
@@ -418,8 +535,18 @@ class OtherBooking(VoucherMixin, models.Model):
     accounting_date = models.DateField(null=True, blank=True, db_index=True)
 
     # آخر موعد سداد متفق عليه (ثابت لا يتغير بعد ضبطه)
-    agreed_last_due = models.DateField(null=True, blank=True, db_index=True,
-                                       help_text="آخر موعد سداد متفق عليه (ثابت)")
+    agreed_last_due = models.DateField(
+        null=True, blank=True, db_index=True,
+        help_text="آخر موعد سداد متفق عليه (ثابت)"
+    )
+
+    # تعديلات عامة
+    amendments = GenericRelation(
+        'BookingAmendment',
+        content_type_field='booking_content_type',
+        object_id_field='booking_object_id',
+        related_query_name='other_booking'
+    )
 
     class Meta:
         ordering = ("-created_at",)
@@ -455,6 +582,21 @@ class OtherBooking(VoucherMixin, models.Model):
     def remaining_balance(self):
         return (self.sell_price or 0) - self.total_paid
 
+    @property
+    def payment_adjustments(self):
+        return BookingAdjustment.objects.filter(
+            booking_type="other",
+            booking_id=self.pk,
+        )
+
+    @property
+    def adjustments_total(self):
+        return self.payment_adjustments.aggregate(t=Sum('amount'))['t'] or Decimal('0.00')
+
+    @property
+    def profit_after_adjustments(self):
+        return self.profit + self.adjustments_total
+
 
 class OtherPayment(models.Model):
     METHODS = [
@@ -463,8 +605,18 @@ class OtherPayment(models.Model):
         ("link", "رابط دفع"),
     ]
 
-    booking_other = models.ForeignKey("OtherBooking", on_delete=models.CASCADE, related_name="payments", db_index=True)
-    employee_name = models.CharField(max_length=255, blank=True, null=True, db_index=True)
+    booking_other = models.ForeignKey(
+        "OtherBooking",
+        on_delete=models.CASCADE,
+        related_name="payments",
+        db_index=True,
+    )
+    employee_name = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        db_index=True,
+    )
     net_price   = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     sell_price  = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     paid_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"), db_index=True)
@@ -474,6 +626,15 @@ class OtherPayment(models.Model):
     bank_file       = models.FileField(upload_to="payments/others/banks/", null=True, blank=True)
     invoice_file    = models.FileField(upload_to="payments/others/invoices/", null=True, blank=True)
     voucher_original= models.FileField(upload_to="payments/others/vouchers/", null=True, blank=True)
+
+    # ✅ ملاحظة/سبب الدفع أو التعديل
+    note = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="سبب الدفع أو التعديل (اختياري).",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
@@ -497,17 +658,15 @@ class OtherPayment(models.Model):
     def __str__(self):
         return f"{self.get_method_display()} - {self.paid_amount}"
 
-    # 👇 تثبيت agreed_last_due عند أول دفعة تقسيط فقط (بدون إضافة خيار "installment")
     def save(self, *args, **kwargs):
-        is_installment = (self.method == "installment" and self.installment_date is not None)
+        is_first_installment = bool(self.installment_date)
         with transaction.atomic():
             super().save(*args, **kwargs)
-            if is_installment:
+            if is_first_installment:
                 b = self.booking_other
                 if b and not b.agreed_last_due:
                     b.agreed_last_due = self.installment_date
                     b.save(update_fields=["agreed_last_due"])
-
 
 # ==============================
 # Notifications
@@ -556,14 +715,26 @@ class StaffTarget(models.Model):
 
     cycle = models.ForeignKey(TargetCycle, on_delete=models.CASCADE, related_name="staff_targets")
     employee = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="targets")
-    leader = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="team_targets")
+    leader = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="team_targets",
+    )
 
-    set_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="set_staff_targets")
+    set_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="set_staff_targets",
+    )
     grade = models.CharField(max_length=1, choices=GRADE_CHOICES, default="A")
 
-    target_amount = models.DecimalField(max_digits=12, decimal_places=2,
-                                        validators=[MinValueValidator(Decimal("0"))],
-                                        default=Decimal("0"))
+    target_amount = models.DecimalField(
+        max_digits=12, decimal_places=2,
+        validators=[MinValueValidator(Decimal("0"))],
+        default=Decimal("0"),
+    )
 
     # الشرائح (KWD) + نسب العمولة %
     thr1 = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("1500.00"))
@@ -589,8 +760,16 @@ class LeaderTarget(models.Model):
     """تارجت الليدر الشهري (السوبر يحدده يدويًا — متغير شهريًا)."""
     cycle = models.ForeignKey(TargetCycle, on_delete=models.CASCADE, related_name="leader_targets")
     leader = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="leader_targets")
-    target_amount = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal("0"))])
-    set_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="set_leader_targets")
+    target_amount = models.DecimalField(
+        max_digits=12, decimal_places=2,
+        validators=[MinValueValidator(Decimal("0"))],
+    )
+    set_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="set_leader_targets",
+    )
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -604,7 +783,7 @@ class LeaderTarget(models.Model):
 
 
 class BookingAdjustment(models.Model):
-    """تعديلات/خصومات/إلغاءات تؤثر على الربح والإنجاز."""
+    """تعديلات/خصومات/إلغاءات تؤثر على الربح والإنجاز (مستوى التقارير/التارجت)."""
     TYPE_CHOICES = (
         ("modification", "تعديل"),
         ("free_cancel", "إلغاء مجاني"),
@@ -623,13 +802,27 @@ class BookingAdjustment(models.Model):
     ))
     booking_id = models.PositiveIntegerField()
 
-    cycle = models.ForeignKey(TargetCycle, on_delete=models.CASCADE, related_name="adjustments", null=True, blank=True)
+    cycle = models.ForeignKey(
+        TargetCycle,
+        on_delete=models.CASCADE,
+        related_name="adjustments",
+        null=True, blank=True,
+    )
     amount = models.DecimalField(max_digits=12, decimal_places=2)  # سالب/موجب
     adj_type = models.CharField(max_length=20, choices=TYPE_CHOICES)
     reason = models.CharField(max_length=255, blank=True)
-    apply_in_cycle = models.CharField(max_length=20, choices=APPLY_IN_CHOICES, default="current")
+    apply_in_cycle = models.CharField(
+        max_length=20,
+        choices=APPLY_IN_CHOICES,
+        default="current",
+    )
 
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="created_adjustments")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="created_adjustments",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -665,7 +858,7 @@ class EmployeeProfile(models.Model):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="employee_profile",   # ثابت عشان ما يتعارضش مع أي Profile تاني
+        related_name="employee_profile",
     )
     department = models.ForeignKey(Department, null=True, blank=True, on_delete=models.SET_NULL)
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default=ROLE_EMP)
@@ -674,3 +867,70 @@ class EmployeeProfile(models.Model):
 
     def __str__(self):
         return f"{self.user} ({self.get_role_display()})"
+
+
+# ==============================
+# Amendments (Generic to any booking)
+# ==============================
+class BookingAmendment(models.Model):
+    class Status(models.TextChoices):
+        REQUESTED = "requested", "Requested"
+        APPLIED   = "applied",   "Applied"
+        REJECTED  = "rejected",  "Rejected"
+
+    class Type(models.TextChoices):
+        DATE_CHANGE     = "date_change", "Date change"
+        NAME_CORRECTION = "name_correction", "Name correction"
+        CANCEL          = "cancel", "Cancel"
+        OTHER           = "other", "Other"
+
+    booking_content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE, db_index=True)
+    booking_object_id    = models.PositiveIntegerField(db_index=True)
+    booking              = GenericForeignKey('booking_content_type', 'booking_object_id')
+
+    amendment_type = models.CharField(max_length=32, choices=Type.choices)
+    new_data         = models.TextField(blank=True)
+    client_fee       = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    supplier_penalty = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    price_diff       = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    notes            = models.TextField(blank=True)
+
+    status       = models.CharField(max_length=16, choices=Status.choices, default=Status.REQUESTED)
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='amendments_requested',
+    )
+    applied_by   = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='amendments_applied',
+    )
+
+    # النَّسب لصاحب الكارت + دورة الشهر
+    credited_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.CASCADE,
+        related_name="credited_amendments", db_index=True,
+    )
+    cycle = models.ForeignKey(
+        TargetCycle, null=True, blank=True, on_delete=models.CASCADE,
+        related_name="booking_amendments", db_index=True,
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    applied_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "core_bookingamendment"
+        indexes = [
+            models.Index(fields=['booking_content_type', 'booking_object_id']),
+            models.Index(fields=['credited_to']),
+            models.Index(fields=['cycle']),
+        ]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.get_amendment_type_display()} — {self.get_status_display()} ({self.pk})"
+        
+

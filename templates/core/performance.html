@@ -1,32 +1,32 @@
+{% extends "core/base.html" %}
 {% load humanize %}
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="utf-8" />
-  <title>لوحة الأداء</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body{font-family:system-ui,"Tajawal","Noto Kufi Arabic",sans-serif}
-    .card{background:#fff;border-radius:.9rem;padding:1rem;box-shadow:0 2px 8px rgba(0,0,0,.06)}
-    .btn{background:#2563eb;color:#fff;border-radius:.6rem}
-    .btn:hover{background:#1e40af}
-    .btn-lite{background:#e2e8f0;color:#0f172a;border-radius:.6rem}
-    .btn-lite:hover{background:#cbd5e1}
-    .table-head{background:#f8fafc}
-    /* تحكم ثابت لارتفاع الرسوم */
-    .chart-box{height:320px;max-height:320px}
-    .chart-box>canvas{width:100%!important;height:100%!important;display:block}
-  </style>
-</head>
-<body class="bg-gray-100 p-4 md:p-6">
+
+{% block content %}
+
+<style>
+  body{font-family:system-ui,"Tajawal","Noto Kufi Arabic",sans-serif}
+  .card{background:#fff;border-radius:.9rem;padding:1rem;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+  .btn{background:#2563eb;color:#fff;border-radius:.6rem}
+  .btn:hover{background:#1e40af}
+  .btn-lite{background:#e2e8f0;color:#0f172a;border-radius:.6rem}
+  .btn-lite:hover{background:#cbd5e1}
+  .table-head{background:#f8fafc}
+  /* تحكم ثابت لارتفاع الرسوم */
+  .chart-box{height:320px;max-height:320px}
+  .chart-box>canvas{width:100%!important;height:100%!important;display:block}
+</style>
+
+<div class="bg-gray-100 p-4 md:p-6">
   <div class="max-w-7xl mx-auto space-y-5">
 
     <!-- روابط سريعة أعلى الصفحة -->
     <div class="flex gap-2 mb-3">
-      <a class="px-3 py-2 rounded bg-slate-200 hover:bg-slate-300" href="{% url 'reports_analysis' %}">تحليل الأداء والمبيعات</a>
-      <a class="px-3 py-2 rounded bg-slate-200 hover:bg-slate-300" href="{% url 'suppliers_report' %}">تقرير المزوّدين</a>
+      <a class="px-3 py-2 rounded bg-slate-200 hover:bg-slate-300" href="{% url 'reports_analysis' %}">
+        تحليل الأداء والمبيعات
+      </a>
+      <a class="px-3 py-2 rounded bg-slate-200 hover:bg-slate-300" href="{% url 'suppliers_report' %}">
+        تقرير المزوّدين
+      </a>
     </div>
 
     <!-- Header -->
@@ -127,7 +127,9 @@
             <td class="p-2 text-right">{{ r.net|floatformat:2|intcomma }}</td>
             <td class="p-2 text-right text-green-700">{{ r.profit|floatformat:2|intcomma }}</td>
             <td class="p-2 text-right">{{ r.paid|floatformat:2|intcomma }}</td>
-            <td class="p-2 text-right {% if r.remaining > 0 %}text-red-700{% endif %}">{{ r.remaining|floatformat:2|intcomma }}</td>
+            <td class="p-2 text-right {% if r.remaining > 0 %}text-red-700{% endif %}">
+              {{ r.remaining|floatformat:2|intcomma }}
+            </td>
           </tr>
           {% empty %}
           <tr><td colspan="7" class="p-4 text-center text-gray-500">لا توجد بيانات</td></tr>
@@ -137,24 +139,26 @@
     </div>
 
   </div>
+</div>
 
-  <script>
-    // بيانات الرسم
-    const labels = {{ labels|default:"[]"|safe }};
-    const values = {{ values|default:"[]"|safe }};
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  // بيانات الرسم
+  const labels = {{ labels|default:"[]"|safe }};
+  const values = {{ values|default:"[]"|safe }};
 
-    if (labels.length && values.length) {
-      new Chart(document.getElementById('rankChart'), {
-        type: 'bar',
-        data: { labels, datasets: [{ data: values }] },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true } }
-        }
-      });
-    }
-  </script>
-</body>
-</html>
+  if (labels.length && values.length) {
+    new Chart(document.getElementById('rankChart'), {
+      type: 'bar',
+      data: { labels, datasets: [{ data: values }] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true } }
+      }
+    });
+  }
+</script>
+
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "core/base.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto mt-8 bg-white dark:bg-gray-900 shadow rounded-lg p-6">
+  <div class="flex items-center justify-between mb-4">
+    <h1 class="text-2xl font-extrabold">طلبات التعديل</h1>
+    <a href="{% url 'amendment_create' model booking.pk %}"
+       class="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+      + طلب تعديل جديد
+    </a>
+  </div>
+
+  <div class="text-sm text-gray-600 dark:text-gray-300 mb-3">
+    <span class="font-semibold">الحجز:</span> {{ booking }}
+  </div>
+
+  <div class="overflow-x-auto">
+    <table class="min-w-full text-sm">
+      <thead>
+        <tr class="text-left bg-gray-50 dark:bg-gray-800">
+          <th class="px-3 py-2">#</th>
+          <th class="px-3 py-2">النوع</th>
+          <th class="px-3 py-2">البيانات الجديدة</th>
+          <th class="px-3 py-2">رسوم العميل</th>
+          <th class="px-3 py-2">غرامة المورد</th>
+          <th class="px-3 py-2">فرق السعر</th>
+          <th class="px-3 py-2">الحالة</th>
+          <th class="px-3 py-2">أنشئ</th>
+          <th class="px-3 py-2">إجراءات</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in amendments %}
+          <tr class="border-b">
+            <td class="px-3 py-2">{{ a.id }}</td>
+            <td class="px-3 py-2">{{ a.get_amendment_type_display|default:a.amendment_type }}</td>
+            <td class="px-3 py-2 whitespace-pre-line max-w-xs">{{ a.new_data|default:"-" }}</td>
+            <td class="px-3 py-2">{{ a.client_fee|floatformat:2 }}</td>
+            <td class="px-3 py-2">{{ a.supplier_penalty|floatformat:2 }}</td>
+            <td class="px-3 py-2">{{ a.price_diff|floatformat:2 }}</td>
+            <td class="px-3 py-2">{{ a.get_status_display|default:a.status }}</td>
+            <td class="px-3 py-2">{{ a.created_at|date:"Y-m-d H:i" }}</td>
+            <td class="px-3 py-2">
+              <a class="text-blue-600 hover:underline"
+                 href="{% url 'amendment_apply' a.id %}">تطبيق</a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="9" class="px-3 py-6 text-center text-gray-500">لا توجد تعديلات</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

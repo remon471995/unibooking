@@ -25,70 +25,39 @@
 
 <body class="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
 
-  {# ← النافبار الموحد #}
   {% include "core/_navbar.html" %}
 
-  {# شريط ثانوي اختياري خاص بكل صفحة #}
   {% block subnav %}{% endblock %}
 
-  {# الرسائل المنبثقة #}
+  {# Toast notifications بدل البانر الطويل #}
   {% if messages %}
-  <div class="max-w-4xl mx-auto my-4">
-    {% for message in messages %}
-      <div class="p-3 mb-2 rounded-lg
-        {% if 'success' in message.tags %} bg-green-100 text-green-700
-        {% elif 'error' in message.tags %} bg-red-100 text-red-700
-        {% elif 'warning' in message.tags %} bg-amber-100 text-amber-800
-        {% else %} bg-gray-100 text-gray-700 {% endif %}">
-        {{ message }}
-      </div>
-    {% endfor %}
-  </div>
+    <div id="flash-container"
+         class="fixed top-4 right-4 z-50 flex flex-col gap-2">
+      {% for message in messages %}
+        <div class="flash-msg px-4 py-2 rounded-lg shadow-lg text-sm text-white
+          {% if 'success' in message.tags %} bg-green-600
+          {% elif 'error' in message.tags %} bg-red-600
+          {% elif 'warning' in message.tags %} bg-amber-500
+          {% else %} bg-gray-800 {% endif %}">
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+
+    <script>
+      // إخفاء كل النوتيفيكيشن بعد 2.5 ثانية
+      setTimeout(function () {
+        var el = document.getElementById('flash-container');
+        if (el) {
+          el.remove();
+        }
+      }, 2500);
+    </script>
   {% endif %}
 
-  <main class="container max-w-6xl mx-auto px-4 py-6">
+  <main class="container mx-auto max-w-[1400px] px-4 py-2">
     {% block content %}{% endblock %}
   </main>
-
-  <script>
-    (function () {
-      // تبديل المظهر (نهاري / ليلي)
-      const root = document.documentElement;
-      const btn = document.getElementById('darkToggle');
-      if (btn) {
-        btn.addEventListener('click', function () {
-          root.classList.toggle('dark');
-          try {
-            localStorage.setItem('unibooking.dark', root.classList.contains('dark') ? '1' : '0');
-          } catch (e) {}
-        });
-      }
-
-      // دوال القوائم المنسدلة
-      function makeDropdown(btnId, menuId) {
-        const b = document.getElementById(btnId);
-        const m = document.getElementById(menuId);
-        if (!b || !m) return;
-        const open  = () => { m.classList.remove('hidden'); b.setAttribute('aria-expanded','true'); };
-        const close = () => { m.classList.add('hidden');   b.setAttribute('aria-expanded','false'); };
-        b.addEventListener('click', e => {
-          e.stopPropagation();
-          (m.classList.contains('hidden') ? open : close)();
-        });
-        m.addEventListener('click', e => e.stopPropagation());
-        document.addEventListener('click', close);
-        document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
-      }
-
-      // تفعيل جميع القوائم المنسدلة
-      makeDropdown('dd-target-btn',  'dd-target-menu');
-      makeDropdown('dd-helpdesk-btn','dd-helpdesk-menu');
-      makeDropdown('dd-notif-btn',   'dd-notif-menu');
-      makeDropdown('dd-user-btn',    'dd-user-menu');
-      // ✅ قائمة الإدارة (تظهر فقط للسوبر)
-      makeDropdown('dd-admin-btn',   'dd-admin-menu');
-    })();
-  </script>
 
   {% block extra_js %}{% endblock %}
 </body>

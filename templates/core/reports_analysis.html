@@ -1,24 +1,20 @@
+{% extends "core/base.html" %}
 {% load humanize %}
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="utf-8" />
-  <title>تحليل الأداء والمبيعات</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body{font-family:system-ui,"Tajawal","Noto Kufi Arabic",sans-serif}
-    .card{background:#fff;border-radius:.9rem;padding:1rem;box-shadow:0 2px 8px rgba(0,0,0,.06)}
-    .chip{background:#f1f5f9;border-radius:999px;padding:.15rem .6rem}
-    .btn{background:#2563eb;color:#fff;border-radius:.6rem}
-    .btn:hover{background:#1e40af}
-    .btn-secondary{background:#f1f5f9;color:#0f172a;border-radius:.6rem}
-    .btn-secondary:hover{background:#e2e8f0}
-    .table-head{background:#f8fafc}
-  </style>
-</head>
-<body class="bg-gray-100 p-4 md:p-6">
+
+{% block content %}
+
+<style>
+  body{font-family:system-ui,"Tajawal","Noto Kufi Arabic",sans-serif}
+  .card{background:#fff;border-radius:.9rem;padding:1rem;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+  .chip{background:#f1f5f9;border-radius:999px;padding:.15rem .6rem}
+  .btn{background:#2563eb;color:#fff;border-radius:.6rem}
+  .btn:hover{background:#1e40af}
+  .btn-secondary{background:#f1f5f9;color:#0f172a;border-radius:.6rem}
+  .btn-secondary:hover{background:#e2e8f0}
+  .table-head{background:#f8fafc}
+</style>
+
+<div class="bg-gray-100 p-4 md:p-6">
   <div class="max-w-7xl mx-auto space-y-5">
 
     <!-- Header -->
@@ -29,8 +25,12 @@
 
         <!-- روابط تنقل سريعة -->
         <div class="flex gap-2 mt-3">
-          <a class="px-3 py-2 rounded bg-slate-200 hover:bg-slate-300" href="{% url 'performance_dashboard' %}">لوحة الأداء</a>
-          <a class="px-3 py-2 rounded bg-slate-200 hover:bg-slate-300" href="{% url 'suppliers_report' %}">تقرير المزوّدين</a>
+          <a class="px-3 py-2 rounded bg-slate-200 hover:bg-slate-300" href="{% url 'performance_dashboard' %}">
+            لوحة الأداء
+          </a>
+          <a class="px-3 py-2 rounded bg-slate-200 hover:bg-slate-300" href="{% url 'suppliers_report' %}">
+            تقرير المزوّدين
+          </a>
         </div>
       </div>
       <a href="{% url 'reports' %}" class="btn-secondary px-3 py-2">رجوع للتقارير</a>
@@ -163,7 +163,9 @@
               <td class="p-2 text-right">{{ r.net|floatformat:2|intcomma }}</td>
               <td class="p-2 text-right text-green-700">{{ r.profit|floatformat:2|intcomma }}</td>
               <td class="p-2 text-right">{{ r.paid|floatformat:2|intcomma }}</td>
-              <td class="p-2 text-right {% if r.remaining > 0 %}text-red-700{% endif %}">{{ r.remaining|floatformat:2|intcomma }}</td>
+              <td class="p-2 text-right {% if r.remaining > 0 %}text-red-700{% endif %}">
+                {{ r.remaining|floatformat:2|intcomma }}
+              </td>
               <td class="p-2 text-right">{{ r.score|floatformat:2 }}</td>
             </tr>
           {% empty %}
@@ -201,69 +203,123 @@
     </div>
 
   </div>
+</div>
 
-  <script>
-    // ===== Server Data =====
-    const empLabels = {{ emp_labels|safe }};
-    const empProfit = {{ emp_profit|safe }};
-    const empSell   = {{ emp_sell|safe }};
-    const empCount  = {{ emp_count|safe }};
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  // ===== Server Data =====
+  const empLabels = {{ emp_labels|safe }};
+  const empProfit = {{ emp_profit|safe }};
+  const empSell   = {{ emp_sell|safe }};
+  const empCount  = {{ emp_count|safe }};
 
-    const mixLabels = {{ mix_labels|safe }};
-    const mixValues = {{ mix_values|safe }};
+  const mixLabels = {{ mix_labels|safe }};
+  const mixValues = {{ mix_values|safe }};
 
-    const supplierLabels = {{ supplier_labels|safe }};
-    const supplierValues = {{ supplier_values|safe }};
+  const supplierLabels = {{ supplier_labels|safe }};
+  const supplierValues = {{ supplier_values|safe }};
 
-    const natLabels = {{ nat_labels|safe }};
-    const natValues = {{ nat_values|safe }};
+  const natLabels = {{ nat_labels|safe }};
+  const natValues = {{ nat_values|safe }};
 
-    const countryLabels = {{ country_labels|safe }};
-    const countryValues = {{ country_values|safe }};
+  const countryLabels = {{ country_labels|safe }};
+  const countryValues = {{ country_values|safe }};
 
-    const hotelLabels = {{ hotel_labels|safe }};
-    const hotelValues = {{ hotel_values|safe }};
+  const hotelLabels = {{ hotel_labels|safe }};
+  const hotelValues = {{ hotel_values|safe }};
 
-    const airLabels = {{ air_labels|safe }};
-    const airValues = {{ air_values|safe }};
+  const airLabels = {{ air_labels|safe }};
+  const airValues = {{ air_values|safe }};
 
-    // Rank dataset per current sort
-    const rankData = {% if sort == 'sell' %}
-                       {{ emp_sell|safe }}
-                     {% elif sort == 'count' %}
-                       {{ emp_count|safe }}
-                     {% else %}
-                       {{ emp_profit|safe }}
-                     {% endif %};
+  // Rank dataset per current sort
+  const rankData = {% if sort == 'sell' %}
+                     {{ emp_sell|safe }}
+                   {% elif sort == 'count' %}
+                     {{ emp_count|safe }}
+                   {% else %}
+                     {{ emp_profit|safe }}
+                   {% endif %};
 
-    const baseOpts = {responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}}};
+  const baseOpts = {
+    responsive:true,
+    maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{y:{beginAtZero:true}}
+  };
 
-    new Chart(document.getElementById('providerChart'), { type:'bar', data:{ labels:supplierLabels, datasets:[{ data:supplierValues }]}, options:baseOpts });
-    new Chart(document.getElementById('mixChart'), { type:'doughnut', data:{ labels:mixLabels, datasets:[{ data:mixValues }]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}} }});
-    new Chart(document.getElementById('rankChart'), { type:'bar', data:{ labels:empLabels, datasets:[{ data:rankData }]}, options:baseOpts });
+  new Chart(document.getElementById('providerChart'), {
+    type:'bar',
+    data:{ labels:supplierLabels, datasets:[{ data:supplierValues }]},
+    options:baseOpts
+  });
 
-    new Chart(document.getElementById('empProfitBar'), { type:'bar', data:{ labels:empLabels, datasets:[{ data:empProfit }]}, options:baseOpts });
-    new Chart(document.getElementById('empSellBar'),   { type:'bar', data:{ labels:empLabels, datasets:[{ data:empSell   }]}, options:baseOpts });
-    new Chart(document.getElementById('empCountBar'),  { type:'bar', data:{ labels:empLabels, datasets:[{ data:empCount  }]}, options:baseOpts });
+  new Chart(document.getElementById('mixChart'), {
+    type:'doughnut',
+    data:{ labels:mixLabels, datasets:[{ data:mixValues }]},
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}} }
+  });
 
-    new Chart(document.getElementById('natChart'),     { type:'bar', data:{ labels:natLabels,     datasets:[{ data:natValues     }]}, options:baseOpts });
-    new Chart(document.getElementById('countryChart'), { type:'bar', data:{ labels:countryLabels, datasets:[{ data:countryValues }]}, options:baseOpts });
-    new Chart(document.getElementById('hotelChart'),   { type:'bar', data:{ labels:hotelLabels,   datasets:[{ data:hotelValues   }]}, options:baseOpts });
-    new Chart(document.getElementById('airChart'),     { type:'bar', data:{ labels:airLabels,     datasets:[{ data:airValues     }]}, options:baseOpts });
+  new Chart(document.getElementById('rankChart'), {
+    type:'bar',
+    data:{ labels:empLabels, datasets:[{ data:rankData }]},
+    options:baseOpts
+  });
 
-    // ===== Sync Excel link with filters =====
-    const btnXlsx = document.getElementById('btnXlsx');
-    function updateXlsxHref(){
-      const fd = new FormData(document.getElementById('filters'));
-      const params = new URLSearchParams(fd);
-      {% if not can_choose_scope %}
-        params.set('scope','{{ scope }}');
-      {% endif %}
-      if(!params.has('top')) params.set('top','{{ TOP_N }}');
-      btnXlsx.href = "{% url 'reports_analysis_export_xlsx' %}?" + params.toString();
-    }
-    document.getElementById('filters').addEventListener('change', updateXlsxHref);
-    updateXlsxHref();
-  </script>
-</body>
-</html>
+  new Chart(document.getElementById('empProfitBar'), {
+    type:'bar',
+    data:{ labels:empLabels, datasets:[{ data:empProfit }]},
+    options:baseOpts
+  });
+
+  new Chart(document.getElementById('empSellBar'), {
+    type:'bar',
+    data:{ labels:empLabels, datasets:[{ data:empSell }]},
+    options:baseOpts
+  });
+
+  new Chart(document.getElementById('empCountBar'), {
+    type:'bar',
+    data:{ labels:empLabels, datasets:[{ data:empCount }]},
+    options:baseOpts
+  });
+
+  new Chart(document.getElementById('natChart'), {
+    type:'bar',
+    data:{ labels:natLabels, datasets:[{ data:natValues }]},
+    options:baseOpts
+  });
+
+  new Chart(document.getElementById('countryChart'), {
+    type:'bar',
+    data:{ labels:countryLabels, datasets:[{ data:countryValues }]},
+    options:baseOpts
+  });
+
+  new Chart(document.getElementById('hotelChart'), {
+    type:'bar',
+    data:{ labels:hotelLabels, datasets:[{ data:hotelValues }]},
+    options:baseOpts
+  });
+
+  new Chart(document.getElementById('airChart'), {
+    type:'bar',
+    data:{ labels:airLabels, datasets:[{ data:airValues }]},
+    options:baseOpts
+  });
+
+  // ===== Sync Excel link with filters =====
+  const btnXlsx = document.getElementById('btnXlsx');
+  function updateXlsxHref(){
+    const fd = new FormData(document.getElementById('filters'));
+    const params = new URLSearchParams(fd);
+    {% if not can_choose_scope %}
+      params.set('scope','{{ scope }}');
+    {% endif %}
+    if(!params.has('top')) params.set('top','{{ TOP_N }}');
+    btnXlsx.href = "{% url 'reports_analysis_export_xlsx' %}?" + params.toString();
+  }
+  document.getElementById('filters').addEventListener('change', updateXlsxHref);
+  updateXlsxHref();
+</script>
+
+{% endblock %}

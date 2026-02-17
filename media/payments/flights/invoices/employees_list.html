@@ -1,0 +1,43 @@
+{% extends "core/base.html" %}
+{% block title %}الموظفون{% endblock %}
+
+{% block content %}
+<h1 class="text-xl font-bold mb-4">قائمة الموظفين</h1>
+
+<form method="get" class="flex gap-3 items-center mb-4">
+  <select name="dep" class="border rounded px-3 py-2">
+    <option value="">كل الأقسام</option>
+    {% for d in departments %}
+      <option value="{{ d.code }}" {% if current_dep == d.code %}selected{% endif %}>{{ d.name }}</option>
+    {% endfor %}
+  </select>
+
+  <input type="text" name="q" value="{{ q }}" placeholder="ابحث بالاسم/الإيميل"
+         class="border rounded px-3 py-2" />
+
+  <button class="px-4 py-2 rounded bg-blue-600 text-white">بحث</button>
+</form>
+
+<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+  {% for u in users %}
+    <div class="p-4 rounded bg-white dark:bg-gray-900 shadow">
+      <div class="font-medium">{{ u.get_full_name|default:u.username }}</div>
+      <div class="text-sm text-gray-600 dark:text-gray-300">
+        قسم:
+        {{ u.profile.department.name if u.profile and u.profile.department }}
+      </div>
+      {% if u.email %}
+        <div class="text-sm text-gray-600 dark:text-gray-300">Email: {{ u.email }}</div>
+      {% endif %}
+      {# لو عندك role في البروفايل: employee/leader/super #}
+      {% if u.profile and u.profile.role %}
+        <div class="text-xs mt-1 inline-block px-2 py-1 rounded bg-gray-100 dark:bg-gray-800">
+          {{ u.profile.get_role_display|default:u.profile.role }}
+        </div>
+      {% endif %}
+    </div>
+  {% empty %}
+    <div class="text-gray-500">لا توجد نتائج.</div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,26 +1,144 @@
 {% extends "core/base.html" %}
+{% load static %}
+
 {% block content %}
-<div class="max-w-2xl mx-auto mt-8 bg-white shadow rounded-lg p-6">
-  <h1 class="text-2xl font-bold mb-4">إنشاء مستخدم جديد</h1>
-  <form method="post">
-    {% csrf_token %}
-    <div class="grid gap-4">
-      {{ form.username.label_tag }}{{ form.username }}
-      {{ form.email.label_tag }}{{ form.email }}
-      {{ form.first_name.label_tag }}{{ form.first_name }}
-      {{ form.last_name.label_tag }}{{ form.last_name }}
-      {{ form.password.label_tag }}{{ form.password }}
-      {{ form.password_confirm.label_tag }}{{ form.password_confirm }}
-      <div class="flex gap-2 items-center">
-        {{ form.is_active }} {{ form.is_active.label_tag }}
-      </div>
-      {{ form.department.label_tag }}{{ form.department }}
-      {{ form.role.label_tag }}{{ form.role }}
-      <div>
-        <button class="bg-blue-600 text-white px-4 py-2 rounded">إنشاء</button>
-        <a href="{% url 'accounts:manage_staff' %}" class="ml-2 text-gray-600">إلغاء</a>
-      </div>
+<div class="max-w-4xl mx-auto mt-10 px-4 pb-12">
+
+  <div class="flex items-center gap-3 mb-8">
+    <div class="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-blue-600 dark:text-blue-300 shadow-sm">
+      <i class="fa-solid fa-user-plus text-xl"></i>
     </div>
-  </form>
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">إنشاء مستخدم جديد</h1>
+      <p class="text-sm text-gray-500 dark:text-gray-400">إضافة موظف جديد للنظام وتحديد صلاحياته.</p>
+    </div>
+  </div>
+
+  <div class="bg-white dark:bg-gray-800 shadow-lg rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+    
+    <div class="px-8 py-6 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-100 dark:border-gray-700">
+      <h3 class="font-bold text-gray-800 dark:text-white">بيانات الحساب</h3>
+    </div>
+
+    <div class="p-8">
+      <form method="post">
+        {% csrf_token %}
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+
+          <div class="md:col-span-2">
+            <h4 class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-4 border-b border-gray-100 dark:border-gray-700 pb-2">البيانات الشخصية</h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">الاسم الأول</label>
+                {{ form.first_name }}
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">اسم العائلة</label>
+                {{ form.last_name }}
+              </div>
+            </div>
+          </div>
+
+          <div class="md:col-span-2">
+            <h4 class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-4 border-b border-gray-100 dark:border-gray-700 pb-2">بيانات الدخول</h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">اسم المستخدم (Username)</label>
+                {{ form.username }}
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">البريد الإلكتروني</label>
+                {{ form.email }}
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">كلمة المرور</label>
+                {{ form.password }}
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">تأكيد كلمة المرور</label>
+                {{ form.password_confirm }}
+              </div>
+            </div>
+          </div>
+
+          <div class="md:col-span-2">
+            <h4 class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-4 border-b border-gray-100 dark:border-gray-700 pb-2">الوظيفة والصلاحيات</h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">القسم</label>
+                {{ form.department }}
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">الدور</label>
+                {{ form.role }}
+              </div>
+            </div>
+          </div>
+
+          <div class="md:col-span-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 flex items-center gap-3 border border-blue-100 dark:border-blue-800">
+            <div class="flex items-center h-5">
+              {{ form.is_active }}
+            </div>
+            <div class="text-sm">
+              <label for="{{ form.is_active.id_for_label }}" class="font-medium text-gray-800 dark:text-gray-200 cursor-pointer">حساب مفعل</label>
+              <p class="text-gray-500 dark:text-gray-400">إلغاء التفعيل يمنع المستخدم من الدخول للنظام نهائياً.</p>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="mt-10 flex items-center justify-end gap-3 border-t border-gray-100 dark:border-gray-700 pt-6">
+          <a href="{% url 'accounts:manage_staff' %}" 
+             class="px-5 py-2.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium transition-colors dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+            إلغاء
+          </a>
+          <button type="submit" 
+                  class="px-8 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-md hover:shadow-lg transition-all flex items-center gap-2">
+            <i class="fa-solid fa-check"></i> إنشاء المستخدم
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
 </div>
+
+<style>
+  form input[type="text"],
+  form input[type="email"],
+  form input[type="password"],
+  form select {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid #e5e7eb;
+    background-color: #fff;
+    color: #1f2937;
+    outline: none;
+    transition: all 0.2s;
+  }
+  .dark form input, .dark form select {
+    background-color: #374151;
+    border-color: #4b5563;
+    color: #fff;
+  }
+  form input:focus, form select:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  }
+  form input[type="checkbox"] {
+    width: 1.25rem;
+    height: 1.25rem;
+    cursor: pointer;
+    border-radius: 0.25rem;
+  }
+  form select {
+    -webkit-appearance: none; appearance: none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    background-position: left 0.75rem center;
+    background-repeat: no-repeat;
+    background-size: 1.25em 1.25em;
+  }
+</style>
 {% endblock %}

@@ -1,103 +1,168 @@
-{% extends "core/base.html" %}
+{% extends "helpdesk/base.html" %}
+{% load static widget_tweaks %}
+
+{% block title %}#{{ ticket.id }} - {{ ticket.subject }}{% endblock %}
+
 {% block content %}
-<div class="max-w-4xl mx-auto px-4 py-6 space-y-6">
-  {% include "helpdesk/_topbar.html" %}
+<div class="max-w-6xl mx-auto mt-4 mb-10 gap-6 grid grid-cols-1 lg:grid-cols-[1fr_300px]" dir="rtl">
 
-  <!-- هيدر التذكرة -->
-  <div class="bg-white rounded-xl shadow p-4">
-    <div class="flex items-start justify-between gap-4">
-      <div>
-        <h2 class="text-lg font-bold">#{{ ticket.id }} — {{ ticket.subject }}</h2>
-        <div class="text-sm text-gray-600 mt-1">
-          قسم: <b>{{ ticket.department.name }}</b>
-          • حالة: <b>{{ ticket.get_status_display }}</b>
-          • أولوية: <b>{{ ticket.get_priority_display }}</b>
-        </div>
-
-        {% if ticket.tags.all %}
-        <div class="mt-1 flex gap-2 flex-wrap">
-          {% for tag in ticket.tags.all %}
-          <span class="px-2 py-0.5 rounded text-xs"
-                style="background: {{ tag.color }}20; color: {{ tag.color }}; border: 1px solid {{ tag.color }}">
-            #{{ tag.name }}
-          </span>
-          {% endfor %}
-        </div>
-        {% endif %}
-
-        {% if ticket.related_ref or ticket.related_url %}
-        <div class="text-sm text-gray-600 mt-1">
-          مرجع: {{ ticket.related_ref|default:"-" }}
-          {% if ticket.related_url %} • <a class="text-blue-700" href="{{ ticket.related_url }}" target="_blank">رابط</a>{% endif %}
-        </div>
-        {% endif %}
-
-        {% if ticket.sla_due_at %}
-        <div class="text-xs text-gray-500 mt-1">SLA حتى: {{ ticket.sla_due_at|date:"Y-m-d H:i" }}</div>
-        {% endif %}
-      </div>
-
-      <div class="text-right space-y-2">
-        <div class="text-sm text-gray-600">المُسند إليه: {{ ticket.assigned_to|default:"—" }}</div>
-        <div class="flex gap-2 justify-end">
-          <a href="{% url 'helpdesk:assign_me' ticket.id %}" class="px-3 py-1.5 rounded bg-gray-900 text-white">اسندها لي</a>
-          <div class="relative">
-            <details class="inline-block">
-              <summary class="px-3 py-1.5 rounded bg-gray-100 cursor-pointer">تغيير الحالة</summary>
-              <div class="absolute right-0 mt-2 w-48 bg-white border rounded-lg shadow">
-                {% for code, label in status_choices %}
-                  <a class="block px-3 py-2 hover:bg-gray-50"
-                     href="{% url 'helpdesk:change_status' ticket.id code %}">
-                    {{ label }}{% if code == ticket.status %} ✓{% endif %}
-                  </a>
-                {% endfor %}
-              </div>
-            </details>
+  <div class="space-y-6">
+    
+    <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-5">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h1 class="text-xl font-bold text-gray-900 dark:text-gray-100">
+            <span class="text-gray-400 mr-1">#{{ ticket.id }}</span> {{ ticket.subject }}
+          </h1>
+          <div class="flex flex-wrap gap-2 mt-2 text-xs">
+            <span class="px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
+              <i class="fa-regular fa-clock ml-1"></i> {{ ticket.created_at|date:"Y-m-d H:i" }}
+            </span>
+            {% if ticket.related_ref %}
+            <span class="px-2 py-1 rounded-md bg-purple-50 text-purple-700 border border-purple-100">
+               مرجع: {{ ticket.related_ref }}
+            </span>
+            {% endif %}
           </div>
         </div>
+        
+        {% if not ticket.assigned_to %}
+        <a href="{% url 'helpdesk:assign_me' ticket.pk %}" 
+           class="whitespace-nowrap px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-medium transition-colors">
+          <i class="fa-solid fa-user-plus ml-1"></i> إسناد لي
+        </a>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 flex flex-col h-[600px]">
+      
+      <div class="px-5 py-3 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-gray-50/50 dark:bg-gray-900/50 rounded-t-2xl">
+        <h2 class="text-sm font-bold text-gray-700 dark:text-gray-200">سجل المحادثة</h2>
+        <div class="flex items-center gap-2 text-[10px] text-gray-400">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+          </span>
+          Live Sync
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-5 space-y-4 bg-gray-50 dark:bg-black/20 scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700"
+           id="messages-container"
+           hx-get="{% url 'helpdesk:ticket_messages_partial' ticket.pk %}"
+           hx-trigger="load, every 5s"
+           hx-swap="innerHTML">
+           
+           <div class="flex justify-center items-center h-full text-gray-400 gap-2">
+             <i class="fa-solid fa-circle-notch fa-spin"></i> جاري تحميل الرسائل...
+           </div>
+      </div>
+
+      <div class="p-4 border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 rounded-b-2xl">
+        <form method="post" enctype="multipart/form-data" class="relative">
+          {% csrf_token %}
+          
+          <div class="mb-3">
+             {% render_field form.body class="w-full rounded-xl border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm focus:ring-blue-500 focus:border-blue-500 pr-4 pl-4 py-3" rows="3" placeholder="اكتب ردك هنا..." %}
+          </div>
+
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <label class="cursor-pointer text-gray-400 hover:text-gray-600 transition-colors relative group">
+                <i class="fa-solid fa-paperclip text-lg"></i>
+                <input type="file" name="{{ form.attachment.name }}" class="hidden">
+                <span class="absolute bottom-full mb-2 right-0 w-max px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity">إرفاق ملف</span>
+              </label>
+
+              {% if form.canned.field.queryset.exists %}
+              <div class="w-48">
+                {% render_field form.canned class="w-full text-xs rounded-lg border-gray-200 dark:border-gray-700 py-1.5" %}
+              </div>
+              {% endif %}
+            </div>
+
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-sm font-medium flex items-center gap-2 shadow-lg shadow-blue-500/20 transition-all">
+              <span>إرسال</span>
+              <i class="fa-regular fa-paper-plane text-xs"></i>
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
 
-  <!-- المحادثة (HTMX poll) -->
-  <div class="bg-white rounded-xl shadow" id="messages-wrapper"
-       hx-get="{% url 'helpdesk:ticket_messages_partial' ticket.id %}"
-       hx-trigger="load, every 5s"
-       hx-swap="innerHTML">
-    <div class="p-4 text-center text-gray-500">جاري التحميل...</div>
-  </div>
-
-  <!-- نموذج الرد -->
-  <div class="bg-white rounded-xl shadow p-4">
-    <form method="post" enctype="multipart/form-data" class="space-y-3">
-      {% csrf_token %}
-      <div class="grid md:grid-cols-4 gap-4 items-end">
-        <div class="md:col-span-3">
-          <label class="block text-sm text-gray-600 mb-1">رسالتك</label>
-          {{ form.body }}
-          <div class="text-xs text-gray-500 mt-1">استخدم @username لعمل Mention لزميلك.</div>
+  <div class="space-y-5">
+    
+    <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
+      <h3 class="text-xs font-bold text-gray-500 uppercase mb-3">بيانات التذكرة</h3>
+      
+      <div class="space-y-3 text-sm">
+        <div class="flex justify-between py-1 border-b border-gray-50 dark:border-gray-800">
+          <span class="text-gray-500">الحالة</span>
+          <span class="font-medium 
+            {% if ticket.status == 'open' %}text-blue-600
+            {% elif ticket.status == 'resolved' %}text-green-600
+            {% elif ticket.status == 'pending' %}text-amber-600
+            {% else %}text-gray-600{% endif %}">
+            {{ ticket.get_status_display }}
+          </span>
         </div>
-        <div>
-          <label class="block text-sm text-gray-600 mb-1">رد جاهز</label>
-          {{ form.canned }}
+        
+        <div class="flex justify-between py-1 border-b border-gray-50 dark:border-gray-800">
+          <span class="text-gray-500">الأولوية</span>
+          <span class="font-medium 
+            {% if ticket.priority == 'urgent' %}text-red-600
+            {% elif ticket.priority == 'high' %}text-orange-600
+            {% else %}text-gray-600{% endif %}">
+            {{ ticket.get_priority_display }}
+          </span>
+        </div>
+
+        <div class="flex justify-between py-1 border-b border-gray-50 dark:border-gray-800">
+          <span class="text-gray-500">القسم</span>
+          <span class="font-medium text-gray-900 dark:text-gray-100">{{ ticket.department.name }}</span>
+        </div>
+
+        <div class="flex justify-between py-1 border-b border-gray-50 dark:border-gray-800">
+          <span class="text-gray-500">العميل</span>
+          <span class="font-medium text-gray-900 dark:text-gray-100">{{ ticket.requester.username }}</span>
+        </div>
+
+        <div class="flex justify-between py-1">
+          <span class="text-gray-500">المسؤول</span>
+          <span class="font-medium text-gray-900 dark:text-gray-100">
+            {% if ticket.assigned_to %}{{ ticket.assigned_to.username }}{% else %}—{% endif %}
+          </span>
         </div>
       </div>
+    </div>
 
-      <div class="flex items-center gap-4">
-        <label class="flex items-center gap-2 text-sm">{{ form.is_internal_note }} <span>ملاحظة داخلية</span></label>
-        <div>
-          <label class="text-sm text-gray-600">مرفق</label>
-          {{ form.attachment }}
-        </div>
-      </div>
+    <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
+      <h3 class="text-xs font-bold text-gray-500 uppercase mb-3">إجراءات</h3>
+      
+      <div class="flex flex-col gap-2">
+        {% if ticket.status != 'resolved' %}
+        <a href="{% url 'helpdesk:change_status' ticket.pk 'resolved' %}" 
+           class="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 text-sm transition-colors">
+           <i class="fa-solid fa-check"></i> حل التذكرة
+        </a>
+        {% else %}
+        <a href="{% url 'helpdesk:change_status' ticket.pk 'open' %}" 
+           class="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 text-sm transition-colors">
+           <i class="fa-solid fa-rotate-left"></i> إعادة الفتح
+        </a>
+        {% endif %}
 
-      <div>
-        <button class="px-4 py-2 rounded bg-gray-900 text-white">إرسال</button>
+        {% if ticket.status != 'closed' %}
+        <a href="{% url 'helpdesk:change_status' ticket.pk 'closed' %}" 
+           class="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm transition-colors">
+           <i class="fa-solid fa-lock"></i> إغلاق نهائي
+        </a>
+        {% endif %}
       </div>
-    </form>
+    </div>
+
   </div>
 </div>
-
-<!-- HTMX (لو مش مضاف بالفعل في base.html) -->
-<script src="https://unpkg.com/htmx.org@1.9.12"></script>
 {% endblock %}

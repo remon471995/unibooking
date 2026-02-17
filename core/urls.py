@@ -1,6 +1,9 @@
+# core/urls.py
 from django.urls import path
 from django.views.generic import RedirectView
 from . import views
+from . import views_accounts
+
 
 urlpatterns = [
     # Dashboard
@@ -36,26 +39,24 @@ urlpatterns = [
     path("cards/<int:card_pk>/other/create/", views.other_create, name="other_create"),
     path("other/<int:pk>/payment/", views.other_payment, name="other_payment"),
 
-    # Reports (main)
+    # Reports
     path("reports/", views.reports, name="reports"),
     path("reports/export/csv/", views.reports_export_csv, name="reports_export_csv"),
     path("reports/export/xlsx/", views.reports_export_xlsx, name="reports_export_xlsx"),
     path("reports/export/pdf/", views.reports_export_pdf, name="reports_export_pdf"),
 
-    # Reports: Analysis
+    # Reports: Analysis & Suppliers
     path("reports/analysis/", views.reports_analysis, name="reports_analysis"),
     path("reports/analysis/export/xlsx/", views.reports_analysis_export_xlsx, name="reports_analysis_export_xlsx"),
-
-    # Reports: Suppliers (canonical)
     path("reports/suppliers/", views.suppliers_report, name="suppliers_report"),
     path("reports/suppliers/export/xlsx/", views.suppliers_export_xlsx, name="suppliers_export_xlsx"),
 
-    # Legacy/short redirects
+    # Shortcuts
     path("dashboard/add/", RedirectView.as_view(pattern_name="card_create", permanent=False)),
     path("dashboard/", RedirectView.as_view(pattern_name="dashboard", permanent=False)),
     path("suppliers/", RedirectView.as_view(pattern_name="suppliers_report", permanent=False)),
 
-    # Placeholder
+    # Not implemented placeholders
     path("cards/<int:card_pk>/transfer/create/", views.not_implemented, name="transfer_create"),
     path("cards/<int:card_pk>/visa/create/", views.not_implemented, name="visa_create"),
 
@@ -70,4 +71,25 @@ urlpatterns = [
     # Search & Employees
     path("search/", views.global_search, name="global_search"),
     path("employees/", views.employees_list, name="employees_list"),
+
+    # Accounts
+    path(
+        "accounts/booking/<str:kind>/<int:pk>/",
+        views_accounts.account_booking_detail,
+        name="account_booking_detail",
+    ),
+    path("accounts/ledger/", views_accounts.accounts_ledger_view, name="accounts_ledger"),
+
+    # Amendments (جسر توافق للأسماء القديمة + تحويل لصفحات الدفع)
+    # اسم حديث لاستخدام مباشر إذا احتجته في أي مكان:
+    path("amendments/<str:model>/<int:pk>/", views.amendments_redirect, name="amendments_redirect"),
+    # أسماء قديمة مستخدمة في القوالب: (تعمل reverse بدون ما تغيّر القوالب)
+    path("amendments/<str:model>/<int:pk>/", views.amendments_redirect, name="amendment_list"),
+    path("amendments/<str:model>/<int:pk>/create/", views.amendments_redirect, name="amendment_create"),
+    path("hotel/<int:booking_pk>/payment/", views.hotel_payment, name="hotel_payment"),
+    path("hotel/<int:booking_pk>/payment/modify/", views.hotel_payment_modify, name="hotel_payment_modify"),
+    path("flight/<int:booking_pk>/payment/modify/", views.flight_payment_modify, name="flight_payment_modify"),
+    path("other/<int:booking_pk>/payment/modify/", views.other_payment_modify, name="other_payment_modify"),
+
+
 ]

@@ -7,22 +7,19 @@ from django.contrib.auth import views as auth_views
 from accounts import views as accounts_views
 
 urlpatterns = [
-    # لوحة الإدارة الأصلية (Django admin)
+    # لوحة الإدارة
     path("admin/", admin.site.urls),
 
-    # Core app (الصفحة الرئيسية، dashboard، الخ)
+    # Core
     path("", include("core.urls")),
 
-    # تطبيقات أخرى
-    path("helpdesk/", include(("helpdesk.urls", "helpdesk"), namespace="helpdesk")),
-
-    # حسابات: لاحظ أننا نمرّر namespace "accounts"
+    # Accounts (namespace = accounts)
     path("account/", include(("accounts.urls", "accounts"), namespace="accounts")),
 
-    # i18n (اختياري)
+    # i18n
     path("i18n/", include("django.conf.urls.i18n")),
 
-    # Auth: صفحة تسجيل الدخول (Django generic)
+    # Auth
     path(
         "login/",
         auth_views.LoginView.as_view(
@@ -31,13 +28,22 @@ urlpatterns = [
         ),
         name="login",
     ),
-
-    # خيار تسجيل الخروج على مستوى المشروع (يمكن الإبقاء عليه أو حذفه
-    # إذا كنت تستدعي logout عبر accounts:logout داخل accounts/urls.py)
     path("logout/", accounts_views.logout_view, name="logout"),
 ]
 
-# Static/Media أثناء التطوير فقط
+# فعّل helpdesk فقط لو:
+# 1) متسجّل في INSTALLED_APPS
+# 2) ومسموح بيه من الإعدادات (HELPDESK_ENABLED = True)
+if (
+    "helpdesk" in settings.INSTALLED_APPS
+    and getattr(settings, "HELPDESK_ENABLED", True)
+):
+    urlpatterns += [
+        path("helpdesk/", include(("helpdesk.urls", "helpdesk"), namespace="helpdesk")),
+    ]
+
+# Static/Media أثناء التطوير
 if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+

@@ -1,24 +1,88 @@
-<div class="mb-4">
-  <div class="bg-white rounded-xl shadow px-4 py-3 flex flex-wrap items-center gap-2">
-    <a href="/helpdesk/" class="px-3 py-1.5 rounded bg-gray-900 text-white">واردى</a>
-    <a href="/helpdesk/ticket/new/" class="px-3 py-1.5 rounded bg-green-600 text-white">+ تذكرة جديدة</a>
-    <a href="/helpdesk/dashboard/" class="px-3 py-1.5 rounded bg-gray-100">لوحة التذاكر</a>
-    <a href="/helpdesk/search/" class="px-3 py-1.5 rounded bg-gray-100">بحث</a>
+{# helpdesk/_topbar.html #}
+<div class="container mx-auto max-w-[1400px] px-4 mt-4 mb-2">
+  <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800
+              px-4 py-3 flex flex-wrap items-center gap-3">
 
-    <div class="mx-2 h-6 w-px bg-gray-200"></div>
+    <!-- الروابط الأساسية -->
+    <div class="flex flex-wrap items-center gap-2">
 
-    <span class="text-sm text-gray-500">الأقسام:</span>
-    <a href="/helpdesk/department/sales/" class="px-2 py-1 rounded bg-gray-50 hover:bg-gray-100">Sales</a>
-    <a href="/helpdesk/department/product/" class="px-2 py-1 rounded bg-gray-50 hover:bg-gray-100">Product</a>
-    <a href="/helpdesk/department/operations/" class="px-2 py-1 rounded bg-gray-50 hover:bg-gray-100">Operations</a>
-    <a href="/helpdesk/department/after_sales/" class="px-2 py-1 rounded bg-gray-50 hover:bg-gray-100">After Sales</a>
-    <a href="/helpdesk/department/hr/" class="px-2 py-1 rounded bg-gray-50 hover:bg-gray-100">HR</a>
+      {# واردى #}
+      <a href="{% url 'helpdesk:my_inbox' %}"
+         class="px-3 py-1.5 rounded-full text-sm
+                {% if request.resolver_match.url_name == 'my_inbox' %}
+                  bg-blue-600 text-white
+                {% else %}
+                  bg-gray-900 text-white
+                {% endif %}">
+        واردى
+      </a>
 
+      {# تذكرة جديدة #}
+      <a href="{% url 'helpdesk:ticket_create' %}"
+         class="px-3 py-1.5 rounded-full bg-green-600 hover:bg-green-700
+                text-white text-sm">
+        + تذكرة جديدة
+      </a>
+
+      {# لوحة التذاكر #}
+      <a href="{% url 'helpdesk:dashboard' %}"
+         class="px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200
+                text-gray-800 text-sm">
+        لوحة التذاكر
+      </a>
+
+      {# صفحة البحث العامة #}
+      <a href="{% url 'helpdesk:search' %}"
+         class="px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200
+                text-gray-800 text-sm">
+        بحث
+      </a>
+
+      <div class="mx-2 h-6 w-px bg-gray-200 dark:bg-gray-700"></div>
+
+      <!-- الأقسام -->
+      <span class="text-xs sm:text-sm text-gray-500">الأقسام:</span>
+
+      <a href="{% url 'helpdesk:department_inbox' 'sales' %}"
+         class="px-2 py-1 rounded-full bg-gray-50 hover:bg-gray-100 text-xs sm:text-sm">
+        Sales
+      </a>
+      <a href="{% url 'helpdesk:department_inbox' 'product' %}"
+         class="px-2 py-1 rounded-full bg-gray-50 hover:bg-gray-100 text-xs sm:text-sm">
+        Product
+      </a>
+      <a href="{% url 'helpdesk:department_inbox' 'operations' %}"
+         class="px-2 py-1 rounded-full bg-gray-50 hover:bg-gray-100 text-xs sm:text-sm">
+        Operations
+      </a>
+      <a href="{% url 'helpdesk:department_inbox' 'after_sales' %}"
+         class="px-2 py-1 rounded-full bg-gray-50 hover:bg-gray-100 text-xs sm:text-sm">
+        After Sales
+      </a>
+      <a href="{% url 'helpdesk:department_inbox' 'hr' %}"
+         class="px-2 py-1 rounded-full bg-gray-50 hover:bg-gray-100 text-xs sm:text-sm">
+        HR
+      </a>
+    </div>
+
+    <!-- البحث في الهلب ديسك -->
     <div class="ms-auto">
-      <form method="get" action="/helpdesk/search/" class="flex items-center gap-2">
-        <input type="text" name="q" placeholder="ابحث..." class="border rounded px-3 py-1.5 text-sm" />
-        <button class="px-3 py-1.5 rounded bg-gray-800 text-white text-sm">بحث</button>
+      <form method="get"
+            action="{% url 'helpdesk:search' %}"
+            class="flex items-center gap-2">
+        <input type="text"
+               name="q"
+               placeholder="ابحث في التذاكر..."
+               class="border border-gray-300 dark:border-gray-700 rounded-full px-3 py-1.5 text-xs sm:text-sm
+                      focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500
+                      bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100" />
+        <button
+          class="px-3 py-1.5 rounded-full bg-gray-800 hover:bg-black
+                 text-white text-xs sm:text-sm">
+          بحث
+        </button>
       </form>
     </div>
+
   </div>
 </div>

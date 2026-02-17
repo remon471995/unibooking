@@ -1,0 +1,129 @@
+{% extends "core/base.html" %}
+{% load humanize %}
+{% block content %}
+
+<div class="max-w-5xl mx-auto mt-8 bg-white shadow rounded-lg p-6">
+  <!-- الهيدر -->
+  <div class="flex items-center justify-between border-b pb-4 mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-800">تعديل دفعات/أسعار — طيران</h1>
+      <p class="text-gray-600 mt-1">
+        {{ booking.airline|default:"—" }} —
+        <span class="font-mono">{{ booking.pnr }}</span>
+      </p>
+    </div>
+    <a href="{% url 'flight_payment' booking.pk %}"
+       class="px-3 py-2 rounded bg-gray-200 hover:bg-gray-300">
+      رجوع لإدارة الدفع
+    </a>
+  </div>
+
+  <!-- القيم الحالية -->
+  <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+    <div class="p-3 border rounded bg-gray-50">
+      <div class="text-xs text-gray-500">Net الحالي</div>
+      <div class="text-xl font-bold">{{ current_net|floatformat:2 }}</div>
+    </div>
+    <div class="p-3 border rounded bg-gray-50">
+      <div class="text-xs text-gray-500">Sell الحالي</div>
+      <div class="text-xl font-bold">{{ current_sell|floatformat:2 }}</div>
+    </div>
+    <div class="p-3 border rounded bg-gray-50">
+      <div class="text-xs text-gray-500">Paid الإجمالي</div>
+      <div class="text-xl font-bold text-green-600">{{ current_paid|floatformat:2 }}</div>
+    </div>
+  </div>
+
+  <!-- فورم التعديل -->
+  <form method="post" enctype="multipart/form-data" class="space-y-5">
+    {% csrf_token %}
+
+    <!-- فروق النت / البيع / المدفوع -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div>
+        <label class="block text-sm font-medium mb-1">(+/-) فرق Net</label>
+        {{ form.delta_net }}
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">(+/-) فرق Sell</label>
+        {{ form.delta_sell }}
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">(+/-) فرق Paid (تحصيل/استرداد)</label>
+        {{ form.delta_paid }}
+      </div>
+    </div>
+
+    <!-- تفاصيل الدفع -->
+    <div class="border-t pt-4">
+      <h3 class="font-semibold mb-3">
+        تفاصيل الدفع (مطلوبة فقط عند إدخال فرق مدفوع)
+      </h3>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label class="block text-sm font-medium mb-1">طريقة الدفع</label>
+          {{ form.method }}
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">رابط السداد</label>
+          {{ form.payment_link }}
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">رفع إيصال</label>
+          {{ form.bank_file }}
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">الفاتورة</label>
+          {{ form.invoice_file }}
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">الفاوتشر الأصلي</label>
+          {{ form.voucher_original }}
+        </div>
+      </div>
+    </div>
+
+    <!-- الملاحظة -->
+    <div>
+      <label class="block text-sm font-medium mb-1">ملاحظة</label>
+      {{ form.note }}
+    </div>
+
+    <button class="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700">
+      حفظ التعديل
+    </button>
+  </form>
+</div>
+
+<script>
+  // إظهار/إخفاء رابط الدفع / الإيصال حسب طريقة الدفع
+  document.addEventListener("DOMContentLoaded", function () {
+    const methodSelect = document.querySelector("select[name='method']");
+    const linkInput    = document.querySelector("input[name='payment_link']");
+    const bankInput    = document.querySelector("input[name='bank_file']");
+
+    const linkWrapper  = linkInput ? linkInput.closest("div") : null;
+    const bankWrapper  = bankInput ? bankInput.closest("div") : null;
+
+    function toggleExtraFields() {
+      if (!methodSelect) return;
+
+      if (linkWrapper) linkWrapper.classList.add("hidden");
+      if (bankWrapper) bankWrapper.classList.add("hidden");
+
+      if (methodSelect.value === "link") {
+        if (linkWrapper) linkWrapper.classList.remove("hidden");
+      } else if (methodSelect.value === "cash" || methodSelect.value === "bank") {
+        if (bankWrapper) bankWrapper.classList.remove("hidden");
+      }
+    }
+
+    if (methodSelect) {
+      methodSelect.addEventListener("change", toggleExtraFields);
+      toggleExtraFields();
+    }
+  });
+</script>
+
+{% endblock %}

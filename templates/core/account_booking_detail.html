@@ -1,0 +1,130 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>تفاصيل الحجز | الحسابات</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+  <style>
+    body { background: #f8fafc; }
+    .card { background: #fff; border-radius: 0.75rem; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+    .label { color: #64748b; font-size: 0.875rem; }
+    .value { color: #0f172a; font-weight: 700; }
+    .kpi { background:#f1f5f9; border-radius:.75rem; padding:12px }
+  </style>
+</head>
+<body class="p-6">
+
+  <div class="max-w-6xl mx-auto space-y-6">
+
+    <!-- العنوان -->
+    <div class="flex items-center justify-between">
+      <h1 class="text-2xl font-extrabold">📒 تفاصيل الحجز — الحسابات</h1>
+      <span class="px-3 py-1 rounded-full text-sm {% if kind == 'hotel' %}bg-emerald-100 text-emerald-800{% elif kind == 'flight' %}bg-sky-100 text-sky-800{% else %}bg-amber-100 text-amber-800{% endif %}">
+        {{ kind|title }}
+      </span>
+    </div>
+
+    <!-- KPIs -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div class="kpi"><div class="label">سعر البيع</div><div class="value">{{ totals.sell|floatformat:2 }}</div></div>
+      <div class="kpi"><div class="label">سعر النت</div><div class="value">{{ totals.net|floatformat:2 }}</div></div>
+      <div class="kpi"><div class="label">المدفوع</div><div class="value">{{ totals.paid|floatformat:2 }}</div></div>
+      <div class="kpi"><div class="label">المتبقي</div><div class="value">{{ totals.remaining|floatformat:2 }}</div></div>
+      <div class="kpi"><div class="label">الربح</div><div class="value">{{ totals.profit|floatformat:2 }}</div></div>
+    </div>
+
+    <!-- بيانات كارت العميل -->
+    <div class="card p-5">
+      <h2 class="text-lg font-bold mb-3">👤 بيانات كارت العميل</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div><div class="label">الاسم</div><div class="value">{{ card_info.customer_name }}</div></div>
+        <div><div class="label">الجنسية</div><div class="value">{{ card_info.nationality|default:"-" }}</div></div>
+        <div><div class="label">رقم الهاتف</div><div class="value">{{ card_info.mobile|default:"-" }}</div></div>
+        <div><div class="label">UB Code</div><div class="value">{{ card_info.ub_code|default:"-" }}</div></div>
+        <div><div class="label">أنشأه</div><div class="value">{{ card_info.created_by|default:"-" }}</div></div>
+      </div>
+    </div>
+
+    <!-- بيانات الحجز -->
+    <div class="card p-5">
+      <h2 class="text-lg font-bold mb-3">🧾 بيانات الحجز</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div><div class="label">تاريخ الحجز</div><div class="value">{{ booking.booking_date|date:"Y-m-d" }}</div></div>
+        <div><div class="label">تاريخ الإنشاء</div><div class="value">{{ booking.created_at|date:"Y-m-d H:i" }}</div></div>
+        <div><div class="label">نوع الحجز</div><div class="value">{{ kind|title }}</div></div>
+
+        {% if kind == 'hotel' %}
+          <div><div class="label">الفندق</div><div class="value">{{ booking.hotel_name|default:"-" }}</div></div>
+          <div><div class="label">الدولة</div><div class="value">{{ booking.country|default:"-" }}</div></div>
+          <div><div class="label">الليالي</div><div class="value">{{ booking.nights|default:"-" }}</div></div>
+        {% elif kind == 'flight' %}
+          <div><div class="label">شركة الطيران</div><div class="value">{{ booking.airline|default:"-" }}</div></div>
+          <div><div class="label">PNR</div><div class="value">{{ booking.pnr|default:"-" }}</div></div>
+        {% else %}
+          <div><div class="label">الخدمة</div><div class="value">{{ booking.get_service_type_display|default:"-" }}</div></div>
+          <div><div class="label">المزوّد</div><div class="value">{{ booking.provider_name|default:"-" }}</div></div>
+        {% endif %}
+
+        <div><div class="label">الفاوتشر/المرجع</div><div class="value">{{ doc_links.voucher|default:"-" }}</div></div>
+        <div><div class="label">آخر ميعاد للسداد</div><div class="value">{{ booking.agreed_last_due|date:"Y-m-d" }}</div></div>
+      </div>
+
+      <div class="mt-4">
+        <a href="{% url pay_url_name booking.pk %}" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">إدارة المدفوعات</a>
+      </div>
+    </div>
+
+    <!-- جدول المدفوعات -->
+    <div class="card p-5">
+      <h2 class="text-lg font-bold mb-3">💳 المدفوعات</h2>
+
+      {% if payments %}
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead>
+            <tr class="text-left bg-gray-50">
+              <th class="p-2">التاريخ</th>
+              <th class="p-2">الطريقة</th>
+              <th class="p-2">المبلغ</th>
+              <th class="p-2">موظف الإدخال</th>
+              <th class="p-2">روابط</th>
+              <th class="p-2">ملاحظات</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in payments %}
+              <tr class="border-b">
+                <td class="p-2">{{ p.created_at|date:"Y-m-d H:i" }}</td>
+                <td class="p-2">{{ p.get_method_display|default:"-" }}</td>
+                <td class="p-2 font-semibold">{{ p.paid_amount|floatformat:2 }}</td>
+                <td class="p-2">{{ p.employee_name|default:"-" }}</td>
+                <td class="p-2 space-x-2 space-x-reverse">
+                  {% if p.payment_link %}
+                    <a target="_blank" href="{{ p.payment_link }}" class="text-blue-600 hover:underline">الرابط</a>
+                  {% endif %}
+                  {% if p.bank_file %}
+                    <a target="_blank" href="{{ p.bank_file.url }}" class="text-blue-600 hover:underline">إيصال</a>
+                  {% endif %}
+                  {% if p.invoice_file %}
+                    <a target="_blank" href="{{ p.invoice_file.url }}" class="text-blue-600 hover:underline">فاتورة</a>
+                  {% endif %}
+                  {% if p.voucher_original %}
+                    <a target="_blank" href="{{ p.voucher_original.url }}" class="text-blue-600 hover:underline">فاوتشر أصلي</a>
+                  {% endif %}
+                </td>
+                <td class="p-2">{{ p.notes|default:"-" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <p class="text-gray-500">لا يوجد مدفوعات بعد.</p>
+      {% endif %}
+    </div>
+
+  </div>
+</body>
+</html>

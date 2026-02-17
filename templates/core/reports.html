@@ -1,62 +1,74 @@
+{% extends "core/base.html" %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="ar" dir="rtl" class="scroll-smooth">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>التقارير</title> 
 
-  <script>
-    (function(){ try{
-      if(localStorage.getItem('unibooking.dark')==='1'){ document.documentElement.classList.add('dark'); }
-    }catch(e){} })();
-    window.tailwind = { config: { darkMode: 'class' } };
-  </script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body{font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Tajawal","Noto Kufi Arabic","Noto Naskh Arabic", Arial, sans-serif;}
-    .card{background:#fff;border-radius:.75rem;padding:1rem;box-shadow:0 1px 2px rgba(0,0,0,.06),0 1px 3px rgba(0,0,0,.1)}
-    .dark .card{background:#0f172a}
-    .kpi{display:flex;align-items:center;justify-content:space-between;border:1px solid rgba(0,0,0,.06);border-radius:.75rem;padding:.75rem 1rem}
-    .dark .kpi{border-color:#1f2937}
-    th,td{white-space:nowrap}
-  </style>
-</head>
-<body class="bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-gray-100 p-4 md:p-6">
+{% block content %}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+  body{font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Tajawal","Noto Kufi Arabic","Noto Naskh Arabic", Arial, sans-serif;}
+  .card{background:#fff;border-radius:.75rem;padding:1rem;box-shadow:0 1px 2px rgba(0,0,0,.06),0 1px 3px rgba(0,0,0,.1)}
+  .dark .card{background:#0f172a}
+  .kpi{display:flex;align-items:center;justify-content:space-between;border:1px solid rgba(0,0,0,.06);border-radius:.75rem;padding:.75rem 1rem}
+  .dark .kpi{border-color:#1f2937}
+  th,td{white-space:nowrap}
+</style>
+
+<div class="bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-gray-100 p-4 md:p-6">
 
   <div class="flex items-center justify-between mb-4">
     <div class="flex items-center gap-2">
       <h1 class="text-xl md:text-2xl font-bold">التقارير</h1>
-      <a href="{% url 'dashboard' %}" class="text-xs md:text-sm px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-800 hover:opacity-90">الرجوع للداشبورد</a>
+      <a href="{% url 'dashboard' %}"
+         class="text-xs md:text-sm px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-800 hover:opacity-90">
+        الرجوع للداشبورد
+      </a>
+
       <!-- ✅ زر التحليل الجديد -->
-      <a href="{% url 'reports_analysis' %}" class="text-xs md:text-sm px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">
+      <a href="{% url 'reports_analysis' %}"
+         class="text-xs md:text-sm px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">
         تحليل الأداء (Analysis)
       </a>
     </div>
     <div class="flex items-center gap-2">
-      <button id="darkToggle" class="text-xs md:text-sm px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-800 hover:opacity-90">المظهر الداكن</button>
+      <button id="darkToggle"
+              class="text-xs md:text-sm px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-800 hover:opacity-90">
+        المظهر الداكن
+      </button>
     </div>
   </div>
 
   <!-- أزرار سريعة و تصدير -->
   <div class="flex flex-wrap items-center gap-2 mb-3">
-    <a class="px-3 py-2 rounded-md bg-gray-200 dark:bg-gray-800 hover:opacity-90" href="?preset=today&employee={{ q_employee }}&kind={{ q_kind }}&group={{ q_group }}&scope={{ q_scope }}">اليوم</a>
-    <a class="px-3 py-2 rounded-md bg-gray-200 dark:bg-gray-800 hover:opacity-90" href="?preset=week&employee={{ q_employee }}&kind={{ q_kind }}&group={{ q_group }}&scope={{ q_scope }}">هذا الأسبوع</a>
-    <a class="px-3 py-2 rounded-md bg-gray-200 dark:bg-gray-800 hover:opacity-90" href="?preset=month&employee={{ q_employee }}&kind={{ q_kind }}&group={{ q_group }}&scope={{ q_scope }}">هذا الشهر</a>
-    <a class="px-3 py-2 rounded-md bg-gray-200 dark:bg-gray-800 hover:opacity-90" href="?preset=quarter&employee={{ q_employee }}&kind={{ q_kind }}&group={{ q_group }}&scope={{ q_scope }}">الربع الحالي</a>
+    <a class="px-3 py-2 rounded-md bg-gray-200 dark:bg-gray-800 hover:opacity-90"
+       href="?preset=today&employee={{ q_employee }}&kind={{ q_kind }}&group={{ q_group }}&scope={{ q_scope }}">اليوم</a>
+    <a class="px-3 py-2 rounded-md bg-gray-200 dark:bg-gray-800 hover:opacity-90"
+       href="?preset=week&employee={{ q_employee }}&kind={{ q_kind }}&group={{ q_group }}&scope={{ q_scope }}">هذا الأسبوع</a>
+    <a class="px-3 py-2 rounded-md bg-gray-200 dark:bg-gray-800 hover:opacity-90"
+       href="?preset=month&employee={{ q_employee }}&kind={{ q_kind }}&group={{ q_group }}&scope={{ q_scope }}">هذا الشهر</a>
+    <a class="px-3 py-2 rounded-md bg-gray-200 dark:bg-gray-800 hover:opacity-90"
+       href="?preset=quarter&employee={{ q_employee }}&kind={{ q_kind }}&group={{ q_group }}&scope={{ q_scope }}">الربع الحالي</a>
 
     <span class="mx-3 hidden md:inline-block">|</span>
 
-    <a class="px-3 py-2 rounded-md bg-gray-200 dark:bg-gray-800 hover:opacity-90" href="{% url 'reports_export_csv' %}?from={{ q_from }}&to={{ q_to }}&employee={{ q_employee }}&kind={{ q_kind }}&scope={{ q_scope }}">تصدير CSV</a>
-    <a class="px-3 py-2 rounded-md bg-gray-200 dark:bg-gray-800 hover:opacity-90" href="{% url 'reports_export_xlsx' %}?from={{ q_from }}&to={{ q_to }}&employee={{ q_employee }}&kind={{ q_kind }}&scope={{ q_scope }}">تصدير Excel</a>
-    <a class="px-3 py-2 rounded-md bg-gray-200 dark:bg-gray-800 hover:opacity-90" href="{% url 'reports_export_pdf' %}?from={{ q_from }}&to={{ q_to }}&employee={{ q_employee }}&kind={{ q_kind }}&scope={{ q_scope }}">تصدير PDF</a>
+    <a class="px-3 py-2 rounded-md bg-gray-200 dark:bg-gray-800 hover:opacity-90"
+       href="{% url 'reports_export_csv' %}?from={{ q_from }}&to={{ q_to }}&employee={{ q_employee }}&kind={{ q_kind }}&scope={{ q_scope }}">تصدير CSV</a>
+    <a class="px-3 py-2 rounded-md bg-gray-200 dark:bg-gray-800 hover:opacity-90"
+       href="{% url 'reports_export_xlsx' %}?from={{ q_from }}&to={{ q_to }}&employee={{ q_employee }}&kind={{ q_kind }}&scope={{ q_scope }}">تصدير Excel</a>
+    <a class="px-3 py-2 rounded-md bg-gray-200 dark:bg-gray-800 hover:opacity-90"
+       href="{% url 'reports_export_pdf' %}?from={{ q_from }}&to={{ q_to }}&employee={{ q_employee }}&kind={{ q_kind }}&scope={{ q_scope }}">تصدير PDF</a>
 
     <span class="mx-3 hidden md:inline-block">|</span>
 
     <div class="inline-flex rounded-md overflow-hidden border border-gray-300 dark:border-gray-700">
-      <a href="?from={{ q_from }}&to={{ q_to }}&employee={{ q_employee }}&kind={{ q_kind }}&scope={{ q_scope }}&group=" class="px-3 py-2 text-sm {% if not q_group %}bg-blue-600 text-white{% else %}bg-gray-200 dark:bg-gray-800{% endif %}">عرض تفصيلي</a>
-      <a href="?from={{ q_from }}&to={{ q_to }}&employee={{ q_employee }}&kind={{ q_kind }}&scope={{ q_scope }}&group=employee" class="px-3 py-2 text-sm {% if q_group == 'employee' %}bg-blue-600 text-white{% else %}bg-gray-200 dark:bg-gray-800{% endif %}">ملخص حسب الموظف</a>
+      <a href="?from={{ q_from }}&to={{ q_to }}&employee={{ q_employee }}&kind={{ q_kind }}&scope={{ q_scope }}&group="
+         class="px-3 py-2 text-sm {% if not q_group %}bg-blue-600 text-white{% else %}bg-gray-200 dark:bg-gray-800{% endif %}">
+        عرض تفصيلي
+      </a>
+      <a href="?from={{ q_from }}&to={{ q_to }}&employee={{ q_employee }}&kind={{ q_kind }}&scope={{ q_scope }}&group=employee"
+         class="px-3 py-2 text-sm {% if q_group == 'employee' %}bg-blue-600 text-white{% else %}bg-gray-200 dark:bg-gray-800{% endif %}">
+        ملخص حسب الموظف
+      </a>
     </div>
   </div>
 
@@ -65,19 +77,23 @@
     <div class="grid grid-cols-1 md:grid-cols-7 gap-3">
       <div>
         <label class="block text-xs mb-1">من تاريخ</label>
-        <input type="date" name="from" value="{{ q_from }}" class="w-full px-3 py-2 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+        <input type="date" name="from" value="{{ q_from }}"
+               class="w-full px-3 py-2 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
       </div>
       <div>
         <label class="block text-xs mb-1">إلى تاريخ</label>
-        <input type="date" name="to" value="{{ q_to }}" class="w-full px-3 py-2 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+        <input type="date" name="to" value="{{ q_to }}"
+               class="w-full px-3 py-2 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
       </div>
       <div>
         <label class="block text-xs mb-1">اسم الموظف</label>
-        <input type="text" name="employee" placeholder="بحث بالاسم" value="{{ q_employee }}" class="w-full px-3 py-2 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+        <input type="text" name="employee" placeholder="بحث بالاسم" value="{{ q_employee }}"
+               class="w-full px-3 py-2 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
       </div>
       <div>
         <label class="block text-xs mb-1">نوع الحجز</label>
-        <select name="kind" class="w-full px-3 py-2 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+        <select name="kind"
+                class="w-full px-3 py-2 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
           <option value="" {% if q_kind == "" %}selected{% endif %}>الكل</option>
           <option value="hotel" {% if q_kind == "hotel" %}selected{% endif %}>فنادق</option>
           <option value="flight" {% if q_kind == "flight" %}selected{% endif %}>طيران</option>
@@ -86,14 +102,17 @@
       </div>
       <div>
         <label class="block text-xs mb-1">العرض</label>
-        <select name="group" class="w-full px-3 py-2 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+        <select name="group"
+                class="w-full px-3 py-2 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
           <option value="" {% if not q_group %}selected{% endif %}>تفصيلي</option>
           <option value="employee" {% if q_group == "employee" %}selected{% endif %}>ملخص حسب الموظف</option>
         </select>
       </div>
       <div>
         <label class="block text-xs mb-1">النطاق</label>
-        <select name="scope" class="w-full px-3 py-2 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700" {% if not can_choose_scope %}disabled{% endif %}>
+        <select name="scope"
+                class="w-full px-3 py-2 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+                {% if not can_choose_scope %}disabled{% endif %}>
           <option value="mine" {% if q_scope == "mine" %}selected{% endif %}>حجوزاتي</option>
           <option value="all"  {% if q_scope == "all" %}selected{% endif %}>كل البيانات</option>
         </select>
@@ -106,10 +125,22 @@
 
   <!-- KPIs -->
   <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
-    <div class="kpi"><div class="text-sm text-gray-500 dark:text-gray-400">إجمالي البيع</div><div class="font-bold">{{ totals.sell|floatformat:2 }}</div></div>
-    <div class="kpi"><div class="text-sm text-gray-500 dark:text-gray-400">إجمالي الصافي</div><div class="font-bold">{{ totals.net|floatformat:2 }}</div></div>
-    <div class="kpi"><div class="text-sm text-gray-500 dark:text-gray-400">الربح</div><div class="font-bold text-green-600 dark:text-green-400">{{ totals.profit|floatformat:2 }}</div></div>
-    <div class="kpi"><div class="text-sm text-gray-500 dark:text-gray-400">المتحصل</div><div class="font-bold">{{ totals.paid|floatformat:2 }}</div></div>
+    <div class="kpi">
+      <div class="text-sm text-gray-500 dark:text-gray-400">إجمالي البيع</div>
+      <div class="font-bold">{{ totals.sell|floatformat:2 }}</div>
+    </div>
+    <div class="kpi">
+      <div class="text-sm text-gray-500 dark:text-gray-400">إجمالي الصافي</div>
+      <div class="font-bold">{{ totals.net|floatformat:2 }}</div>
+    </div>
+    <div class="kpi">
+      <div class="text-sm text-gray-500 dark:text-gray-400">الربح</div>
+      <div class="font-bold text-green-600 dark:text-green-400">{{ totals.profit|floatformat:2 }}</div>
+    </div>
+    <div class="kpi">
+      <div class="text-sm text-gray-500 dark:text-gray-400">المتحصل</div>
+      <div class="font-bold">{{ totals.paid|floatformat:2 }}</div>
+    </div>
   </div>
 
   <!-- الرسوم البيانية -->
@@ -129,37 +160,37 @@
   </div>
 
   {% if q_group == 'employee' %}
-    <div class="card mb-6 overflow-x-auto">
-      <h3 class="font-semibold mb-3">ملخص حسب الموظف</h3>
-      <table class="w-full text-right min-w-[800px]">
-        <thead>
-          <tr class="bg-gray-100 dark:bg-gray-800">
-            <th class="p-2">الموظف</th>
-            <th class="p-2">عدد الحجوزات</th>
-            <th class="p-2">البيع</th>
-            <th class="p-2">الصافي</th>
-            <th class="p-2">الربح</th>
-            <th class="p-2">المتحصل</th>
-            <th class="p-2">المتبقي</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for r in emp_rows %}
-          <tr class="border-b border-gray-100 dark:border-gray-800">
-            <td class="p-2">{{ r.employee }}</td>
-            <td class="p-2">{{ r.count }}</td>
-            <td class="p-2">{{ r.sell|floatformat:2 }}</td>
-            <td class="p-2">{{ r.net|floatformat:2 }}</td>
-            <td class="p-2 text-green-600 dark:text-green-400">{{ r.profit|floatformat:2 }}</td>
-            <td class="p-2">{{ r.paid|floatformat:2 }}</td>
-            <td class="p-2">{{ r.remaining|floatformat:2 }}</td>
-          </tr>
-          {% empty %}
-          <tr><td colspan="7" class="p-4 text-center text-gray-500">لا توجد بيانات</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+  <div class="card mb-6 overflow-x-auto">
+    <h3 class="font-semibold mb-3">ملخص حسب الموظف</h3>
+    <table class="w-full text-right min-w-[800px]">
+      <thead>
+        <tr class="bg-gray-100 dark:bg-gray-800">
+          <th class="p-2">الموظف</th>
+          <th class="p-2">عدد الحجوزات</th>
+          <th class="p-2">البيع</th>
+          <th class="p-2">الصافي</th>
+          <th class="p-2">الربح</th>
+          <th class="p-2">المتحصل</th>
+          <th class="p-2">المتبقي</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in emp_rows %}
+        <tr class="border-b border-gray-100 dark:border-gray-800">
+          <td class="p-2">{{ r.employee }}</td>
+          <td class="p-2">{{ r.count }}</td>
+          <td class="p-2">{{ r.sell|floatformat:2 }}</td>
+          <td class="p-2">{{ r.net|floatformat:2 }}</td>
+          <td class="p-2 text-green-600 dark:text-green-400">{{ r.profit|floatformat:2 }}</td>
+          <td class="p-2">{{ r.paid|floatformat:2 }}</td>
+          <td class="p-2">{{ r.remaining|floatformat:2 }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="p-4 text-center text-gray-500">لا توجد بيانات</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
   {% endif %}
 
   <div class="card mb-6 overflow-x-auto">
@@ -174,13 +205,13 @@
       </thead>
       <tbody>
         {% for r in supplier_rows %}
-          <tr class="border-b border-gray-100 dark:border-gray-800">
-            <td class="p-2">{{ r.supplier }}</td>
-            <td class="p-2">{{ r.count }}</td>
-            <td class="p-2">{{ r.sell|floatformat:2 }}</td>
-          </tr>
+        <tr class="border-b border-gray-100 dark:border-gray-800">
+          <td class="p-2">{{ r.supplier }}</td>
+          <td class="p-2">{{ r.count }}</td>
+          <td class="p-2">{{ r.sell|floatformat:2 }}</td>
+        </tr>
         {% empty %}
-          <tr><td colspan="3" class="p-4 text-center text-gray-500">لا توجد بيانات</td></tr>
+        <tr><td colspan="3" class="p-4 text-center text-gray-500">لا توجد بيانات</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -198,13 +229,13 @@
       </thead>
       <tbody>
         {% for r in airline_rows %}
-          <tr class="border-b border-gray-100 dark:border-gray-800">
-            <td class="p-2">{{ r.airline }}</td>
-            <td class="p-2">{{ r.count }}</td>
-            <td class="p-2">{{ r.sell|floatformat:2 }}</td>
-          </tr>
+        <tr class="border-b border-gray-100 dark:border-gray-800">
+          <td class="p-2">{{ r.airline }}</td>
+          <td class="p-2">{{ r.count }}</td>
+          <td class="p-2">{{ r.sell|floatformat:2 }}</td>
+        </tr>
         {% empty %}
-          <tr><td colspan="3" class="p-4 text-center text-gray-500">لا توجد بيانات</td></tr>
+        <tr><td colspan="3" class="p-4 text-center text-gray-500">لا توجد بيانات</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -214,7 +245,11 @@
   <div class="card overflow-x-auto">
     <div class="flex items-center justify-between mb-2">
       <h3 class="font-semibold">التفاصيل</h3>
-      {% if page_obj %}<div class="text-xs text-gray-500">صفحة {{ page_obj.number }} من {{ page_obj.paginator.num_pages }}</div>{% endif %}
+      {% if page_obj %}
+      <div class="text-xs text-gray-500">
+        صفحة {{ page_obj.number }} من {{ page_obj.paginator.num_pages }}
+      </div>
+      {% endif %}
     </div>
     <table class="w-full text-right min-w-[900px]">
       <thead>
@@ -236,7 +271,6 @@
           <td class="p-2">{{ r.voucher }}</td>
           <td class="p-2">{{ r.employee|default:"-" }}</td>
           <td class="p-2">{{ r.customer }}</td>
-          <!-- ✅ استخدام تاريخ فقط لتجنب TypeError لو القيمة Date -->
           <td class="p-2">{{ r.created|date:"Y-m-d" }}</td>
           <td class="p-2">{{ r.extra }}</td>
         </tr>
@@ -247,49 +281,94 @@
     </table>
 
     {% if page_obj and page_obj.paginator.num_pages > 1 %}
-      <div class="flex items-center justify-center gap-2 mt-3">
-        {% if page_obj.has_previous %}
-          <a class="px-3 py-1 rounded bg-gray-200 dark:bg-gray-800" href="?from={{ q_from }}&to={{ q_to }}&employee={{ q_employee }}&kind={{ q_kind }}&group={{ q_group }}&scope={{ q_scope }}&page={{ page_obj.previous_page_number }}">السابق</a>
-        {% endif %}
-        <span class="text-xs text-gray-500">صفحة {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
-        {% if page_obj.has_next %}
-          <a class="px-3 py-1 rounded bg-gray-200 dark:bg-gray-800" href="?from={{ q_from }}&to={{ q_to }}&employee={{ q_employee }}&kind={{ q_kind }}&group={{ q_group }}&scope={{ q_scope }}&page={{ page_obj.next_page_number }}">التالي</a>
-        {% endif %}
-      </div>
+    <div class="flex items-center justify-center gap-2 mt-3">
+      {% if page_obj.has_previous %}
+      <a class="px-3 py-1 rounded bg-gray-200 dark:bg-gray-800"
+         href="?from={{ q_from }}&to={{ q_to }}&employee={{ q_employee }}&kind={{ q_kind }}&group={{ q_group }}&scope={{ q_scope }}&page={{ page_obj.previous_page_number }}">
+        السابق
+      </a>
+      {% endif %}
+      <span class="text-xs text-gray-500">
+        صفحة {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+      </span>
+      {% if page_obj.has_next %}
+      <a class="px-3 py-1 rounded bg-gray-200 dark:bg-gray-800"
+         href="?from={{ q_from }}&to={{ q_to }}&employee={{ q_employee }}&kind={{ q_kind }}&group={{ q_group }}&scope={{ q_scope }}&page={{ page_obj.next_page_number }}">
+        التالي
+      </a>
+      {% endif %}
+    </div>
     {% endif %}
   </div>
 
-  <script>
-    const root = document.documentElement;
-    document.getElementById('darkToggle').addEventListener('click', () => {
+</div> <!-- /wrapper -->
+
+<script>
+  const root = document.documentElement;
+  const darkBtn = document.getElementById('darkToggle');
+  if (darkBtn) {
+    darkBtn.addEventListener('click', () => {
       root.classList.toggle('dark');
-      try { localStorage.setItem('unibooking.dark', root.classList.contains('dark') ? '1' : '0'); } catch (e) {}
+      try {
+        localStorage.setItem('unibooking.dark',
+          root.classList.contains('dark') ? '1' : '0');
+      } catch (e) {}
     });
+  }
 
-    const kindsLabels = {{ chart_labels|safe }};
-    const kindsValues = {{ chart_values|safe }};
-    const topEmpLabels = {{ top_emp_labels|safe }};
-    const topEmpValues = {{ top_emp_values|safe }};
-    const monthLabels = {{ month_labels|safe }};
-    const monthValues = {{ month_values|safe }};
+  const kindsLabels   = {{ chart_labels|safe }};
+  const kindsValues   = {{ chart_values|safe }};
+  const topEmpLabels  = {{ top_emp_labels|safe }};
+  const topEmpValues  = {{ top_emp_values|safe }};
+  const monthLabels   = {{ month_labels|safe }};
+  const monthValues   = {{ month_values|safe }};
 
-    new Chart(document.getElementById('kindsChart').getContext('2d'), {
-      type: 'bar',
-      data: { labels: kindsLabels, datasets: [{ label: 'عدد الحجوزات', data: kindsValues, borderWidth: 1 }]},
-      options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true }}, plugins:{legend:{display:false}} }
-    });
+  new Chart(document.getElementById('kindsChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: kindsLabels,
+      datasets: [{ label: 'عدد الحجوزات', data: kindsValues, borderWidth: 1 }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: { y: { beginAtZero: true } },
+      plugins: { legend: { display: false } }
+    }
+  });
 
-    new Chart(document.getElementById('topEmpChart').getContext('2d'), {
-      type: 'bar',
-      data: { labels: topEmpLabels, datasets: [{ label: 'الربح', data: topEmpValues, borderWidth: 1 }]},
-      options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true }}, plugins:{legend:{display:false}} }
-    });
+  new Chart(document.getElementById('topEmpChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: topEmpLabels,
+      datasets: [{ label: 'الربح', data: topEmpValues, borderWidth: 1 }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: { y: { beginAtZero: true } },
+      plugins: { legend: { display: false } }
+    }
+  });
 
-    new Chart(document.getElementById('monthChart').getContext('2d'), {
-      type: 'line',
-      data: { labels: monthLabels, datasets: [{ label: 'إجمالي البيع', data: monthValues, tension: .3, fill: false, borderWidth: 2 }]},
-      options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
-    });
-  </script>
-</body>
-</html>
+  new Chart(document.getElementById('monthChart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: monthLabels,
+      datasets: [{
+        label: 'إجمالي البيع',
+        data: monthValues,
+        tension: .3,
+        fill: false,
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+</script>
+
+{% endblock %}

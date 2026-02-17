@@ -7,6 +7,17 @@ import tempfile
 from collections import Counter, defaultdict
 from decimal import Decimal
 from datetime import datetime, timedelta
+from django.contrib.auth.decorators import permission_required
+from django.contrib.contenttypes.models import ContentType
+
+from .forms import BookingAmendmentForm
+from .models import BookingAmendment
+from django.contrib.contenttypes.models import ContentType
+from decimal import Decimal
+from django.db.models import Sum
+
+from .forms import PaymentAdjustmentForm  # فورم التسوية
+
 
 # Django ORM / DB funcs
 from django.db.models import (
@@ -405,101 +416,94 @@ def hotel_payment(request, booking_pk):
     payments = booking.payments.order_by("-created_at")
     has_existing = payments.exists()
 
-    total_paid = payments.aggregate(total=Sum("paid_amount"))["total"] or Decimal("0.00")
+    total_paid = payments.aggregate(
+        total=Coalesce(
+            Sum("paid_amount", output_field=DecimalField(max_digits=12, decimal_places=2)),
+            V(0, output_field=DecimalField(max_digits=12, decimal_places=2))
+        )
+    )["total"] or Decimal("0.00")
     total_sell = booking.sell or Decimal("0.00")
-    total_net  = booking.net or Decimal("0.00")
+    total_net  = booking.net  or Decimal("0.00")
     remaining  = total_sell - total_paid
     profit     = total_sell - total_net
+    is_fully_paid = remaining <= Decimal("0.01")
 
     if request.method == "POST":
-        form = PaymentForm(request.POST, request.FILES, booking=booking, has_existing_payments=has_existing)
-        if form.is_valid():
-            cd = form.cleaned_data
-            # تحقق أساسي من المبالغ
+        pay_form = PaymentForm(request.POST, request.FILES,
+                               booking=booking, has_existing_payments=has_existing)
+
+        if pay_form.is_valid():
+            cd = pay_form.cleaned_data
             paid_amount = cd.get("paid_amount") or Decimal("0")
-            sell_price = (cd.get("sell_price") if not has_existing else booking.sell) or Decimal("0")
-            net_price  = (cd.get("net_price")  if not has_existing else booking.net)  or Decimal("0")
+            sell_price  = (cd.get("sell_price") if not has_existing else booking.sell) or Decimal("0")
+            net_price   = (cd.get("net_price")  if not has_existing else booking.net)  or Decimal("0")
 
-            # لا نقبل مبالغ سالبة
             if paid_amount < 0:
-                form.add_error("paid_amount", "المبلغ المدفوع يجب أن يكون صفراً أو قيمة موجبة.")
-                messages.error(request, "خطأ في المبلغ المدفوع.")
-                return render(... )  # لاحقاً نعيد نفس الـ context (سيتم توضيح أدناه)
-
-            # في أول دفعة: تأكد من وجود invoice/voucher إذا تحتاجهما
+                pay_form.add_error("paid_amount", "المبلغ المدفوع يجب أن يكون صفراً أو قيمة موجبة.")
             if not has_existing:
-                invoice_file = cd.get("invoice_file")
-                voucher_original = cd.get("voucher_original")
-                if not invoice_file:
-                    form.add_error("invoice_file", "ملف الفاتورة مطلوب عند أول دفعة.")
-                if not voucher_original:
-                    form.add_error("voucher_original", "الفاوتشر الأصلي مطلوب عند أول دفعة.")
+                if not cd.get("invoice_file"):
+                    pay_form.add_error("invoice_file", "ملف الفاتورة مطلوب عند أول دفعة.")
+                if not cd.get("voucher_original"):
+                    pay_form.add_error("voucher_original", "الفاوتشر الأصلي مطلوب عند أول دفعة.")
 
-            # طريقة الدفع: متطلبات حسب النوع
             method = cd.get("method")
             if method == "link" and not cd.get("payment_link"):
-                form.add_error("payment_link", "رابط السداد مطلوب لطريقة الدفع (Link).")
+                pay_form.add_error("payment_link", "رابط السداد مطلوب لطريقة الدفع (Link).")
             if method in ("bank", "cash") and not cd.get("bank_file"):
-                form.add_error("bank_file", "مطلوب رفع إيصال للـ Bank/Cash.")
-
-            # لا تسمح بأن يكون paid_amount أكبر من الـ sell (تعديل حسب سياستك: إن أردت السماح بالزيادة - إزالة هذا الشرط)
+                pay_form.add_error("bank_file", "مطلوب رفع إيصال للـ Bank/Cash.")
             if paid_amount > sell_price:
-                form.add_error("paid_amount", "المبلغ المدفوع لا يمكن أن يتجاوز سعر البيع.")
-            
-            # حالة القسط: إذا أول دفعة ودفعة جزئية => installment_date مطلوب
-            if not has_existing and paid_amount < sell_price:
-                if not cd.get("installment_date"):
-                    form.add_error("installment_date", "مطلوب تحديد آخر ميعاد للسداد عند أول دفعة غير كاملة.")
+                pay_form.add_error("paid_amount", "المبلغ المدفوع لا يمكن أن يتجاوز سعر البيع.")
+            if not has_existing and paid_amount < sell_price and not cd.get("installment_date"):
+                pay_form.add_error("installment_date", "مطلوب تحديد آخر ميعاد للسداد عند أول دفعة غير كاملة.")
 
-            # لو في أخطاء بعد التحقق اليدوي، أعد الصفحة مع الأخطاء
-            if form.errors:
-                messages.error(request, "صحح الأخطاء ثم حاول مرة أخرى.")
+            if pay_form.errors:
+                messages.error(request, "⚠️ صحح الأخطاء ثم حاول مرة أخرى.")
                 return render(request, "core/hotel_payment.html", {
-                    "booking": booking, "form": form, "payments": payments,
+                    "booking": booking, "form": pay_form, "payments": payments,
                     "remaining": remaining, "total_paid": total_paid,
                     "total_sell": total_sell, "total_net": total_net,
                     "profit": profit, "has_existing": has_existing,
+                    "is_fully_paid": is_fully_paid,
                 })
 
-            # الآن نحفظ الدفعة
-            p = form.save(commit=False)
+            p = pay_form.save(commit=False)
             p.booking_hotel = booking
             p.employee_name = request.user.get_full_name() or request.user.username
 
             if not has_existing:
-                booking.net = net_price
+                booking.net  = net_price
                 booking.sell = sell_price
-
                 if paid_amount < sell_price:
                     first_due = cd.get("installment_date")
                     booking.agreed_last_due = first_due
                     p.installment_date = first_due
-                else:
-                    p.installment_date = None
-
-                booking.save()
-                p.net_price = booking.net
-                p.sell_price = booking.sell
             else:
                 p.installment_date = None
-                p.net_price = booking.net or Decimal("0")
-                p.sell_price = booking.sell or Decimal("0")
 
+            booking.save()
+            p.net_price  = booking.net or Decimal("0")
+            p.sell_price = booking.sell or Decimal("0")
             p.save()
+
             messages.success(request, "✅ تم حفظ بيانات الدفع بنجاح.")
             return redirect("hotel_payment", booking_pk=booking.pk)
-        else:
-            messages.error(request, "⚠️ يوجد خطأ في البيانات.")
-    else:
-        form = PaymentForm(booking=booking, has_existing_payments=has_existing)
 
+        return render(request, "core/hotel_payment.html", {
+            "booking": booking, "form": pay_form, "payments": payments,
+            "remaining": remaining, "total_paid": total_paid,
+            "total_sell": total_sell, "total_net": total_net,
+            "profit": profit, "has_existing": has_existing,
+            "is_fully_paid": is_fully_paid,
+        })
+
+    pay_form = PaymentForm(booking=booking, has_existing_payments=has_existing)
     return render(request, "core/hotel_payment.html", {
-        "booking": booking, "form": form, "payments": payments,
+        "booking": booking, "form": pay_form, "payments": payments,
         "remaining": remaining, "total_paid": total_paid,
         "total_sell": total_sell, "total_net": total_net,
         "profit": profit, "has_existing": has_existing,
+        "is_fully_paid": is_fully_paid,
     })
-
 # ===================== Flight =====================
 
 @login_required
@@ -581,54 +585,68 @@ def other_payment(request, pk):
     has_existing = payments.exists()
 
     total_paid = payments.aggregate(total=Sum("paid_amount"))["total"] or Decimal("0.00")
-    total_net  = booking.net_price or Decimal("0.00")
+    total_net  = booking.net_price  or Decimal("0.00")
     total_sell = booking.sell_price or Decimal("0.00")
     remaining  = total_sell - total_paid
     profit     = total_sell - total_net
+
+    try:
+        adjustments_qs = booking.adjustments.order_by("-created_at")
+        adjustments_total = adjustments_qs.aggregate(s=Sum("amount"))["s"] or Decimal("0")
+    except Exception:
+        adjustments_qs = []
+        adjustments_total = Decimal("0")
+    remaining_after_adj = remaining + adjustments_total
+    adj_form = None
 
     if request.method == "POST":
         form = OtherPaymentForm(request.POST, request.FILES, booking=booking, has_existing_payments=has_existing)
         if form.is_valid():
             cd = form.cleaned_data
             paid_amount = cd.get("paid_amount") or Decimal("0")
-            sell_price = (cd.get("sell_price") if not has_existing else booking.sell_price) or Decimal("0")
-            net_price  = (cd.get("net_price")  if not has_existing else booking.net_price)  or Decimal("0")
+            sell_price  = (cd.get("sell_price") if not has_existing else booking.sell_price) or Decimal("0")
+            net_price   = (cd.get("net_price")  if not has_existing else booking.net_price)  or Decimal("0")
 
+            errors = False
             if paid_amount < 0:
                 form.add_error("paid_amount", "المبلغ المدفوع يجب أن يكون قيمة موجبة أو صفر.")
+                errors = True
             if paid_amount > sell_price:
                 form.add_error("paid_amount", "المبلغ المدفوع لا يمكن أن يتجاوز سعر البيع.")
+                errors = True
 
             if not has_existing:
-                invoice_file = cd.get("invoice_file")
-                voucher_original = cd.get("voucher_original")
-                if not invoice_file:
+                if not cd.get("invoice_file"):
                     form.add_error("invoice_file", "ملف الفاتورة مطلوب عند أول دفعة.")
-                if not voucher_original:
+                    errors = True
+                if not cd.get("voucher_original"):
                     form.add_error("voucher_original", "الفاوتشر الأصلي مطلوب عند أول دفعة.")
+                    errors = True
 
             method = cd.get("method")
             if method == "link" and not cd.get("payment_link"):
                 form.add_error("payment_link", "رابط السداد مطلوب لأسلوب الدفع (Link).")
+                errors = True
             if method in ("bank", "cash") and not cd.get("bank_file"):
                 form.add_error("bank_file", "مطلوب رفع إيصال للـ Bank/Cash.")
+                errors = True
 
-            if not has_existing and paid_amount < sell_price:
-                if not cd.get("installment_date"):
-                    form.add_error("installment_date", "مطلوب تحديد آخر ميعاد للسداد عند أول دفعة غير كاملة.")
+            if not has_existing and paid_amount < sell_price and not cd.get("installment_date"):
+                form.add_error("installment_date", "مطلوب تحديد آخر ميعاد للسداد عند أول دفعة غير كاملة.")
+                errors = True
 
-            if form.errors:
+            if errors:
                 messages.error(request, "صحح الأخطاء ثم حاول مرة أخرى.")
                 return render(request, "core/other_payment.html", {
-                    "booking": booking,
-                    "payments": payments,
-                    "form": form,
+                    "booking": booking, "form": form, "payments": payments,
                     "has_existing": has_existing,
-                    "total_paid": total_paid,
-                    "total_sell": total_sell,
-                    "total_net": total_net,
-                    "remaining": remaining,
+                    "total_paid": total_paid, "total_sell": total_sell,
+                    "total_net": total_net, "remaining": remaining,
                     "profit": profit,
+                    "adjustments": adjustments_qs,
+                    "adjustments_total": adjustments_total,
+                    "remaining_after_adj": remaining_after_adj,
+                    "adj_form": adj_form,
                 })
 
             p = form.save(commit=False)
@@ -638,14 +656,12 @@ def other_payment(request, pk):
             if not has_existing:
                 booking.net_price = net_price
                 booking.sell_price = sell_price
-
                 if paid_amount < sell_price:
                     first_due = cd.get("installment_date")
                     booking.agreed_last_due = first_due
                     p.installment_date = first_due
                 else:
                     p.installment_date = None
-
                 booking.save()
                 p.net_price = booking.net_price
                 p.sell_price = booking.sell_price
@@ -663,17 +679,16 @@ def other_payment(request, pk):
         form = OtherPaymentForm(booking=booking, has_existing_payments=has_existing)
 
     return render(request, "core/other_payment.html", {
-        "booking": booking,
-        "payments": payments,
-        "form": form,
+        "booking": booking, "form": form, "payments": payments,
         "has_existing": has_existing,
-        "total_paid": total_paid,
-        "total_sell": total_sell,
-        "total_net": total_net,
-        "remaining": remaining,
+        "total_paid": total_paid, "total_sell": total_sell,
+        "total_net": total_net, "remaining": remaining,
         "profit": profit,
+        "adjustments": adjustments_qs,
+        "adjustments_total": adjustments_total,
+        "remaining_after_adj": remaining_after_adj,
+        "adj_form": adj_form,
     })
-
 
 # --------------- FLIGHT PAYMENTS ----------------
 @login_required
@@ -682,50 +697,68 @@ def flight_payment(request, booking_pk):
     payments = booking.payments.order_by("-created_at")
     has_existing = payments.exists()
 
-    total_paid  = payments.aggregate(total=Sum("paid_amount"))["total"] or Decimal("0.00")
-    total_net   = booking.net_price  or Decimal("0.00")
-    total_sell  = booking.sell_price or Decimal("0.00")
-    remaining   = total_sell - total_paid
-    profit      = total_sell - total_net
+    total_paid = payments.aggregate(total=Sum("paid_amount"))["total"] or Decimal("0.00")
+    total_net  = booking.net_price  or Decimal("0.00")
+    total_sell = booking.sell_price or Decimal("0.00")
+    remaining  = total_sell - total_paid
+    profit     = total_sell - total_net
+
+    try:
+        adjustments_qs = booking.adjustments.order_by("-created_at")
+        adjustments_total = adjustments_qs.aggregate(s=Sum("amount"))["s"] or Decimal("0")
+    except Exception:
+        adjustments_qs = []
+        adjustments_total = Decimal("0")
+    remaining_after_adj = remaining + adjustments_total
+    adj_form = None
 
     if request.method == "POST":
         form = FlightPaymentForm(request.POST, request.FILES, booking=booking, has_existing_payments=has_existing)
         if form.is_valid():
             cd = form.cleaned_data
             paid_amount = cd.get("paid_amount") or Decimal("0")
-            sell_price = (cd.get("sell_price") if not has_existing else booking.sell_price) or Decimal("0")
-            net_price  = (cd.get("net_price")  if not has_existing else booking.net_price)  or Decimal("0")
+            sell_price  = (cd.get("sell_price") if not has_existing else booking.sell_price) or Decimal("0")
+            net_price   = (cd.get("net_price")  if not has_existing else booking.net_price)  or Decimal("0")
 
+            errors = False
             if paid_amount < 0:
                 form.add_error("paid_amount", "المبلغ المدفوع يجب أن يكون قيمة موجبة أو صفر.")
+                errors = True
             if paid_amount > sell_price:
                 form.add_error("paid_amount", "المبلغ المدفوع لا يمكن أن يتجاوز سعر البيع.")
+                errors = True
 
             if not has_existing:
-                invoice_file = cd.get("invoice_file")
-                voucher_original = cd.get("voucher_original")
-                if not invoice_file:
+                if not cd.get("invoice_file"):
                     form.add_error("invoice_file", "ملف الفاتورة مطلوب عند أول دفعة.")
-                if not voucher_original:
+                    errors = True
+                if not cd.get("voucher_original"):
                     form.add_error("voucher_original", "الفاوتشر الأصلي مطلوب عند أول دفعة.")
+                    errors = True
 
             method = cd.get("method")
             if method == "link" and not cd.get("payment_link"):
                 form.add_error("payment_link", "رابط السداد مطلوب لأسلوب الدفع (Link).")
+                errors = True
             if method in ("bank", "cash") and not cd.get("bank_file"):
                 form.add_error("bank_file", "مطلوب رفع إيصال للـ Bank/Cash.")
+                errors = True
 
-            if not has_existing and paid_amount < sell_price:
-                if not cd.get("installment_date"):
-                    form.add_error("installment_date", "مطلوب تحديد آخر ميعاد للسداد عند أول دفعة غير مكتملة.")
+            if not has_existing and paid_amount < sell_price and not cd.get("installment_date"):
+                form.add_error("installment_date", "مطلوب تحديد آخر ميعاد للسداد عند أول دفعة غير مكتملة.")
+                errors = True
 
-            if form.errors:
+            if errors:
                 messages.error(request, "صحح الأخطاء ثم حاول مرة أخرى.")
                 return render(request, "core/flight_payment.html", {
                     "booking": booking, "form": form, "payments": payments,
                     "total_net": total_net, "total_sell": total_sell,
                     "total_paid": total_paid, "remaining": remaining,
                     "profit": profit, "has_existing": has_existing,
+                    "adjustments": adjustments_qs,
+                    "adjustments_total": adjustments_total,
+                    "remaining_after_adj": remaining_after_adj,
+                    "adj_form": adj_form,
                 })
 
             p = form.save(commit=False)
@@ -735,14 +768,12 @@ def flight_payment(request, booking_pk):
             if not has_existing:
                 booking.net_price = net_price
                 booking.sell_price = sell_price
-
                 if paid_amount < sell_price:
                     first_due = cd.get("installment_date")
                     booking.agreed_last_due = first_due
                     p.installment_date = first_due
                 else:
                     p.installment_date = None
-
                 booking.save()
                 p.net_price = booking.net_price
                 p.sell_price = booking.sell_price
@@ -764,7 +795,12 @@ def flight_payment(request, booking_pk):
         "total_net": total_net, "total_sell": total_sell,
         "total_paid": total_paid, "remaining": remaining,
         "profit": profit, "has_existing": has_existing,
+        "adjustments": adjustments_qs,
+        "adjustments_total": adjustments_total,
+        "remaining_after_adj": remaining_after_adj,
+        "adj_form": adj_form,
     })
+
 
 # ===================== Installments Board (لوحة الأقساط) =====================
 
@@ -792,7 +828,8 @@ def installments_board(request):
 
     # تذكير الأقساط القريبة (خلال n أيام) — من دفعات لها تاريخ قسط
     remind_days = int(getattr(settings, "INSTALLMENT_REMINDER_DAYS", 5))
-    soon = today + timezone.timedelta(days=remind_days)
+    # ✅ إصلاح: استخدم timedelta من datetime بدل timezone.timedelta
+    soon = today + timedelta(days=remind_days)
 
     def _installments_qs(PModel, rel, kind, urlname):
         """
@@ -2384,4 +2421,369 @@ def employees_list(request):
         "current_dep": dep_code,
         "q": q,
         "users": qs[:500],  # سقف معقول للعرض
+    })
+
+
+# ===================== Amendments (طلبات التعديل) =====================
+
+# خريطة الموديلات حسب النوع المستخدم في الروابط
+MODEL_MAP = {
+    "hotel": HotelBooking,
+    "flight": FlightBooking,
+    "other": OtherBooking,
+}
+
+# core/views.py
+from django.urls import reverse
+
+@login_required
+def amendment_create(request, model, pk):
+    Model = MODEL_MAP.get(model)
+    if not Model:
+        return render(request, "core/404.html", status=404)
+
+    booking = get_object_or_404(Model, pk=pk)
+    ct = ContentType.objects.get_for_model(Model)
+
+    if request.method == "POST":
+        form = BookingAmendmentForm(request.POST)
+        if form.is_valid():
+            obj = form.save(commit=False)
+            obj.booking_content_type = ct
+            obj.booking_object_id = booking.pk
+            obj.requested_by = request.user
+            obj.save()
+            messages.success(request, "تم إنشاء طلب التعديل.")
+            return redirect("amendment_list", model=model, pk=booking.pk)
+    else:
+        form = BookingAmendmentForm()
+
+    back_url = reverse("amendment_list", kwargs={"model": model, "pk": booking.pk})
+    return render(request, "amendments/form.html", {
+        "form": form,
+        "booking": booking,
+        "model": model,
+        "back_url": back_url,
+    })
+
+@login_required
+def amendment_list(request, model, pk):
+    Model = MODEL_MAP.get(model)
+    if Model is None:
+        return render(request, "core/404.html", status=404)
+
+    booking = get_object_or_404(Model, pk=pk)
+    ct = ContentType.objects.get_for_model(Model)
+
+    qs = BookingAmendment.objects.filter(
+        booking_content_type=ct,
+        booking_object_id=booking.pk,
+    ).order_by("-id")
+
+    # برضه غيّرنا المسار إلى templates/amendments/
+    return render(request, "amendments/list.html", {"booking": booking, "amendments": qs})
+
+
+@login_required
+def amendment_apply(request, pk):
+    """تطبيق التعديل: نحاول نحدث الحقول إن كانت موجودة في الموديل، ثم نرجّع للقائمة."""
+    amend = get_object_or_404(BookingAmendment, pk=pk)
+
+    changed = False
+    # الحقول اختيارية—نحدّث بس لو موجودة عندك في الموديل
+    if hasattr(amend, "status") and getattr(amend, "status") != "applied":
+        amend.status = "applied"
+        changed = True
+    if hasattr(amend, "applied_by") and not getattr(amend, "applied_by_id", None):
+        amend.applied_by = request.user
+        changed = True
+    if hasattr(amend, "applied_at") and not getattr(amend, "applied_at", None):
+        amend.applied_at = timezone.now()
+        changed = True
+    if changed:
+        amend.save()
+        messages.success(request, "تم تطبيق التعديل.")
+
+    # نرجع لنفس شاشة لستة التعديلات
+    model_key = None
+    target_model = amend.booking_content_type.model_class()
+    for k, M in MODEL_MAP.items():
+        if M is target_model:
+            model_key = k
+            break
+
+    return redirect("amendment_list", model=model_key, pk=amend.booking_object_id)
+
+from django.urls import reverse
+from django.contrib import messages
+from django.shortcuts import redirect
+
+@login_required
+def amendments_redirect(request, model, pk):
+    # حوّل حسب نوع الحجز مع أنكر لفتح سكشن التسويات
+    if model == "hotel":
+        url = reverse("hotel_payment", kwargs={"booking_pk": pk})
+    elif model == "flight":
+        url = reverse("flight_payment", kwargs={"booking_pk": pk})
+    elif model == "other":
+        url = reverse("other_payment", kwargs={"pk": pk})
+    else:
+        messages.error(request, "نوع الحجز غير مدعوم.")
+        return redirect("dashboard")
+    return redirect(f"{url}?adjust=1#adjustments")
+
+@login_required
+def amendments_redirect_unknown(request, pk):
+    messages.info(request, "تم نقل إدارة التعديلات إلى صفحة الدفع.")
+    return redirect("dashboard")
+
+from decimal import Decimal
+from django.contrib import messages
+from django.db.models import Sum, DecimalField, Value as V
+from django.db.models.functions import Coalesce
+from django.shortcuts import get_object_or_404, render, redirect
+from django.contrib.auth.decorators import login_required
+from .models import HotelBooking, Payment
+from .forms import ModifyAdjustmentForm
+
+
+@login_required
+def hotel_payment_modify(request, booking_pk):
+    booking = get_object_or_404(HotelBooking, pk=booking_pk)
+
+    current_paid = booking.payments.aggregate(
+        total=Coalesce(
+            Sum(
+                "paid_amount",
+                output_field=DecimalField(max_digits=12, decimal_places=2),
+            ),
+            V(0, output_field=DecimalField(max_digits=12, decimal_places=2)),
+        )
+    )["total"] or Decimal("0.00")
+
+    current_sell = booking.sell or Decimal("0.00")
+    current_net = booking.net or Decimal("0.00")
+
+    if request.method == "POST":
+        form = ModifyAdjustmentForm(request.POST, request.FILES)
+        if form.is_valid():
+            dnet = form.cleaned_data.get("delta_net") or Decimal("0")
+            dsell = form.cleaned_data.get("delta_sell") or Decimal("0")
+            dpaid = form.cleaned_data.get("delta_paid") or Decimal("0")
+            method = form.cleaned_data.get("method") or "cash"
+            note = form.cleaned_data.get("note") or ""
+
+            new_net = current_net + dnet
+            new_sell = current_sell + dsell
+            new_paid = current_paid + dpaid  # للعرض بس لو حابب
+
+            if new_net < 0:
+                form.add_error("delta_net", "لا يمكن أن يصبح صافي الشراء أقل من صفر.")
+            if new_sell < 0:
+                form.add_error("delta_sell", "لا يمكن أن يصبح سعر البيع أقل من صفر.")
+
+            if form.errors:
+                return render(
+                    request,
+                    "core/hotel_payment_modify.html",
+                    {
+                        "booking": booking,
+                        "form": form,
+                        "current_net": current_net,
+                        "current_sell": current_sell,
+                        "current_paid": current_paid,
+                    },
+                )
+
+            # ✅ طبّق التغيير على الحجز
+            booking.net = new_net
+            booking.sell = new_sell
+            booking.save()
+
+            # ✅ لو فيه تغيير في المدفوع، سجّل Payment بموجب/سالب مع اسم الموظف + النوت
+            if dpaid != 0:
+                p = Payment(
+                    booking_hotel=booking,
+                    paid_amount=dpaid,  # سالب = استرداد
+                    method=method,
+                    payment_link=form.cleaned_data.get("payment_link") or "",
+                    bank_file=form.cleaned_data.get("bank_file"),
+                    invoice_file=form.cleaned_data.get("invoice_file"),
+                    voucher_original=form.cleaned_data.get("voucher_original"),
+                    employee_name=(
+                        request.user.get_full_name() or request.user.username
+                    ),
+                    note=note or "تعديل دفعة من شاشة تعديل الدفع",
+                )
+                p.net_price = booking.net or Decimal("0")
+                p.sell_price = booking.sell or Decimal("0")
+                p.save()
+
+            messages.success(request, "تم تنفيذ التعديل (جمع/طرح) بنجاح.")
+            return redirect("hotel_payment", booking_pk=booking.pk)
+
+    else:
+        form = ModifyAdjustmentForm(initial={"method": "cash"})
+
+    return render(
+        request,
+        "core/hotel_payment_modify.html",
+        {
+            "booking": booking,
+            "form": form,
+            "current_net": current_net,
+            "current_sell": current_sell,
+            "current_paid": current_paid,
+        },
+    )
+@login_required
+def flight_payment_modify(request, booking_pk):
+    booking = get_object_or_404(FlightBooking, pk=booking_pk)
+
+    # قيم حالية
+    current_paid = booking.payments.aggregate(
+        total=Coalesce(
+            Sum("paid_amount", output_field=DecimalField(max_digits=12, decimal_places=2)),
+            V(0, output_field=DecimalField(max_digits=12, decimal_places=2)),
+        )
+    )["total"] or Decimal("0.00")
+
+    current_sell = booking.sell_price or Decimal("0.00")
+    current_net  = booking.net_price  or Decimal("0.00")
+
+    if request.method == "POST":
+        form = ModifyAdjustmentForm(request.POST, request.FILES)
+        if form.is_valid():
+            dnet  = form.cleaned_data["delta_net"]  or Decimal("0")
+            dsell = form.cleaned_data["delta_sell"] or Decimal("0")
+            dpaid = form.cleaned_data["delta_paid"] or Decimal("0")
+            method = form.cleaned_data.get("method")
+            note   = form.cleaned_data.get("note") or ""
+
+            # حساب الجديد
+            new_net  = current_net  + dnet
+            new_sell = current_sell + dsell
+
+            # منع السالب
+            if new_net < 0:
+                form.add_error("delta_net", "لا يمكن أن يصبح صافي الشراء أقل من صفر.")
+            if new_sell < 0:
+                form.add_error("delta_sell", "لا يمكن أن يصبح سعر البيع أقل من صفر.")
+
+            if form.errors:
+                return render(request, "core/flight_payment_modify.html", {
+                    "booking": booking,
+                    "form": form,
+                    "current_net": current_net,
+                    "current_sell": current_sell,
+                    "current_paid": current_paid,
+                })
+
+            # حفظ الأسعار الجديدة
+            booking.net_price  = new_net
+            booking.sell_price = new_sell
+            booking.save()
+
+            # لو في مدفوع موجب / سالب → سجل Payment
+            if dpaid != 0:
+                p = FlightPayment(
+                    booking_flight=booking,
+                    paid_amount=dpaid,
+                    method=method or "cash",
+                    payment_link=form.cleaned_data.get("payment_link") or "",
+                    bank_file=form.cleaned_data.get("bank_file"),
+                    invoice_file=form.cleaned_data.get("invoice_file"),
+                    voucher_original=form.cleaned_data.get("voucher_original"),
+                    employee_name=request.user.get_full_name() or request.user.username,
+                    note=note or "تعديل دفعة من شاشة تعديل الدفع للطيران",
+                )
+                p.net_price  = booking.net_price
+                p.sell_price = booking.sell_price
+                p.save()
+
+            messages.success(request, "تم تنفيذ التعديل بنجاح.")
+            return redirect("flight_payment", booking_pk=booking.pk)
+
+    else:
+        form = ModifyAdjustmentForm(initial={"method": "cash"})
+
+    return render(request, "core/flight_payment_modify.html", {
+        "booking": booking,
+        "form": form,
+        "current_net": current_net,
+        "current_sell": current_sell,
+        "current_paid": current_paid,
+    })
+@login_required
+def other_payment_modify(request, booking_pk):
+    booking = get_object_or_404(OtherBooking, pk=booking_pk)
+
+    current_paid = booking.payments.aggregate(
+        total=Coalesce(
+            Sum("paid_amount", output_field=DecimalField(max_digits=12, decimal_places=2)),
+            V(0, output_field=DecimalField(max_digits=12, decimal_places=2)),
+        )
+    )["total"] or Decimal("0.00")
+
+    current_sell = booking.sell_price or Decimal("0.00")
+    current_net  = booking.net_price  or Decimal("0.00")
+
+    if request.method == "POST":
+        form = ModifyAdjustmentForm(request.POST, request.FILES)
+        if form.is_valid():
+            dnet  = form.cleaned_data["delta_net"]  or Decimal("0")
+            dsell = form.cleaned_data["delta_sell"] or Decimal("0")
+            dpaid = form.cleaned_data["delta_paid"] or Decimal("0")
+            method = form.cleaned_data.get("method")
+            note   = form.cleaned_data.get("note") or ""
+
+            new_net  = current_net  + dnet
+            new_sell = current_sell + dsell
+
+            if new_net < 0:
+                form.add_error("delta_net", "لا يمكن أن يكون النت أقل من صفر.")
+            if new_sell < 0:
+                form.add_error("delta_sell", "لا يمكن أن يكون البيع أقل من صفر.")
+
+            if form.errors:
+                return render(request, "core/other_payment_modify.html", {
+                    "booking": booking,
+                    "form": form,
+                    "current_net": current_net,
+                    "current_sell": current_sell,
+                    "current_paid": current_paid,
+                })
+
+            booking.net_price  = new_net
+            booking.sell_price = new_sell
+            booking.save()
+
+            if dpaid != 0:
+                p = OtherPayment(
+                    booking_other=booking,
+                    paid_amount=dpaid,
+                    method=method or "cash",
+                    payment_link=form.cleaned_data.get("payment_link") or "",
+                    bank_file=form.cleaned_data.get("bank_file"),
+                    invoice_file=form.cleaned_data.get("invoice_file"),
+                    voucher_original=form.cleaned_data.get("voucher_original"),
+                    employee_name=request.user.get_full_name() or request.user.username,
+                    note=note or "تعديل دفعة من شاشة التعديل",
+                )
+                p.net_price  = booking.net_price
+                p.sell_price = booking.sell_price
+                p.save()
+
+            messages.success(request, "تم حفظ التعديل بنجاح.")
+            return redirect("other_payment", booking_pk=booking.pk)
+
+    else:
+        form = ModifyAdjustmentForm(initial={"method": "cash"})
+
+    return render(request, "core/other_payment_modify.html", {
+        "booking": booking,
+        "form": form,
+        "current_net": current_net,
+        "current_sell": current_sell,
+        "current_paid": current_paid,
     })

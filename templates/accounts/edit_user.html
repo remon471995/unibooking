@@ -1,29 +1,181 @@
 {% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}تعديل المستخدم | UniBooking{% endblock %}
+
 {% block content %}
-<div class="max-w-2xl mx-auto mt-8 bg-white shadow rounded-lg p-6">
-  <h1 class="text-2xl font-bold mb-4">تعديل المستخدم: {{ the_user.username }}</h1>
-  <form method="post" enctype="multipart/form-data">
+<div class="max-w-6xl mx-auto mt-10 px-4 pb-12" dir="rtl">
+
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+        تعديل المستخدم: {{ the_user.get_full_name|default:the_user.username }}
+      </h1>
+      <p class="text-sm text-gray-500 mt-1">
+        تعديل البيانات الأساسية والوظيفية للمستخدم.
+      </p>
+    </div>
+  </div>
+
+  {# عرض أخطاء عامة لو موجودة #}
+  {% if uform.non_field_errors or pform.non_field_errors %}
+    <div class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+      {{ uform.non_field_errors }}
+      {{ pform.non_field_errors }}
+    </div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" class="space-y-6">
     {% csrf_token %}
-    <div class="grid gap-4">
-      <label>البريد الإلكتروني</label>
-      {{ uform.email }}
-      <label>الموبايل</label>
-      {{ pform.phone }}
-      <label>القسم</label>
-      {{ pform.department }}
-      <label>المسمى الوظيفي</label>
-      {{ pform.job_title }}
-      <label>العنوان</label>
-      {{ pform.address }}
-      <label>الصورة</label>
-      {{ pform.avatar }}
-      <label>ملاحظات</label>
-      {{ pform.notes }}
-      <div>
-        <button class="bg-blue-600 text-white px-4 py-2 rounded">حفظ</button>
-        <a href="{% url 'accounts:manage_staff' %}" class="ml-2 text-gray-600">إلغاء</a>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+      {# ===== الكارت الكبير (بيانات أساسية) ===== #}
+      <div class="md:col-span-2 bg-white dark:bg-gray-900 rounded-2xl shadow border border-gray-200 dark:border-gray-800 p-5 space-y-4">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+          البيانات الأساسية
+        </h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">اسم المستخدم</label>
+            {{ uform.username }}
+            {% if uform.username.errors %}
+              <p class="text-xs text-red-600 mt-1">{{ uform.username.errors.0 }}</p>
+            {% endif %}
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">البريد الإلكتروني</label>
+            {{ uform.email }}
+            {% if uform.email.errors %}
+              <p class="text-xs text-red-600 mt-1">{{ uform.email.errors.0 }}</p>
+            {% endif %}
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">الاسم الأول</label>
+            {{ uform.first_name }}
+            {% if uform.first_name.errors %}
+              <p class="text-xs text-red-600 mt-1">{{ uform.first_name.errors.0 }}</p>
+            {% endif %}
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">الاسم الأخير</label>
+            {{ uform.last_name }}
+            {% if uform.last_name.errors %}
+              <p class="text-xs text-red-600 mt-1">{{ uform.last_name.errors.0 }}</p>
+            {% endif %}
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">العنوان</label>
+            {{ pform.address }}
+            {% if pform.address.errors %}
+              <p class="text-xs text-red-600 mt-1">{{ pform.address.errors.0 }}</p>
+            {% endif %}
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">الموبايل</label>
+            {{ pform.mobile }}
+            {% if pform.mobile.errors %}
+              <p class="text-xs text-red-600 mt-1">{{ pform.mobile.errors.0 }}</p>
+            {% endif %}
+          </div>
+
+          <div class="flex items-center gap-2 mt-2">
+            <label class="text-xs font-medium text-gray-600">مفعّل؟</label>
+            {{ uform.is_active }}
+            {% if uform.is_active.errors %}
+              <p class="text-xs text-red-600 mt-1">{{ uform.is_active.errors.0 }}</p>
+            {% endif %}
+          </div>
+        </div>
       </div>
+
+      {# ===== الكارت الجانبي (وظيفة + صورة + ملاحظات) ===== #}
+      <div class="space-y-4">
+
+        <div class="bg-white dark:bg-gray-900 rounded-2xl shadow border border-gray-200 dark:border-gray-800 p-4 space-y-3">
+          <h2 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <span>الوظيفة</span>
+          </h2>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">القسم</label>
+            {{ pform.department }}
+            {% if pform.department.errors %}
+              <p class="text-xs text-red-600 mt-1">{{ pform.department.errors.0 }}</p>
+            {% endif %}
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">المسمّى الوظيفي</label>
+            {{ pform.job_title }}
+            {% if pform.job_title.errors %}
+              <p class="text-xs text-red-600 mt-1">{{ pform.job_title.errors.0 }}</p>
+            {% endif %}
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">الدور (Role)</label>
+            {{ pform.role }}
+            {% if pform.role.errors %}
+              <p class="text-xs text-red-600 mt-1">{{ pform.role.errors.0 }}</p>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-900 rounded-2xl shadow border border-gray-200 dark:border-gray-800 p-4 space-y-3">
+          <h2 class="text-sm font-semibold text-gray-900 dark:text-white">الصورة الشخصية & الملاحظات</h2>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">الصورة الشخصية</label>
+            {{ pform.avatar }}
+            {% if pform.avatar.errors %}
+              <p class="text-xs text-red-600 mt-1">{{ pform.avatar.errors.0 }}</p>
+            {% endif %}
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">ملاحظات إضافية</label>
+            {{ pform.notes }}
+            {% if pform.notes.errors %}
+              <p class="text-xs text-red-600 mt-1">{{ pform.notes.errors.0 }}</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="flex items-center justify-between mt-4">
+      <a href="{% url 'accounts:manage_staff' %}"
+         class="px-4 py-2 rounded-xl border border-gray-300 text-sm text-gray-700 hover:bg-gray-50">
+        إلغاء
+      </a>
+      <button type="submit"
+              class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-sm text-white font-medium shadow">
+        حفظ التغييرات
+      </button>
     </div>
   </form>
 </div>
+
+<style>
+  form input, form select, form textarea {
+    border-radius: 0.75rem;
+    border: 1px solid #e5e7eb;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    width: 100%;
+  }
+  form input:focus, form select:focus, form textarea:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    outline: none;
+  }
+</style>
 {% endblock %}

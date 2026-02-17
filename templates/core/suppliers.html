@@ -1,41 +1,42 @@
+{% extends "core/base.html" %}
 {% load humanize %}
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="utf-8" />
-  <title>تقرير المزوّدين</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- استخدم نسخة UMD الثابتة من Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% block content %}
 
-  <style>
-    body{font-family:system-ui,"Tajawal","Noto Kufi Arabic",sans-serif}
-    .card{background:#fff;border-radius:.9rem;padding:1rem;box-shadow:0 2px 8px rgba(0,0,0,.06)}
-    .btn{background:#2563eb;color:#fff;border-radius:.6rem}
-    .btn:hover{background:#1e40af}
-    .btn-lite{background:#e2e8f0;color:#0f172a;border-radius:.6rem}
-    .btn-lite:hover{background:#cbd5e1}
-    .table-head{background:#f8fafc}
-    .chart-box{height:320px;max-height:320px}
-    .chart-box>canvas{width:100%!important;height:100%!important;display:block}
-  </style>
-</head>
-<body class="bg-gray-100 p-4 md:p-6">
+<style>
+  body{font-family:system-ui,"Tajawal","Noto Kufi Arabic",sans-serif}
+  .card{background:#fff;border-radius:.9rem;padding:1rem;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+  .btn{background:#2563eb;color:#fff;border-radius:.6rem}
+  .btn:hover{background:#1e40af}
+  .btn-lite{background:#e2e8f0;color:#0f172a;border-radius:.6rem}
+  .btn-lite:hover{background:#cbd5e1}
+  .table-head{background:#f8fafc}
+  .chart-box{height:320px;max-height:320px}
+  .chart-box>canvas{width:100%!important;height:100%!important;display:block}
+</style>
+
+<div class="bg-gray-100 p-4 md:p-6">
   <div class="max-w-7xl mx-auto space-y-5">
 
     <!-- روابط سريعة -->
     <div class="flex gap-2 mb-3">
-      <a class="px-3 py-2 rounded bg-slate-200 hover:bg-slate-300" href="{% url 'reports_analysis' %}">تحليل الأداء والمبيعات</a>
-      <a class="px-3 py-2 rounded bg-slate-200 hover:bg-slate-300" href="{% url 'performance_dashboard' %}">لوحة الأداء</a>
+      <a class="px-3 py-2 rounded bg-slate-200 hover:bg-slate-300"
+         href="{% url 'reports_analysis' %}">
+        تحليل الأداء والمبيعات
+      </a>
+      <a class="px-3 py-2 rounded bg-slate-200 hover:bg-slate-300"
+         href="{% url 'performance_dashboard' %}">
+        لوحة الأداء
+      </a>
     </div>
 
     <!-- Header -->
     <div class="flex items-center justify-between gap-3">
       <div>
         <h1 class="text-2xl font-extrabold">تقرير المزوّدين</h1>
-        <p class="text-sm text-gray-600 mt-1">أكثر المزوّدين نشاطًا بحسب عدد الحجوزات وإجمالي البيع</p>
+        <p class="text-sm text-gray-600 mt-1">
+          أكثر المزوّدين نشاطًا بحسب عدد الحجوزات وإجمالي البيع
+        </p>
       </div>
       <a href="{% url 'reports' %}" class="btn-lite px-3 py-2">رجوع للتقارير</a>
     </div>
@@ -44,15 +45,18 @@
     <form id="filters" method="get" class="card grid grid-cols-1 md:grid-cols-7 gap-3">
       <div>
         <label class="block text-xs mb-1">من</label>
-        <input type="date" name="from" value="{{ q_from }}" class="w-full border rounded px-2 py-1.5">
+        <input type="date" name="from" value="{{ q_from }}"
+               class="w-full border rounded px-2 py-1.5">
       </div>
       <div>
         <label class="block text-xs mb-1">إلى</label>
-        <input type="date" name="to" value="{{ q_to }}" class="w-full border rounded px-2 py-1.5">
+        <input type="date" name="to" value="{{ q_to }}"
+               class="w-full border rounded px-2 py-1.5">
       </div>
       <div>
         <label class="block text-xs mb-1">Top N</label>
-        <input type="number" name="top" min="3" max="50" value="{{ top_n }}" class="w-full border rounded px-2 py-1.5">
+        <input type="number" name="top" min="3" max="50" value="{{ top_n }}"
+               class="w-full border rounded px-2 py-1.5">
       </div>
       <div class="md:col-span-3"></div>
       <div class="flex items-end gap-2">
@@ -64,7 +68,8 @@
            href="{% url 'suppliers_export_xlsx' %}?from={{ q_from }}&to={{ q_to }}"
            class="btn px-3 py-2 inline-flex items-center gap-2"
            title="تنزيل Excel">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4"
+               viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path d="M21 15v4a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-4"/>
             <polyline points="7 10 12 15 17 10"/>
             <line x1="12" y1="15" x2="12" y2="3"/>
@@ -128,46 +133,51 @@
 
   </div>
 
-  <!-- نحفظ الداتا كـ JSON آمن عبر json_script بدل |safe -->
+  <!-- نحفظ الداتا كـ JSON آمن -->
   {{ labels|json_script:"suppliers-labels" }}
   {{ values|json_script:"suppliers-values" }}
 
-  <script>
-    // مزامنة رابط Excel مع الفلاتر
-    const btnXlsx = document.getElementById('btnXlsx');
-    const formEl = document.getElementById('filters');
-    function syncXlsx(){
-      const p = new URLSearchParams(new FormData(formEl));
-      btnXlsx.href = "{% url 'suppliers_export_xlsx' %}?" + p.toString();
-    }
-    formEl.addEventListener('change', syncXlsx);
-    // كمان نربط على submit عشان لو اتغيرت قبل الضغط
-    formEl.addEventListener('submit', syncXlsx);
-    syncXlsx();
+</div>
 
-    // الرسم
-    const lbls = JSON.parse(document.getElementById('suppliers-labels').textContent || '[]');
-    const vals = JSON.parse(document.getElementById('suppliers-values').textContent || '[]').map(v => Number(v) || 0);
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  // مزامنة رابط Excel مع الفلاتر
+  const btnXlsx = document.getElementById('btnXlsx');
+  const formEl  = document.getElementById('filters');
 
-    if (lbls.length && vals.length){
-      const ctx = document.getElementById('chart').getContext('2d');
-      new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: lbls,
-          datasets: [{ data: vals, borderWidth: 1 }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          indexAxis: 'y',                // بار أفقي (تقدر تشيله لو عايزه رأسي)
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { beginAtZero: true, ticks: { precision: 0 } }
-          }
+  function syncXlsx(){
+    const p = new URLSearchParams(new FormData(formEl));
+    btnXlsx.href = "{% url 'suppliers_export_xlsx' %}?" + p.toString();
+  }
+
+  formEl.addEventListener('change', syncXlsx);
+  formEl.addEventListener('submit', syncXlsx);
+  syncXlsx();
+
+  // الرسم
+  const lbls = JSON.parse(document.getElementById('suppliers-labels').textContent || '[]');
+  const vals = JSON.parse(document.getElementById('suppliers-values').textContent || '[]')
+                 .map(v => Number(v) || 0);
+
+  if (lbls.length && vals.length){
+    const ctx = document.getElementById('chart').getContext('2d');
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: lbls,
+        datasets: [{ data: vals, borderWidth: 1 }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y', // أفقي؛ شيله لو عايزه رأسي
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { beginAtZero: true, ticks: { precision: 0 } }
         }
-      });
-    }
-  </script>
-</body>
-</html>
+      }
+    });
+  }
+</script>
+
+{% endblock %}

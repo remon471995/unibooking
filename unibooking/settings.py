@@ -22,10 +22,11 @@ INSTALLED_APPS = [
 
     # Apps
     "core.apps.CoreConfig",
-    "helpdesk.apps.HelpdeskConfig",
-    "accounts",    
+    'helpdesk',
+    "accounts.apps.AccountsConfig",    
     "widget_tweaks",
-    "storages",                 # اختياري S3
+    "storages",      
+              # اختياري S3
 ]
 
 MIDDLEWARE = [
@@ -117,3 +118,6 @@ if os.getenv("USE_S3", "0") == "1":
 
 # عدد الأيام قبل ميعاد القسط لإظهار التنبيه
 INSTALLMENT_REMINDER_DAYS = 5
+
+# تشغيل/إيقاف نظام الهيلب دِسك
+HELPDESK_ENABLED = False

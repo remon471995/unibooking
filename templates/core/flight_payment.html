@@ -4,35 +4,48 @@
 {% block content %}
 <div class="max-w-7xl mx-auto mt-8 bg-white shadow rounded-lg p-6">
 
-  <div class="border-b pb-6 mb-6">
-    <h1 class="text-3xl font-bold text-gray-800">✈ إدارة دفع الطيران</h1>
-    <p class="text-lg text-gray-600">{{ booking.airline }} - <span class="font-mono">{{ booking.pnr }}</span></p>
+  <!-- الهيدر + زر طلب تعديل -->
+  <div class="flex items-start md:items-center justify-between gap-4 border-b pb-6 mb-6">
+    <div>
+      <h1 class="text-3xl font-bold text-gray-800">✈ إدارة دفع الطيران</h1>
+      <p class="text-lg text-gray-600">
+        {{ booking.airline }} -
+        <span class="font-mono">{{ booking.pnr }}</span>
+      </p>
+    </div>
+    <a href="{% url 'flight_payment_modify' booking.pk %}"
+       class="inline-block px-3 py-2 rounded bg-amber-600 text-white hover:bg-amber-700">
+      طلب تعديل
+    </a>
+  </div>
 
-    <div class="mt-4 grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
-      <div class="p-4 border rounded-lg bg-gray-50">
-        <p class="text-sm text-gray-500">سعر النت</p>
-        <p class="text-2xl font-bold text-gray-800">{{ total_net|floatformat:2 }}</p>
-      </div>
-      <div class="p-4 border rounded-lg bg-gray-50">
-        <p class="text-sm text-gray-500">سعر البيع</p>
-        <p class="text-2xl font-bold text-blue-600">{{ total_sell|floatformat:2 }}</p>
-      </div>
-      <div class="p-4 border rounded-lg bg-gray-50">
-        <p class="text-sm text-gray-500">إجمالي المدفوع</p>
-        <p class="text-2xl font-bold text-green-600">{{ total_paid|floatformat:2 }}</p>
-      </div>
-      <div class="p-4 border rounded-lg {% if remaining > 0 %}bg-red-50{% else %}bg-green-50{% endif %}">
-        <p class="text-sm text-gray-500">المتبقي</p>
-        <p class="text-2xl font-bold {% if remaining > 0 %}text-red-600{% else %}text-green-600{% endif %}">{{ remaining|floatformat:2 }}</p>
-      </div>
-      <div class="p-4 border rounded-lg bg-gray-50">
-        <p class="text-sm text-gray-500">الربح</p>
-        <p class="text-2xl font-bold text-green-700">{{ profit|floatformat:2 }}</p>
-      </div>
+  <!-- كروت الأرقام -->
+  <div class="mt-4 grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
+    <div class="p-4 border rounded-lg bg-gray-50">
+      <p class="text-sm text-gray-500">سعر النت</p>
+      <p class="text-2xl font-bold text-gray-800">{{ total_net|floatformat:2 }}</p>
+    </div>
+    <div class="p-4 border rounded-lg bg-gray-50">
+      <p class="text-sm text-gray-500">سعر البيع</p>
+      <p class="text-2xl font-bold text-blue-600">{{ total_sell|floatformat:2 }}</p>
+    </div>
+    <div class="p-4 border rounded-lg bg-gray-50">
+      <p class="text-sm text-gray-500">إجمالي المدفوع</p>
+      <p class="text-2xl font-bold text-green-600">{{ total_paid|floatformat:2 }}</p>
+    </div>
+    <div class="p-4 border rounded-lg {% if remaining > 0 %}bg-red-50{% else %}bg-green-50{% endif %}">
+      <p class="text-sm text-gray-500">المتبقي</p>
+      <p class="text-2xl font-bold {% if remaining > 0 %}text-red-600{% else %}text-green-600{% endif %}">
+        {{ remaining|floatformat:2 }}
+      </p>
+    </div>
+    <div class="p-4 border rounded-lg bg-gray-50">
+      <p class="text-sm text-gray-500">الربح</p>
+      <p class="text-2xl font-bold text-green-700">{{ profit|floatformat:2 }}</p>
     </div>
   </div>
 
-  <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+  <div class="grid grid-cols-1 lg:grid-cols-5 gap-8 mt-6">
     <!-- ✅ إضافة دفعة جديدة -->
     <div class="lg:col-span-2">
       {% if remaining > 0 or not payments %}
@@ -41,7 +54,6 @@
           <form method="post" enctype="multipart/form-data" class="space-y-4">
             {% csrf_token %}
 
-            {# في أول دفعة فقط نظهر حقلي النت/البيع #}
             {% if not has_existing %}
               <div class="grid grid-cols-2 gap-4">
                 <div>
@@ -59,16 +71,22 @@
               <label class="block text-sm font-medium">المبلغ المدفوع</label>
               {{ form.paid_amount }}
             </div>
+
             <div>
               <label class="block text-sm font-medium">طريقة الدفع</label>
               {{ form.method }}
             </div>
 
             <div id="payment-extra-fields" class="mt-3 space-y-4">
-              <div id="payment-link-field" class="hidden"><label class="block text-sm font-medium">🔗 رابط السداد</label>{{ form.payment_link }}</div>
-              <div id="bank-file-field" class="hidden"><label class="block text-sm font-medium">📎 رفع إيصال</label>{{ form.bank_file }}</div>
+              <div id="payment-link-field" class="hidden">
+                <label class="block text-sm font-medium">🔗 رابط السداد</label>
+                {{ form.payment_link }}
+              </div>
+              <div id="bank-file-field" class="hidden">
+                <label class="block text-sm font-medium">📎 رفع إيصال</label>
+                {{ form.bank_file }}
+              </div>
 
-              {# ❗ حقل آخر موعد سداد يظهر فقط في أول دفعة #}
               {% if not has_existing %}
                 <div id="installment-deadline-field" class="hidden">
                   <label class="block text-sm font-medium">📅 آخر ميعاد للدفع</label>
@@ -77,15 +95,28 @@
               {% endif %}
             </div>
 
-            {# مرفقات أول دفعة فقط #}
             {% if not has_existing %}
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
-              <div><label class="block text-sm font-medium">📄 الفاتورة</label>{{ form.invoice_file }}</div>
-              <div><label class="block text-sm font-medium">🧾 الفاوتشر الأصلي</label>{{ form.voucher_original }}</div>
-            </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
+                <div>
+                  <label class="block text-sm font-medium">📄 الفاتورة</label>
+                  {{ form.invoice_file }}
+                </div>
+                <div>
+                  <label class="block text-sm font-medium">🧾 الفاوتشر الأصلي</label>
+                  {{ form.voucher_original }}
+                </div>
+              </div>
             {% endif %}
 
-            <button type="submit" class="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">حفظ الدفعة</button>
+            <div>
+              <label class="block text-sm font-medium">ملاحظة</label>
+              {{ form.note }}
+            </div>
+
+            <button type="submit"
+                    class="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+              حفظ الدفعة
+            </button>
           </form>
         </div>
       {% else %}
@@ -105,40 +136,59 @@
               <th class="px-4 py-3 text-right text-sm font-medium text-gray-600">التاريخ</th>
               <th class="px-4 py-3 text-right text-sm font-medium text-gray-600">الطريقة</th>
               <th class="px-4 py-3 text-right text-sm font-medium text-gray-600">المبلغ</th>
+              <th class="px-4 py-3 text-right text-sm font-medium text-gray-600">الموظف</th>
+              <th class="px-4 py-3 text-right text-sm font-medium text-gray-600">ملاحظة</th>
               <th class="px-4 py-3 text-right text-sm font-medium text-gray-600">المرفقات</th>
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-200">
             {% for pay in payments %}
-            <tr class="hover:bg-gray-50">
-              <td class="px-4 py-3 text-sm">{{ pay.created_at|date:"Y-m-d H:i" }}</td>
-              <td class="px-4 py-3 text-sm">
-                {% if pay.method == 'cash' %}<i class="fa fa-money-bill-wave text-green-500"></i>
-                {% elif pay.method == 'bank' %}<i class="fa fa-university text-blue-500"></i>
-                {% elif pay.method == 'link' %}<i class="fa fa-link text-purple-500"></i>
-                {% elif pay.method == 'installment' %}<i class="fa fa-calendar text-orange-500"></i>
-                {% endif %}
-                {{ pay.get_method_display }}
-              </td>
-              <td class="px-4 py-3 text-sm text-green-700 font-bold">{{ pay.paid_amount|floatformat:2 }}</td>
-              <td class="px-4 py-3 text-sm space-x-2">
-                {% if pay.payment_link %}<a href="{{ pay.payment_link }}" target="_blank" class="text-blue-500 hover:underline">الرابط</a>{% endif %}
-                {% if pay.bank_file %}<a href="{{ pay.bank_file.url }}" target="_blank" class="text-blue-500 hover:underline">الإيصال</a>{% endif %}
-                {% if pay.invoice_file %}<a href="{{ pay.invoice_file.url }}" target="_blank" class="text-blue-500 hover:underline">الفاتورة</a>{% endif %}
-                {% if pay.voucher_original %}<a href="{{ pay.voucher_original.url }}" target="_blank" class="text-blue-500 hover:underline">الفاوتشر</a>{% endif %}
-              </td>
-            </tr>
+              <tr class="hover:bg-gray-50">
+                <td class="px-4 py-3 text-sm">{{ pay.created_at|date:"Y-m-d H:i" }}</td>
+                <td class="px-4 py-3 text-sm">
+                  {% if pay.method == 'cash' %}<i class="fa fa-money-bill-wave text-green-500"></i>
+                  {% elif pay.method == 'bank' %}<i class="fa fa-university text-blue-500"></i>
+                  {% elif pay.method == 'link' %}<i class="fa fa-link text-purple-500"></i>
+                  {% elif pay.method == 'installment' %}<i class="fa fa-calendar text-orange-500"></i>
+                  {% endif %}
+                  {{ pay.get_method_display }}
+                </td>
+                <td class="px-4 py-3 text-sm text-green-700 font-bold">
+                  {{ pay.paid_amount|floatformat:2 }}
+                </td>
+                <td class="px-4 py-3 text-sm">
+                  {{ pay.employee_name|default:"—" }}
+                </td>
+                <td class="px-4 py-3 text-sm">
+                  {{ pay.note|default:"—" }}
+                </td>
+                <td class="px-4 py-3 text-sm space-x-2">
+                  {% if pay.payment_link %}
+                    <a href="{{ pay.payment_link }}" target="_blank" class="text-blue-500 hover:underline">الرابط</a>
+                  {% endif %}
+                  {% if pay.bank_file %}
+                    <a href="{{ pay.bank_file.url }}" target="_blank" class="text-blue-500 hover:underline">الإيصال</a>
+                  {% endif %}
+                  {% if pay.invoice_file %}
+                    <a href="{{ pay.invoice_file.url }}" target="_blank" class="text-blue-500 hover:underline">الفاتورة</a>
+                  {% endif %}
+                  {% if pay.voucher_original %}
+                    <a href="{{ pay.voucher_original.url }}" target="_blank" class="text-blue-500 hover:underline">الفاوتشر</a>
+                  {% endif %}
+                </td>
+              </tr>
             {% empty %}
-            <tr>
-              <td colspan="4" class="px-4 py-10 text-center text-gray-500">لا توجد دفعات مسجلة بعد.</td>
-            </tr>
+              <tr>
+                <td colspan="6" class="px-4 py-10 text-center text-gray-500">
+                  لا توجد دفعات مسجلة بعد.
+                </td>
+              </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
     </div>
   </div>
-
 </div>
 
 <script>
@@ -150,7 +200,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const linkField     = document.getElementById("payment-link-field");
   const fileField     = document.getElementById("bank-file-field");
-  const deadlineField = document.getElementById("installment-deadline-field"); // قد لا يكون موجودًا لو ليست أول دفعة
+  const deadlineField = document.getElementById("installment-deadline-field");
 
   const remainingAmount = parseFloat("{{ remaining|floatformat:'2'|default:'0' }}");
 
@@ -168,7 +218,6 @@ document.addEventListener("DOMContentLoaded", () => {
       fileField?.classList.remove("hidden");
     }
 
-    // ❗ لا نظهر "آخر ميعاد للسداد" إلا في أول دفعة فقط
     if (!hasExisting && deadlineField) {
       const paid = parseFloat(paidAmountInput?.value || "0");
       const target = sellPriceInput ? parseFloat(sellPriceInput.value || "0") : remainingAmount;

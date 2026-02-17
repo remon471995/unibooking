@@ -1,0 +1,35 @@
+{% extends 'core/base.html' %}
+{% block title %}📊 لوحة التحكم{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+
+  <!-- الكروت الإحصائية -->
+  <div class="bg-white p-5 rounded-lg shadow border">
+    <h3 class="text-sm text-gray-500">إجمالي الكروت</h3>
+    <p class="text-3xl font-bold text-blue-600">{{ total_cards|default:"0" }}</p>
+  </div>
+
+  <div class="bg-white p-5 rounded-lg shadow border">
+    <h3 class="text-sm text-gray-500">إجمالي المدفوع</h3>
+    <p class="text-3xl font-bold text-green-600">{{ total_paid|default:"0" }}</p>
+  </div>
+
+  <div class="bg-white p-5 rounded-lg shadow border">
+    <h3 class="text-sm text-gray-500">المتبقي</h3>
+    <p class="text-3xl font-bold text-red-600">{{ total_remaining|default:"0" }}</p>
+  </div>
+
+</div>
+
+<!-- أزرار الإضافة -->
+<div class="mt-10 bg-white p-6 rounded-lg shadow border">
+  <h2 class="text-lg font-semibold mb-4">➕ إضافة جديدة</h2>
+  <div class="flex flex-wrap gap-3">
+    <a href="{% url 'card_create' %}" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">كارت جديد</a>
+    <a href="{% url 'hotel_create' 1 %}" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">حجز فندق</a>
+    <a href="{% url 'flight_create' 1 %}" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">حجز طيران</a>
+    <a href="{% url 'transfer_create' 1 %}" class="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600">اخري</a>
+  </div>
+</div>
+{% endblock %}

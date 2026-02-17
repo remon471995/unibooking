@@ -1,57 +1,236 @@
-{% extends "core/base.html" %}
+{% extends "helpdesk/base.html" %}
+{% load static %}
+
+{% block title %}واردى | UniBooking{% endblock %}
+
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 py-6 space-y-4">
-  {% include "helpdesk/_topbar.html" %}
 
-  <h2 class="text-lg font-bold">واردى</h2>
+<div class="max-w-6xl mx-auto mt-6 mb-10" dir="rtl">
 
-  <div class="bg-white rounded-xl shadow overflow-hidden">
-    <table class="w-full text-sm">
-      <thead class="bg-gray-50">
-        <tr>
-          <th class="px-4 py-2 text-right">#</th>
-          <th class="px-4 py-2 text-right">الموضوع</th>
-          <th class="px-4 py-2">القسم</th>
-          <th class="px-4 py-2">الحالة</th>
-          <th class="px-4 py-2">الأولوية</th>
-          <th class="px-4 py-2">تاريخ الإنشاء</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for t in tickets %}
-        <tr class="border-t hover:bg-gray-50">
-          <td class="px-4 py-2">
-            <a class="text-blue-700" href="{{ t.get_absolute_url }}">#{{ t.id }}</a>
-          </td>
-          <td class="px-4 py-2">
-            <div class="font-medium">{{ t.subject }}</div>
-            <div class="text-xs text-gray-500 mt-0.5">
-              طالب: {{ t.requester }}
-              {% if t.assigned_to %} • مُسند إلى: {{ t.assigned_to }}{% endif %}
-            </div>
-            {% if t.tags.all %}
-            <div class="mt-1 flex gap-1 flex-wrap">
-              {% for tag in t.tags.all %}
-              <span class="px-2 py-0.5 rounded text-xs"
-                    style="background: {{ tag.color }}20; color: {{ tag.color }}; border: 1px solid {{ tag.color }}">
-                #{{ tag.name }}
+  <!-- ===== الهيدر / التول بار ===== -->
+  <div class="mb-4">
+    <div class="bg-white dark:bg-gray-900 rounded-2xl shadow border border-gray-200 dark:border-gray-800 px-4 py-3 flex flex-wrap items-center gap-3">
+
+      <div class="flex flex-col gap-1">
+        <h1 class="text-lg md:text-xl font-bold text-gray-900 dark:text-gray-100">
+          واردى
+        </h1>
+        <p class="text-xs md:text-sm text-gray-500">
+          عرض وإدارة كل التذاكر المسندة إليك أو التى قمت بإنشائها.
+        </p>
+      </div>
+
+      <!-- Tabs الحالات -->
+      <div class="flex flex-wrap items-center gap-1 ms-auto text-xs md:text-sm">
+
+        {# كل التذاكر #}
+        <a href="?status="
+           class="px-3 py-1.5 rounded-full border text-xs md:text-sm
+             {% if not request.GET.status %}
+               border-blue-500 text-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-200
+             {% else %}
+               border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800
+             {% endif %}">
+          الكل
+        </a>
+
+        <a href="?status=open"
+           class="px-3 py-1.5 rounded-full border
+             {% if request.GET.status == 'open' %}
+               border-blue-500 text-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-200
+             {% else %}
+               border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800
+             {% endif %}">
+          Open
+        </a>
+
+        <a href="?status=pending"
+           class="px-3 py-1.5 rounded-full border
+             {% if request.GET.status == 'pending' %}
+               border-amber-500 text-amber-700 bg-amber-50 dark:bg-amber-900/30 dark:text-amber-200
+             {% else %}
+               border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800
+             {% endif %}">
+          Pending
+        </a>
+
+        <a href="?status=resolved"
+           class="px-3 py-1.5 rounded-full border
+             {% if request.GET.status == 'resolved' %}
+               border-emerald-500 text-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 dark:text-emerald-200
+             {% else %}
+               border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800
+             {% endif %}">
+          Resolved
+        </a>
+
+        <a href="?status=closed"
+           class="px-3 py-1.5 rounded-full border
+             {% if request.GET.status == 'closed' %}
+               border-gray-500 text-gray-700 bg-gray-100 dark:bg-gray-800 dark:text-gray-100
+             {% else %}
+               border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800
+             {% endif %}">
+          Closed
+        </a>
+      </div>
+
+      <!-- بحث -->
+      <div class="w-full md:w-auto md:min-w-[260px]">
+        <form method="get" class="flex items-center gap-2 mt-2 md:mt-0">
+          <input type="hidden" name="status" value="{{ request.GET.status }}">
+          <input
+            type="text" name="q" value="{{ request.GET.q|default:'' }}"
+            placeholder="ابحث بالعنوان، الرقم، العميل…"
+            class="flex-1 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs md:text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+          <button
+            class="px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs md:text-sm hover:bg-black">
+            بحث
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== الجدول الرئيسي ===== -->
+  <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,3fr)_minmax(220px,1.1fr)] gap-4">
+
+    <!-- جدول التذاكر -->
+    <div class="bg-white dark:bg-gray-900 rounded-2xl shadow border border-gray-200 dark:border-gray-800 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="bg-gray-50 dark:bg-gray-900/60 border-b border-gray-200 dark:border-gray-800 text-xs text-gray-500">
+            <tr class="[&>th]:px-3 [&>th]:py-2.5 text-right">
+              <th class="w-16">#</th>
+              <th>العنوان</th>
+              <th class="w-36">القسم</th>
+              <th class="w-32">العميل</th>
+              <th class="w-24">الحالة</th>
+              <th class="w-24">الأولوية</th>
+              <th class="w-32">تاريخ الإنشاء</th>
+              <th class="w-32">آخر تحديث</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+            {% for t in tickets %}
+              <tr
+                class="hover:bg-gray-50 dark:hover:bg-gray-800/60 cursor-pointer"
+                onclick="window.location.href='{% url 'helpdesk:ticket_detail' t.pk %}'">
+                {# لو اسم الـ url مختلف عدّل السطر فوق #}
+
+                <td class="px-3 py-2.5 text-xs text-gray-500">#{{ t.id }}</td>
+
+                <td class="px-3 py-2.5">
+                  <div class="flex flex-col gap-0.5">
+                    <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                      {{ t.subject }}
+                    </span>
+                    <span class="text-[11px] text-gray-500 truncate">
+                      {% if t.requester %}{{ t.requester }}{% else %}—{% endif %}
+                    </span>
+                  </div>
+                </td>
+
+                <td class="px-3 py-2.5 text-xs text-gray-700 dark:text-gray-200">
+                  {{ t.department.name }}
+                </td>
+
+                <td class="px-3 py-2.5 text-xs text-gray-700 dark:text-gray-200">
+                  {% if t.assigned_to %}{{ t.assigned_to }}{% else %}غير مُسندة{% endif %}
+                </td>
+
+                <td class="px-3 py-2.5 text-xs">
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full
+                    {% if t.status == 'open' %}
+                      bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200
+                    {% elif t.status == 'pending' %}
+                      bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200
+                    {% elif t.status == 'resolved' %}
+                      bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200
+                    {% else %}
+                      bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200
+                    {% endif %}">
+                    <span class="w-1.5 h-1.5 rounded-full
+                      {% if t.status == 'open' %} bg-blue-500
+                      {% elif t.status == 'pending' %} bg-amber-500
+                      {% elif t.status == 'resolved' %} bg-emerald-500
+                      {% else %} bg-gray-400{% endif %}">
+                    </span>
+                    {{ t.get_status_display }}
+                  </span>
+                </td>
+
+                <td class="px-3 py-2.5 text-xs">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full
+                    {% if t.priority == 'urgent' %}
+                      bg-rose-50 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200
+                    {% elif t.priority == 'high' %}
+                      bg-orange-50 text-orange-700 dark:bg-orange-900/40 dark:text-orange-200
+                    {% elif t.priority == 'normal' %}
+                      bg-sky-50 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200
+                    {% else %}
+                      bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200
+                    {% endif %}">
+                    {{ t.get_priority_display }}
+                  </span>
+                </td>
+
+                <td class="px-3 py-2.5 text-xs text-gray-600 dark:text-gray-300">
+                  {{ t.created_at|date:"Y-m-d H:i" }}
+                </td>
+                <td class="px-3 py-2.5 text-xs text-gray-600 dark:text-gray-300">
+                  {{ t.updated_at|date:"Y-m-d H:i" }}
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="8" class="px-3 py-6 text-center text-sm text-gray-500">
+                  لا توجد تذاكر حسب الفلتر الحالي.
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {# لو عندك Pagination ممكن تضيفه هنا #}
+      {# {{ page_obj }} الخ... #}
+    </div>
+
+    <!-- العمود الجانبي: Info صغيرة زى Freshdesk -->
+    <aside class="space-y-3">
+      <div class="bg-white dark:bg-gray-900 rounded-2xl shadow border border-gray-200 dark:border-gray-800 p-4 text-sm">
+        <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-2">
+          ملخص واردى
+        </h2>
+        <ul class="space-y-1.5 text-xs text-gray-600 dark:text-gray-300">
+          <li class="flex justify-between">
+            <span>إجمالي التذاكر المعروضة</span>
+            <span class="font-semibold text-gray-900 dark:text-gray-100">{{ tickets|length }}</span>
+          </li>
+          {% if request.GET.status %}
+            <li class="flex justify-between">
+              <span>الحالة الحالية</span>
+              <span class="font-semibold">
+                {{ request.GET.status|title }}
               </span>
-              {% endfor %}
-            </div>
-            {% endif %}
-          </td>
-          <td class="px-4 py-2">{{ t.department.name }}</td>
-          <td class="px-4 py-2">{{ t.get_status_display }}</td>
-          <td class="px-4 py-2">{{ t.get_priority_display }}</td>
-          <td class="px-4 py-2">{{ t.created_at|date:"Y-m-d H:i" }}</td>
-        </tr>
-        {% empty %}
-        <tr>
-          <td colspan="6" class="px-4 py-6 text-center text-gray-500">لا توجد تذاكر بعد.</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+            </li>
+          {% endif %}
+          {% if request.GET.q %}
+            <li class="flex justify-between">
+              <span>كلمة البحث</span>
+              <span class="font-semibold truncate max-w-[120px] text-right">{{ request.GET.q }}</span>
+            </li>
+          {% endif %}
+        </ul>
+      </div>
+
+      <div class="bg-blue-50 dark:bg-blue-900/30 rounded-2xl border border-blue-100 dark:border-blue-800 p-3 text-xs text-blue-800 dark:text-blue-100 leading-5">
+        تلميح: حاول تغلق التذاكر المحلولة أولاً بأول، وخلي
+        <span class="font-semibold">Open / Pending</span> أقل عدد ممكن علشان الـ SLA.
+      </div>
+    </aside>
   </div>
 </div>
+
 {% endblock %}

@@ -1,51 +1,239 @@
-{% extends "core/base.html" %}
+{% extends "helpdesk/base.html" %}
+{% load static %}
+
+{% block title %}لوحة تذاكر الدعم | UniBooking{% endblock %}
+
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 py-6 space-y-6">
-  {% include "helpdesk/_topbar.html" %}
 
-  <h2 class="text-lg font-bold">لوحة المؤشرات</h2>
+<div class="max-w-6xl mx-auto mt-6 mb-10" dir="rtl">
 
-  <!-- بطاقات سريعة -->
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-    <div class="bg-white rounded-xl p-4 shadow">
-      <div class="text-sm text-gray-500">متوسط زمن الحل (ساعات) للتذاكر المُغلقة</div>
-      <div class="text-3xl font-bold">{{ avg_hours }}</div>
+  <!-- ===== الهيدر ===== -->
+  <div class="mb-5">
+    <div class="flex flex-wrap items-start gap-3 justify-between">
+      <div>
+        <h1 class="text-xl md:text-2xl font-bold text-gray-900 dark:text-gray-100">
+          لوحة تذاكر الدعم الفني
+        </h1>
+        <p class="text-sm text-gray-500 mt-1">
+          متابعة جميع تذاكر الأقسام، والحالات، والأولويات في مكان واحد مشابه لـ Freshdesk.
+        </p>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <a href="{% url 'helpdesk:ticket_create' %}"
+           class="inline-flex items-center gap-1 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm shadow">
+          <i class="fa-solid fa-plus text-xs"></i>
+          <span>تذكرة جديدة</span>
+        </a>
+        <a href="{% url 'helpdesk:my_inbox' %}"
+           class="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-100 text-sm">
+          واردى
+        </a>
+      </div>
     </div>
-    <div class="bg-white rounded-xl p-4 shadow">
-      <div class="text-sm text-gray-500">عدد الأقسام</div>
-      <div class="text-3xl font-bold">{{ by_dept|length }}</div>
+  </div>
+
+  <!-- ===== كروت الإحصائيات (زي Freshdesk) ===== -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5 text-sm">
+    <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-3 flex flex-col gap-1">
+      <span class="text-xs text-gray-500">إجمالي التذاكر</span>
+      <span class="text-xl font-bold text-gray-900 dark:text-gray-100">
+        {{ total_count|default:"0" }}
+      </span>
+    </div>
+
+    <div class="bg-blue-50 dark:bg-blue-900/30 rounded-2xl border border-blue-100 dark:border-blue-800 p-3 flex flex-col gap-1">
+      <span class="text-xs text-blue-700 dark:text-blue-100">Open</span>
+      <span class="text-xl font-bold text-blue-700 dark:text-blue-100">
+        {{ open_count|default:"0" }}
+      </span>
+    </div>
+
+    <div class="bg-amber-50 dark:bg-amber-900/30 rounded-2xl border border-amber-100 dark:border-amber-800 p-3 flex flex-col gap-1">
+      <span class="text-xs text-amber-700 dark:text-amber-100">Pending / Waiting</span>
+      <span class="text-xl font-bold text-amber-700 dark:text-amber-100">
+        {{ pending_count|default:"0" }}
+      </span>
+    </div>
+
+    <div class="bg-emerald-50 dark:bg-emerald-900/30 rounded-2xl border border-emerald-100 dark:border-emerald-800 p-3 flex flex-col gap-1">
+      <span class="text-xs text-emerald-700 dark:text-emerald-100">Resolved / Closed</span>
+      <span class="text-xl font-bold text-emerald-700 dark:text-emerald-100">
+        {{ resolved_count|default:"0" }}
+      </span>
     </div>
   </div>
 
-  <!-- توزيعات -->
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-    <div class="bg-white rounded-xl p-4 shadow">
-      <div class="font-bold mb-2">حسب الحالة</div>
-      <ul class="space-y-1">
-        {% for row in by_status %}
-          <li class="flex justify-between text-sm">
-            <span>{{ row.status }}</span>
-            <b>{{ row.c }}</b>
-          </li>
-        {% empty %}
-          <li class="text-gray-500">لا بيانات</li>
-        {% endfor %}
-      </ul>
+  <!-- ===== الفلاتر و البحث ===== -->
+  <div class="bg-white dark:bg-gray-900 rounded-2xl shadow border border-gray-200 dark:border-gray-800 p-4 mb-4">
+    <form method="get" class="grid grid-cols-1 md:grid-cols-[2fr_2fr_2fr_3fr] gap-3 items-end">
+
+      <!-- القسم -->
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">القسم</label>
+        <select name="department"
+                class="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2 text-xs md:text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+          <option value="">كل الأقسام</option>
+          {% if departments %}
+            {% for d in departments %}
+              <option value="{{ d.slug }}"
+                      {% if request.GET.department == d.slug %}selected{% endif %}>
+                {{ d.name }}
+              </option>
+            {% endfor %}
+          {% endif %}
+        </select>
+      </div>
+
+      <!-- الحالة -->
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">الحالة</label>
+        <select name="status"
+                class="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2 text-xs md:text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+          <option value="">كل الحالات</option>
+          <option value="open"     {% if request.GET.status == 'open' %}selected{% endif %}>Open</option>
+          <option value="pending"  {% if request.GET.status == 'pending' %}selected{% endif %}>Pending</option>
+          <option value="resolved" {% if request.GET.status == 'resolved' %}selected{% endif %}>Resolved</option>
+          <option value="closed"   {% if request.GET.status == 'closed' %}selected{% endif %}>Closed</option>
+        </select>
+      </div>
+
+      <!-- الأولوية -->
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">الأولوية</label>
+        <select name="priority"
+                class="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2 text-xs md:text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+          <option value="">كل الأولويات</option>
+          <option value="urgent" {% if request.GET.priority == 'urgent' %}selected{% endif %}>Urgent</option>
+          <option value="high"   {% if request.GET.priority == 'high' %}selected{% endif %}>High</option>
+          <option value="normal" {% if request.GET.priority == 'normal' %}selected{% endif %}>Normal</option>
+          <option value="low"    {% if request.GET.priority == 'low' %}selected{% endif %}>Low</option>
+        </select>
+      </div>
+
+      <!-- البحث -->
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">بحث</label>
+        <div class="flex items-center gap-2">
+          <input type="text" name="q" value="{{ request.GET.q|default:'' }}"
+                 placeholder="عنوان التذكرة، رقمها، اسم العميل، مرجع…"
+                 class="flex-1 rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2 text-xs md:text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+          <button
+            class="px-3 py-2 rounded-xl bg-gray-900 text-white text-xs md:text-sm hover:bg-black whitespace-nowrap">
+            تطبيق
+          </button>
+        </div>
+      </div>
+
+    </form>
+  </div>
+
+  <!-- ===== الجدول الرئيسي ===== -->
+  <div class="bg-white dark:bg-gray-900 rounded-2xl shadow border border-gray-200 dark:border-gray-800 overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="bg-gray-50 dark:bg-gray-900/60 border-b border-gray-200 dark:border-gray-800 text-xs text-gray-500">
+          <tr class="[&>th]:px-3 [&>th]:py-2.5 text-right">
+            <th class="w-16">#</th>
+            <th>العنوان</th>
+            <th class="w-32">القسم</th>
+            <th class="w-32">العميل</th>
+            <th class="w-32">المسؤول</th>
+            <th class="w-24">الحالة</th>
+            <th class="w-24">الأولوية</th>
+            <th class="w-32">تاريخ الإنشاء</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+          {% for t in tickets %}
+            <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/60 cursor-pointer"
+                onclick="window.location.href='{% url 'helpdesk:ticket_detail' t.pk %}'">
+              <td class="px-3 py-2.5 text-xs text-gray-500">#{{ t.id }}</td>
+
+              <td class="px-3 py-2.5">
+                <div class="flex flex-col gap-0.5">
+                  <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                    {{ t.subject }}
+                  </span>
+                  {% if t.related_ref %}
+                    <span class="text-[11px] text-gray-500 truncate">
+                      مرجع: {{ t.related_ref }}
+                    </span>
+                  {% endif %}
+                </div>
+              </td>
+
+              <td class="px-3 py-2.5 text-xs text-gray-700 dark:text-gray-200">
+                {{ t.department.name }}
+              </td>
+
+              <td class="px-3 py-2.5 text-xs text-gray-700 dark:text-gray-200">
+                {% if t.requester %}{{ t.requester }}{% else %}—{% endif %}
+              </td>
+
+              <td class="px-3 py-2.5 text-xs text-gray-700 dark:text-gray-200">
+                {% if t.assigned_to %}{{ t.assigned_to }}{% else %}غير مُسندة{% endif %}
+              </td>
+
+              <td class="px-3 py-2.5 text-xs">
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full
+                  {% if t.status == 'open' %}
+                    bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200
+                  {% elif t.status == 'pending' %}
+                    bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200
+                  {% elif t.status == 'resolved' %}
+                    bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200
+                  {% else %}
+                    bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200
+                  {% endif %}">
+                  <span class="w-1.5 h-1.5 rounded-full
+                    {% if t.status == 'open' %} bg-blue-500
+                    {% elif t.status == 'pending' %} bg-amber-500
+                    {% elif t.status == 'resolved' %} bg-emerald-500
+                    {% else %} bg-gray-400{% endif %}">
+                  </span>
+                  {{ t.get_status_display }}
+                </span>
+              </td>
+
+              <td class="px-3 py-2.5 text-xs">
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full
+                  {% if t.priority == 'urgent' %}
+                    bg-rose-50 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200
+                  {% elif t.priority == 'high' %}
+                    bg-orange-50 text-orange-700 dark:bg-orange-900/40 dark:text-orange-200
+                  {% elif t.priority == 'normal' %}
+                    bg-sky-50 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200
+                  {% else %}
+                    bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200
+                  {% endif %}">
+                  {{ t.get_priority_display }}
+                </span>
+              </td>
+
+              <td class="px-3 py-2.5 text-xs text-gray-600 dark:text-gray-300">
+                {{ t.created_at|date:"Y-m-d H:i" }}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="8" class="px-3 py-6 text-center text-sm text-gray-500">
+                لا توجد تذاكر حسب الفلتر الحالي.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
 
-    <div class="bg-white rounded-xl p-4 shadow">
-      <div class="font-bold mb-2">حسب القسم</div>
-      <ul class="space-y-1">
-        {% for row in by_dept %}
-          <li class="flex justify-between text-sm">
-            <span>{{ row.department__name }}</span>
-            <b>{{ row.c }}</b>
-          </li>
-        {% empty %}
-          <li class="text-gray-500">لا بيانات</li>
-        {% endfor %}
-      </ul>
+    {# Pagination لو حابب تستخدم page_obj من الـ view #}
+    {# 
+    <div class="px-4 py-3 border-t border-gray-100 dark:border-gray-800 flex justify-between text-xs text-gray-500">
+      ...
     </div>
+    #}
   </div>
+
 </div>
+
 {% endblock %}

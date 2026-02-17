@@ -1,0 +1,101 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto mt-8 bg-white dark:bg-gray-900 shadow rounded-lg p-6">
+  <h1 class="text-2xl font-extrabold mb-4">تعديل على الحجز</h1>
+
+  {% if booking %}
+    <div class="mb-6 text-sm text-gray-600 dark:text-gray-300">
+      <span class="font-semibold">الحجز:</span>
+      {{ booking }}
+    </div>
+  {% endif %}
+
+  <form method="post" class="space-y-4">
+    {% csrf_token %}
+
+    {# أخطاء عامة #}
+    {% if form.non_field_errors %}
+      <div class="p-3 rounded bg-red-50 text-red-700">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {% if form.amendment_type %}
+        <div>
+          <label class="block text-sm font-medium mb-1">نوع التعديل</label>
+          {{ form.amendment_type }}
+          {{ form.amendment_type.errors }}
+        </div>
+      {% endif %}
+
+      {% if form.client_fee %}
+        <div>
+          <label class="block text-sm font-medium mb-1">رسوم على العميل</label>
+          {{ form.client_fee }}
+          {{ form.client_fee.errors }}
+        </div>
+      {% endif %}
+
+      {% if form.supplier_penalty %}
+        <div>
+          <label class="block text-sm font-medium mb-1">غرامة المورّد</label>
+          {{ form.supplier_penalty }}
+          {{ form.supplier_penalty.errors }}
+        </div>
+      {% endif %}
+
+      {% if form.price_diff %}
+        <div>
+          <label class="block text-sm font-medium mb-1">فرق السعر (+/-)</label>
+          {{ form.price_diff }}
+          {{ form.price_diff.errors }}
+        </div>
+      {% endif %}
+    </div>
+
+    {% if form.new_data %}
+      <div>
+        <label class="block text-sm font-medium mb-1">البيانات الجديدة</label>
+        {{ form.new_data }}
+        <p class="text-xs text-gray-500 mt-1">
+          اكتب التفاصيل المرتبطة بالتعديل (مثلاً: تواريخ جديدة، تصحيح الاسم، …).
+        </p>
+        {{ form.new_data.errors }}
+      </div>
+    {% endif %}
+
+    {% if form.notes %}
+      <div>
+        <label class="block text-sm font-medium mb-1">ملاحظات</label>
+        {{ form.notes }}
+        {{ form.notes.errors }}
+      </div>
+    {% endif %}
+
+    {# حقول مخفية / سيستم #}
+    {% if form.status %}{{ form.status }}{% endif %}
+
+    {# لو لسه الحقول دي بتظهر لأي سبب، نخبيها من التمبلت كمان للاحتياط #}
+    <div class="hidden">
+      {% if form.applied_by %}{{ form.applied_by }}{% endif %}
+      {% if form.applied_at %}{{ form.applied_at }}{% endif %}
+      {% if form.requested_by %}{{ form.requested_by }}{% endif %}
+      {% if form.booking_content_type %}{{ form.booking_content_type }}{% endif %}
+      {% if form.booking_object_id %}{{ form.booking_object_id }}{% endif %}
+    </div>
+
+    <div class="flex items-center gap-2">
+      <button class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+        حفظ التعديل
+      </button>
+      {% if booking %}
+        <a href="{% url 'amendment_list' model request.resolver_match.kwargs.pk %}"
+           class="px-4 py-2 rounded-lg border hover:bg-gray-50">رجوع</a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}

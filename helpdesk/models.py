@@ -1,7 +1,10 @@
 from __future__ import annotations
+
+from datetime import timedelta
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+from django.utils.text import slugify
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.urls import reverse
@@ -21,9 +24,11 @@ class Department(models.Model):
     slug = models.SlugField(max_length=50, unique=True)
     description = models.TextField(blank=True)
     email = models.EmailField(blank=True)
-    manager = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="managed_departments")
+    manager = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="managed_departments"
+    )
     is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True)  # لا default مع auto_now_add
 
     class Meta:
         ordering = ["name"]
@@ -51,11 +56,11 @@ class DepartmentMembership(models.Model):
         return f"{self.user} @ {self.department} ({self.role})"
 
 
-# ========= فئات التذاكر (خاصة بكل قسم) =========
+# ========= فئات التذاكر =========
 class TicketCategory(models.Model):
     department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name="categories")
     name = models.CharField(max_length=80)
-    slug = models.SlugField(max_length=80)
+    slug = models.SlugField(max_length=80, blank=True, null=True)
     is_active = models.BooleanField(default=True)
     order = models.PositiveIntegerField(default=0)
 
@@ -65,6 +70,19 @@ class TicketCategory(models.Model):
 
     def __str__(self):
         return f"{self.department.name} / {self.name}"
+
+    def save(self, *args, **kwargs):
+        if not self.slug and self.name:
+            base = slugify(self.name) or "cat"
+            candidate = base
+            i = 1
+            while TicketCategory.objects.filter(
+                department=self.department, slug=candidate
+            ).exclude(pk=self.pk).exists():
+                i += 1
+                candidate = f"{base}-{i}"
+            self.slug = candidate
+        super().save(*args, **kwargs)
 
 
 # ========= الوسوم =========
@@ -95,15 +113,15 @@ class Ticket(models.Model):
     subject = models.CharField(max_length=200)
     department = models.ForeignKey(Department, on_delete=models.PROTECT, related_name="tickets")
     requester = models.ForeignKey(User, on_delete=models.PROTECT, related_name="requested_tickets")
-    assigned_to = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="assigned_tickets")
+    assigned_to = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="assigned_tickets"
+    )
 
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.OPEN)
     priority = models.CharField(max_length=8, choices=Priority.choices, default=Priority.NORMAL)
 
-    # فئة حسب القسم
     category = models.ForeignKey(TicketCategory, null=True, blank=True, on_delete=models.SET_NULL, related_name="tickets")
 
-    # ربط اختياري بأي كيان داخلي
     related_content_type = models.ForeignKey(ContentType, null=True, blank=True, on_delete=models.SET_NULL)
     related_object_id = models.PositiveIntegerField(null=True, blank=True)
     related_object = GenericForeignKey("related_content_type", "related_object_id")
@@ -144,7 +162,7 @@ class Ticket(models.Model):
         if not self.sla_minutes:
             self.sla_minutes = self.compute_default_sla()
         if not self.sla_due_at:
-            self.sla_due_at = timezone.now() + timezone.timedelta(minutes=int(self.sla_minutes))
+            self.sla_due_at = timezone.now() + timedelta(minutes=int(self.sla_minutes))
 
         if not creating:
             old = Ticket.objects.filter(pk=self.pk).values("status").first()
@@ -161,7 +179,11 @@ class Ticket(models.Model):
 # ========= رسائل ومرفقات =========
 class TicketMessage(models.Model):
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="messages")
-    sender = models.ForeignKey(User, on_delete=models.PROTECT, related_name="ticket_messages")
+    # خليّناه مؤقتًا يقبل NULL لتفادي برومبتات وقت الهجرة
+    sender = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name="ticket_messages",
+        null=True, blank=True
+    )
     body = models.TextField()
     is_internal_note = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -176,8 +198,10 @@ class TicketMessage(models.Model):
 class TicketAttachment(models.Model):
     message = models.ForeignKey(TicketMessage, on_delete=models.CASCADE, related_name="attachments")
     file = models.FileField(upload_to="tickets/%Y/%m/%d")
-    uploaded_by = models.ForeignKey(User, on_delete=models.PROTECT)
-    uploaded_at = models.DateTimeField(auto_now_add=True)
+    uploaded_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="ticket_attachments"
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)  # لا default مع auto_now_add
 
 
 # ========= إعلانات وردود جاهزة =========
@@ -186,7 +210,7 @@ class DepartmentAnnouncement(models.Model):
     title = models.CharField(max_length=200)
     body = models.TextField()
     created_by = models.ForeignKey(User, on_delete=models.PROTECT)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True)  # لا default مع auto_now_add
     is_pinned = models.BooleanField(default=False)
 
     class Meta:
