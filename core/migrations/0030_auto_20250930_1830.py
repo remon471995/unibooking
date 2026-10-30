@@ -1,10 +1,12 @@
-from django.db import migrations, models
+from django.db import migrations
+
 
 class Migration(migrations.Migration):
-
-    dependencies = [
-        ('core', '0029_transferbooking_booking_code'),  # غير الرقم لو آخر migration مختلف
-    ]
+    """
+    This migration used to add `transferbooking.booking_code` a second time
+    (0029 already adds it). SQLite silently tolerated the duplicate, PostgreSQL does not.
+    It is intentionally a no-op now; it stays in the chain so later migrations keep working.
+    """
 
     operations = [
         migrations.AddField(
