@@ -1,15 +1,17 @@
-from django.db import migrations, models
+from django.db import migrations
+
 
 class Migration(migrations.Migration):
+    """
+    This migration used to add `transferbooking.booking_code` a second time
+    (0028 already adds it or it already exists). SQLite silently tolerated the duplicate, PostgreSQL does not.
+    It is intentionally a no-op now; it stays in the chain so later migrations keep working.
+    """
 
     dependencies = [
         ('core', '0028_rename_date_transferbooking_installment_date_and_more'),
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='transferbooking',
-            name='booking_code',
-            field=models.CharField(max_length=50, unique=True, null=True, blank=True),
-        ),
+        # تم تعطيل الإضافة لعدم تكرار إنشاء الحقل في قاعدة البيانات
     ]
