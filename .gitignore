@@ -1,5 +1,20 @@
-node_modules/
-venv/
-staticfiles/
-db.sqlite3
+# Secrets and local config
 .env
+*.env
+
+# Databases and backups (never commit real data)
+*.sqlite3
+db.*
+*_backup.json
+
+# Uploaded files (invoices, bank transfers, vouchers) must never be in Git
+media/
+
+# Generated / dependencies
+staticfiles/
+node_modules/
+__pycache__/
+*.pyc
+venv/
+.venv/
+.DS_Store
