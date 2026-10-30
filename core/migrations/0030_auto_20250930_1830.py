@@ -8,10 +8,10 @@ class Migration(migrations.Migration):
     It is intentionally a no-op now; it stays in the chain so later migrations keep working.
     """
 
+    dependencies = [
+        ('core', '0029_auto_...'), # تأكد من أن الاعتماد على الميجريشن السابق صحيح
+    ]
+
     operations = [
-        migrations.AddField(
-            model_name='transferbooking',
-            name='booking_code',
-            field=models.CharField(max_length=50, unique=True, blank=True, null=True),
-        ),
+        # تم مسح الـ AddField الخاطئ لأنه موجود مسبقاً في 0029
     ]
