@@ -263,6 +263,18 @@ class PaymentForm(forms.ModelForm):
         if due and hotel_checkin and due > hotel_checkin:
             self.add_error("installment_date", "آخر ميعاد للسداد يجب أن يكون قبل تاريخ دخول الفندق.")
 
+        refund_until = getattr(self.booking, "refundable_until", None)
+        policy = getattr(self.booking, "cancellation_policy", None)
+        if (
+            due and refund_until
+            and policy in ("refundable", "refundable_with_penalty")
+            and due > refund_until
+        ):
+            self.add_error(
+                "installment_date",
+                f"آخر ميعاد للسداد يجب ألا يتجاوز آخر يوم استرداد ({refund_until:%Y-%m-%d}).",
+            )
+
         method = cleaned.get("method")
         if method == "link" and not cleaned.get("payment_link"):
             self.add_error("payment_link", "أدخل رابط السداد عند اختيار طريقة (رابط دفع).")
@@ -786,6 +798,18 @@ class PaymentForm(forms.ModelForm):
             self.add_error(
                 "installment_date",
                 "آخر ميعاد للسداد يجب أن يكون قبل تاريخ دخول الفندق.",
+            )
+
+        refund_until = getattr(self.booking, "refundable_until", None)
+        policy = getattr(self.booking, "cancellation_policy", None)
+        if (
+            due and refund_until
+            and policy in ("refundable", "refundable_with_penalty")
+            and due > refund_until
+        ):
+            self.add_error(
+                "installment_date",
+                f"آخر ميعاد للسداد يجب ألا يتجاوز آخر يوم استرداد ({refund_until:%Y-%m-%d}).",
             )
 
         method = cleaned.get("method")
