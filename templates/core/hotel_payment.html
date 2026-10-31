@@ -236,6 +236,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // Payment deadline: never after the last refund date (refundable) or after check-in
+  const dueInput = document.querySelector("input[name='installment_date']");
+  {% if booking.refundable_until and booking.cancellation_policy != "non_refundable" %}
+  if (dueInput) dueInput.max = "{{ booking.refundable_until|date:'Y-m-d' }}";
+  {% elif booking.checkin %}
+  if (dueInput) dueInput.max = "{{ booking.checkin|date:'Y-m-d' }}";
+  {% endif %}
+
   paymentMethodSel?.addEventListener("change", toggleFields);
   paidAmountInput?.addEventListener("input", toggleFields);
   sellPriceInput?.addEventListener("input", toggleFields);

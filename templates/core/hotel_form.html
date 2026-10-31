@@ -287,6 +287,24 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   });
 
+  // Lock the date pickers: checkout after check-in, refund deadline before check-in
+  function addDays(v, n) {
+    const [y, m, d] = v.split("-").map(Number);
+    const x = new Date(y, m - 1, d + n);
+    return x.getFullYear() + "-" + String(x.getMonth() + 1).padStart(2, "0") + "-" + String(x.getDate()).padStart(2, "0");
+  }
+  function syncDateLimits() {
+    if (checkinEl.value) {
+      checkoutEl.min = addDays(checkinEl.value, 1);
+      if (refundableEl) refundableEl.max = addDays(checkinEl.value, -1);
+    } else {
+      checkoutEl.removeAttribute("min");
+      if (refundableEl) refundableEl.removeAttribute("max");
+    }
+  }
+  checkinEl.addEventListener("change", syncDateLimits);
+  syncDateLimits();
+
   togglePolicyFields();
   fixIndices();
 });
