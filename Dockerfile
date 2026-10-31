@@ -15,4 +15,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 RUN DJANGO_SECRET_KEY=build-only python manage.py collectstatic --noinput
 
-CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn unibooking.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 2 --timeout 120"]
+CMD ["sh", "-c", "python manage.py migrate --noinput && (python manage.py shell < ensure_admin.py || true) && gunicorn unibooking.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 2 --timeout 120"]
