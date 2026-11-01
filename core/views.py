@@ -2830,6 +2830,11 @@ from django.contrib.auth import get_user_model
 from .models import Team, TeamMembership
 
 
+def _profile_role(u):
+    prof = getattr(u, "profile", None)
+    return prof.role if prof and prof.role else "agent"
+
+
 @login_required
 def teams_manage(request):
     if not is_manager(request.user):
@@ -2852,14 +2857,29 @@ def teams_manage(request):
                 messages.success(request, f"تم إنشاء فريق {name}.")
         elif action == "update_team":
             team = get_object_or_404(Team, pk=request.POST.get("team_id"))
-            team.leader_id = request.POST.get("leader") or None
-            team.supervisor_id = request.POST.get("supervisor") or None
-            team.is_active = request.POST.get("is_active") == "1"
-            new_name = (request.POST.get("name") or "").strip()
-            if new_name and not Team.objects.filter(name__iexact=new_name).exclude(pk=team.pk).exists():
-                team.name = new_name
-            team.save()
-            messages.success(request, f"تم تحديث {team.name}.")
+            leader_id = request.POST.get("leader") or None
+            sup_id = request.POST.get("supervisor") or None
+            ok = True
+            # Only people whose role matches can be picked (an already assigned person is kept as is)
+            if leader_id and str(leader_id) != str(team.leader_id):
+                lu = User.objects.filter(pk=leader_id).select_related("profile").first()
+                if not lu or _profile_role(lu) != "leader":
+                    messages.error(request, "الليدر لازم يكون دوره ليدر. غيّر دوره من إدارة الموظفين الأول.")
+                    ok = False
+            if sup_id and str(sup_id) != str(team.supervisor_id):
+                su = User.objects.filter(pk=sup_id).select_related("profile").first()
+                if not su or _profile_role(su) != "supervisor":
+                    messages.error(request, "السوبرفايزر لازم يكون دوره سوبرفايزر. غيّر دوره من إدارة الموظفين الأول.")
+                    ok = False
+            if ok:
+                team.leader_id = leader_id
+                team.supervisor_id = sup_id
+                team.is_active = request.POST.get("is_active") == "1"
+                new_name = (request.POST.get("name") or "").strip()
+                if new_name and not Team.objects.filter(name__iexact=new_name).exclude(pk=team.pk).exists():
+                    team.name = new_name
+                team.save()
+                messages.success(request, f"تم تحديث {team.name}.")
         elif action == "move_member":
             user = get_object_or_404(User, pk=request.POST.get("user_id"))
             target = request.POST.get("team_id") or ""
@@ -2877,17 +2897,39 @@ def teams_manage(request):
                 messages.success(request, f"تم إخراج {user.get_full_name() or user.username} من أي فريق.")
         return redirect("teams_manage")
 
-    users = list(User.objects.filter(is_active=True, is_superuser=False).order_by("first_name", "username"))
+    users = list(
+        User.objects.filter(is_active=True, is_superuser=False)
+        .select_related("profile").order_by("first_name", "username")
+    )
     team_by_user = {m.user_id: m.team for m in current_memberships().select_related("team")}
     teams = list(Team.objects.all().select_related("leader", "supervisor"))
+    by_role = {}
+    for u in users:
+        by_role.setdefault(_profile_role(u), []).append(u)
+    leaders_all = by_role.get("leader", [])
+    supervisors_all = by_role.get("supervisor", [])
     members_by_team = {}
     for u in users:
         t = team_by_user.get(u.id)
         if t:
             members_by_team.setdefault(t.id, []).append(u)
-    rows = [{"team": t, "members": members_by_team.get(t.id, [])} for t in teams]
-    unassigned = [u for u in users if u.id not in team_by_user]
+
+    def with_current(options, current_id):
+        # keep the currently assigned person visible even if their role was changed later
+        if current_id and all(o.id != current_id for o in options):
+            cur = next((u for u in users if u.id == current_id), None)
+            if cur:
+                return options + [cur]
+        return options
+
+    rows = [{
+        "team": t,
+        "members": members_by_team.get(t.id, []),
+        "leader_options": with_current(leaders_all, t.leader_id),
+        "supervisor_options": with_current(supervisors_all, t.supervisor_id),
+    } for t in teams]
+    unassigned = [u for u in by_role.get("agent", []) if u.id not in team_by_user]
     return render(request, "core/teams.html", {
-        "rows": rows, "users": users, "teams": teams, "unassigned": unassigned,
-        "team_of": team_by_user,
+        "rows": rows, "teams": teams, "unassigned": unassigned,
+        "no_leaders": not leaders_all, "no_supervisors": not supervisors_all,
     })
