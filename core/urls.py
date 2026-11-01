@@ -22,6 +22,7 @@ urlpatterns = [
     # Hotel
     path("cards/<int:card_pk>/hotel/create/", views.hotel_create, name="hotel_create"),
     path("hotel/<int:booking_pk>/payment/", views.hotel_payment, name="hotel_payment"),
+    path("v/hotel/<str:token>/", views.hotel_voucher_public, name="hotel_voucher_public"),  # public, QR target
     path("hotel/<int:booking_pk>/voucher/", views.hotel_voucher, name="hotel_voucher"),
     path("hotel/<int:booking_pk>/voucher/pdf/", views.hotel_voucher_pdf, name="hotel_voucher_pdf"),
 

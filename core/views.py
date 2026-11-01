@@ -371,12 +371,47 @@ def hotel_create(request, card_pk):
         'card': card, 'form': form, 'room_formset': room_formset
     })
 
+# ---------- Public voucher link (what the QR code points to) ----------
+# The link carries a signed token, so it cannot be guessed or edited to open another booking.
+from django.core import signing
+from django.http import Http404
+
+VOUCHER_PUBLIC_SALT = "hotel-voucher-public-v1"
+
+
+def make_voucher_token(booking_pk: int) -> str:
+    return signing.dumps({"h": int(booking_pk)}, salt=VOUCHER_PUBLIC_SALT, compress=True)
+
+
+def hotel_voucher_public_url(request, booking) -> str:
+    return request.build_absolute_uri(
+        reverse("hotel_voucher_public", args=[make_voucher_token(booking.pk)])
+    )
+
+
+def hotel_voucher_public(request, token):
+    """Read-only voucher page for the customer. No login."""
+    try:
+        data = signing.loads(token, salt=VOUCHER_PUBLIC_SALT)
+        booking = get_object_or_404(HotelBooking, pk=int(data["h"]))
+    except (signing.BadSignature, KeyError, ValueError, TypeError):
+        raise Http404("Voucher not found")
+    resp = render(request, 'core/voucher.html', {
+        'booking': booking,
+        'today': timezone.localdate(),
+        'nights': booking.nights,
+        'qr_data_url': _build_qr_data_url(hotel_voucher_public_url(request, booking)),
+        'rooms': booking.rooms.all(),
+    })
+    resp["X-Robots-Tag"] = "noindex, nofollow"
+    resp["Cache-Control"] = "private, no-store"
+    return resp
+
+
 @login_required
 def hotel_voucher(request, booking_pk):
     booking = get_object_or_404(HotelBooking, pk=booking_pk)
-    qr_data_url = _build_qr_data_url(
-        request.build_absolute_uri(reverse('hotel_voucher', args=[booking.pk]))
-    )
+    qr_data_url = _build_qr_data_url(hotel_voucher_public_url(request, booking))
     rooms = booking.rooms.all()
     return render(request, 'core/voucher.html', {
         'booking': booking,
@@ -389,9 +424,7 @@ def hotel_voucher(request, booking_pk):
 @login_required
 def hotel_voucher_pdf(request, booking_pk):
     booking = get_object_or_404(HotelBooking, pk=booking_pk)
-    qr_data_url = _build_qr_data_url(
-        request.build_absolute_uri(reverse('hotel_voucher', args=[booking.pk]))
-    )
+    qr_data_url = _build_qr_data_url(hotel_voucher_public_url(request, booking))
     rooms = booking.rooms.all()
     context = {
         'booking': booking,
