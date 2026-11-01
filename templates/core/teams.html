@@ -1,0 +1,89 @@
+{% extends "core/base.html" %}
+{% block title %}الفرق{% endblock %}
+
+{% block content %}
+<h1 class="text-xl font-bold mb-4">إدارة الفرق</h1>
+<p class="text-sm text-gray-600 dark:text-gray-300 mb-4">
+  الهيكل: أجنت ← ليدر الفريق ← سوبرفايزر (ممكن يشرف على أكتر من فريق) ← سيلز مانجر.
+  نقل أي أجنت أو تغيير الليدر مش بيغير مبيعات الكروت القديمة، كل كارت بيفضل مع الفريق اللي اتعمل فيه.
+</p>
+
+<form method="post" class="flex gap-3 items-center mb-6">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="create_team">
+  <input type="text" name="name" placeholder="اسم فريق جديد" class="border rounded px-3 py-2" required>
+  <button class="px-4 py-2 rounded bg-blue-600 text-white">إضافة فريق</button>
+</form>
+
+<div class="grid md:grid-cols-2 gap-3 mb-8">
+  {% for row in rows %}
+    <div class="p-4 rounded bg-white dark:bg-gray-900 shadow">
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="update_team">
+        <input type="hidden" name="team_id" value="{{ row.team.id }}">
+        <input type="text" name="name" value="{{ row.team.name }}" class="border rounded px-3 py-2 font-medium mb-2" style="width:100%">
+
+        <label class="text-sm text-gray-600 dark:text-gray-300">الليدر</label>
+        <select name="leader" class="border rounded px-3 py-2 mb-2" style="width:100%">
+          <option value="">— بدون —</option>
+          {% for u in users %}
+            <option value="{{ u.id }}" {% if row.team.leader_id == u.id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+          {% endfor %}
+        </select>
+
+        <label class="text-sm text-gray-600 dark:text-gray-300">السوبرفايزر</label>
+        <select name="supervisor" class="border rounded px-3 py-2 mb-2" style="width:100%">
+          <option value="">— بدون —</option>
+          {% for u in users %}
+            <option value="{{ u.id }}" {% if row.team.supervisor_id == u.id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+          {% endfor %}
+        </select>
+
+        <label class="text-sm">
+          <input type="checkbox" name="is_active" value="1" {% if row.team.is_active %}checked{% endif %}> الفريق شغال
+        </label>
+        <div class="mt-2"><button class="px-4 py-2 rounded bg-blue-600 text-white">حفظ</button></div>
+      </form>
+
+      <div class="text-sm mt-3 font-medium">الأجنتس ({{ row.members|length }})</div>
+      {% for m in row.members %}
+        <form method="post" class="flex gap-2 items-center mt-1">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="move_member">
+          <input type="hidden" name="user_id" value="{{ m.id }}">
+          <span class="text-sm" style="flex:1">{{ m.get_full_name|default:m.username }}</span>
+          <select name="team_id" class="border rounded px-2 py-1 text-sm" onchange="this.form.submit()">
+            {% for t in teams %}
+              <option value="{{ t.id }}" {% if t.id == row.team.id %}selected{% endif %}>{{ t.name }}</option>
+            {% endfor %}
+            <option value="">إخراج من الفريق</option>
+          </select>
+        </form>
+      {% empty %}
+        <div class="text-sm text-gray-500">لا يوجد أجنتس في الفريق.</div>
+      {% endfor %}
+    </div>
+  {% empty %}
+    <div class="text-gray-500">لسه مفيش فرق. أضف أول فريق من فوق.</div>
+  {% endfor %}
+</div>
+
+<h2 class="text-lg font-bold mb-2">موظفين بدون فريق ({{ unassigned|length }})</h2>
+<div class="p-4 rounded bg-white dark:bg-gray-900 shadow">
+  {% for u in unassigned %}
+    <form method="post" class="flex gap-2 items-center mb-1">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="move_member">
+      <input type="hidden" name="user_id" value="{{ u.id }}">
+      <span class="text-sm" style="flex:1">{{ u.get_full_name|default:u.username }}</span>
+      <select name="team_id" class="border rounded px-2 py-1 text-sm">
+        {% for t in teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+      </select>
+      <button class="px-3 py-1 rounded bg-blue-600 text-white text-sm">إضافة للفريق</button>
+    </form>
+  {% empty %}
+    <div class="text-sm text-gray-500">كل الموظفين داخل فرق.</div>
+  {% endfor %}
+</div>
+{% endblock %}

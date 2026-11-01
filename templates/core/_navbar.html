@@ -42,6 +42,14 @@
           {% endif %}
         {% endif %}
 
+        {% if user.is_superuser or user.profile.role == 'sales_manager' %}
+          {% url 'teams_manage' as teams_url %}
+          <a href="{{ teams_url }}"
+             class="px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 whitespace-nowrap">
+            الفرق
+          </a>
+        {% endif %}
+
         {# لوحة الإيجنت: للجميع #}
         {% url 'agent_board' as agent_board_url %}
         {% if agent_board_url %}
