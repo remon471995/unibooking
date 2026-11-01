@@ -11,6 +11,7 @@ from django.contrib.auth.decorators import permission_required
 from django.contrib.contenttypes.models import ContentType
 
 from .forms import BookingAmendmentForm
+from .permissions import can_edit_card, is_manager, team_of, current_memberships, role_of
 from .models import BookingAmendment
 from django.contrib.contenttypes.models import ContentType
 from decimal import Decimal
@@ -236,6 +237,7 @@ def card_create(request):
         if form.is_valid():
             card = form.save(commit=False)
             card.created_by = request.user
+            card.team = team_of(request.user)
             card.save()
             messages.success(request, "تم إنشاء كارت العميل.")
             return redirect('card_detail', pk=card.pk)
@@ -335,7 +337,7 @@ def cards_bulk_delete(request):
 @login_required
 def hotel_create(request, card_pk):
     card = get_object_or_404(UniBookingCard, pk=card_pk)
-    if not request.user.is_superuser and card.created_by != request.user:
+    if not can_edit_card(request.user, card):
         messages.error(request, "غير مسموح.")
         return redirect('dashboard')
 
@@ -542,7 +544,7 @@ def hotel_payment(request, booking_pk):
 @login_required
 def flight_create(request, card_pk):
     card = get_object_or_404(UniBookingCard, pk=card_pk)
-    if not request.user.is_superuser and card.created_by != request.user:
+    if not can_edit_card(request.user, card):
         messages.error(request, "غير مسموح بإنشاء حجز طيران في كارت ليس ملكك.")
         return redirect('dashboard')
 
@@ -589,7 +591,7 @@ def other_create(request, card_pk):
     card = get_object_or_404(UniBookingCard, pk=card_pk)
 
     # نطبق نفس قاعدة السماح هنا (مثل flight_create)
-    if not request.user.is_superuser and card.created_by != request.user:
+    if not can_edit_card(request.user, card):
         messages.error(request, "غير مسموح بإضافة خدمة/حجز على كارت ليس ملكك.")
         return redirect('dashboard')
 
@@ -2819,4 +2821,73 @@ def other_payment_modify(request, booking_pk):
         "current_net": current_net,
         "current_sell": current_sell,
         "current_paid": current_paid,
+    })
+
+
+# ===================== Teams management =====================
+from datetime import timedelta
+from django.contrib.auth import get_user_model
+from .models import Team, TeamMembership
+
+
+@login_required
+def teams_manage(request):
+    if not is_manager(request.user):
+        messages.error(request, "إدارة الفرق متاحة للسيلز مانجر والأدمن فقط.")
+        return redirect("dashboard")
+
+    User = get_user_model()
+    today = timezone.localdate()
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "create_team":
+            name = (request.POST.get("name") or "").strip()
+            if not name:
+                messages.error(request, "اكتب اسم الفريق.")
+            elif Team.objects.filter(name__iexact=name).exists():
+                messages.error(request, "في فريق بنفس الاسم.")
+            else:
+                Team.objects.create(name=name)
+                messages.success(request, f"تم إنشاء فريق {name}.")
+        elif action == "update_team":
+            team = get_object_or_404(Team, pk=request.POST.get("team_id"))
+            team.leader_id = request.POST.get("leader") or None
+            team.supervisor_id = request.POST.get("supervisor") or None
+            team.is_active = request.POST.get("is_active") == "1"
+            new_name = (request.POST.get("name") or "").strip()
+            if new_name and not Team.objects.filter(name__iexact=new_name).exclude(pk=team.pk).exists():
+                team.name = new_name
+            team.save()
+            messages.success(request, f"تم تحديث {team.name}.")
+        elif action == "move_member":
+            user = get_object_or_404(User, pk=request.POST.get("user_id"))
+            target = request.POST.get("team_id") or ""
+            for m in current_memberships().filter(user=user):
+                if m.start_date >= today:
+                    m.delete()
+                else:
+                    m.end_date = today - timedelta(days=1)
+                    m.save(update_fields=["end_date"])
+            if target:
+                team = get_object_or_404(Team, pk=target)
+                TeamMembership.objects.create(team=team, user=user, start_date=today)
+                messages.success(request, f"تم نقل {user.get_full_name() or user.username} إلى {team.name}.")
+            else:
+                messages.success(request, f"تم إخراج {user.get_full_name() or user.username} من أي فريق.")
+        return redirect("teams_manage")
+
+    users = list(User.objects.filter(is_active=True, is_superuser=False).order_by("first_name", "username"))
+    team_by_user = {m.user_id: m.team for m in current_memberships().select_related("team")}
+    teams = list(Team.objects.all().select_related("leader", "supervisor"))
+    members_by_team = {}
+    for u in users:
+        t = team_by_user.get(u.id)
+        if t:
+            members_by_team.setdefault(t.id, []).append(u)
+    rows = [{"team": t, "members": members_by_team.get(t.id, [])} for t in teams]
+    unassigned = [u for u in users if u.id not in team_by_user]
+    return render(request, "core/teams.html", {
+        "rows": rows, "users": users, "teams": teams, "unassigned": unassigned,
+        "team_of": team_by_user,
     })
