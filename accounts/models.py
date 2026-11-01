@@ -23,6 +23,8 @@ class UserProfile(models.Model):
     ROLE_CHOICES = [
         ("admin", "مدير"),
         ("leader", "Team Leader"),
+        ("supervisor", "Supervisor"),
+        ("sales_manager", "Sales Manager"),
         ("agent", "موظف مبيعات"),
         ("other", "أخرى"),
     ]
