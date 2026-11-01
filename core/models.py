@@ -58,6 +58,10 @@ class UniBookingCard(models.Model):
         db_index=True,
     )
     created_at    = models.DateTimeField(auto_now_add=True, db_index=True)
+    # The team of the owner at the moment the card was created (so old sales stay with the old team)
+    team          = models.ForeignKey(
+        "Team", null=True, blank=True, on_delete=models.SET_NULL, related_name="cards",
+    )
 
     class Meta:
         ordering = ("-created_at",)
@@ -934,3 +938,39 @@ class BookingAmendment(models.Model):
         return f"{self.get_amendment_type_display()} — {self.get_status_display()} ({self.pk})"
         
 
+
+# ==============================
+# Teams (Agent -> Team leader -> Supervisor -> Sales manager)
+# ==============================
+class Team(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    leader = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="led_teams",
+    )
+    supervisor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="supervised_teams",
+    )
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class TeamMembership(models.Model):
+    """Which agent belongs to which team, with dates, so moving an agent never rewrites history."""
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="memberships")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="team_memberships")
+    start_date = models.DateField(default=timezone.localdate)
+    end_date = models.DateField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-start_date", "-id"]
+        indexes = [models.Index(fields=["user", "end_date"]), models.Index(fields=["team", "end_date"])]
+
+    def __str__(self):
+        return f"{self.user} -> {self.team} ({self.start_date})"
