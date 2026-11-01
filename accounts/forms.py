@@ -10,6 +10,8 @@ User = get_user_model()
 ROLE_CHOICES = [
     ("agent", "موظف مبيعات"),
     ("leader", "ليدر"),
+    ("supervisor", "سوبرفايزر"),
+    ("sales_manager", "سيلز مانجر"),
     ("admin", "سوبر/مدير"),
 ]
 
