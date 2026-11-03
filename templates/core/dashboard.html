@@ -82,6 +82,8 @@
           <div class="text-right">{{ c.mobile|default:"-" }}</div>
           <div class="muted">الجنسية:</div>
           <div class="text-right">{{ c.nationality|default:"-" }}</div>
+          <div class="muted">الموظف:</div>
+          <div class="text-right">{{ c.created_by.get_full_name|default:c.created_by.username }}{% if c.team %} · {{ c.team.name }}{% endif %}</div>
         </div>
 
         {% if c.country %}

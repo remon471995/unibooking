@@ -51,6 +51,7 @@
     <div><span class="text-gray-500">Nationality:</span><br>{{ card.nationality|default:"—" }}</div>
     <div><span class="text-gray-500">Mobile:</span><br>{{ card.mobile }}</div>
     <div><span class="text-gray-500">Created by:</span><br>{{ card.created_by.get_full_name|default:card.created_by.username }}</div>
+    <div><span class="text-gray-500">Team:</span><br>{{ card.team.name|default:"—" }}</div>
   </div>
 </div>
 

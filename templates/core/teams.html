@@ -42,6 +42,14 @@
         </select>
         {% if no_supervisors %}<div class="text-xs text-gray-500 mb-2">مفيش مستخدم دوره "سوبرفايزر". غيّر دور المستخدم من إدارة الموظفين.</div>{% endif %}
 
+        <label class="text-sm text-gray-600 dark:text-gray-300">تارجت الشهر الحالي (ربح)</label>
+        <input type="number" step="0.01" min="0" name="target_amount"
+               value="{% if row.progress and row.progress.target %}{{ row.progress.target }}{% endif %}"
+               class="border rounded px-3 py-2 mb-1" style="width:100%" placeholder="مثلاً 5000">
+        {% if row.progress %}
+          <div class="text-xs mb-2">المحقق: {{ row.progress.achieved|floatformat:2 }}{% if row.progress.pct is not None %} ({{ row.progress.pct }}%){% endif %}</div>
+        {% endif %}
+
         <label class="text-sm">
           <input type="checkbox" name="is_active" value="1" {% if row.team.is_active %}checked{% endif %}> الفريق شغال
         </label>

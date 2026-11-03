@@ -92,6 +92,46 @@
       </div>
     </div>
 
+    {% if team_rows %}
+    <!-- أداء الفرق -->
+    <div class="card overflow-x-auto">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-semibold">أداء الفرق</h3>
+        <div class="text-xs text-gray-500">التارجت والمحقق عن الشهر الحالي (على الربح)</div>
+      </div>
+      <table class="min-w-full text-sm">
+        <thead class="table-head">
+          <tr>
+            <th class="p-2 text-right">الفريق</th>
+            <th class="p-2 text-right">الليدر</th>
+            <th class="p-2 text-right">السوبرفايزر</th>
+            <th class="p-2 text-right">عمليات</th>
+            <th class="p-2 text-right">مبيعات</th>
+            <th class="p-2 text-right">ربح</th>
+            <th class="p-2 text-right">تارجت الشهر</th>
+            <th class="p-2 text-right">المحقق</th>
+            <th class="p-2 text-right">%</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in team_rows %}
+          <tr class="border-t">
+            <td class="p-2 text-right font-medium">{{ r.name }}</td>
+            <td class="p-2 text-right">{{ r.leader }}</td>
+            <td class="p-2 text-right">{{ r.supervisor }}</td>
+            <td class="p-2 text-right">{{ r.count }}</td>
+            <td class="p-2 text-right">{{ r.sell|floatformat:2|intcomma }}</td>
+            <td class="p-2 text-right text-green-700">{{ r.profit|floatformat:2|intcomma }}</td>
+            <td class="p-2 text-right">{% if r.target %}{{ r.target|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+            <td class="p-2 text-right">{% if r.achieved is not None %}{{ r.achieved|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+            <td class="p-2 text-right">{% if r.pct is not None %}{{ r.pct }}%{% else %}—{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
     <!-- رسم بياني -->
     <div class="card">
       <h3 class="font-semibold mb-2">Top الموظفين — حسب {{ sort }}</h3>
