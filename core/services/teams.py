@@ -62,3 +62,25 @@ def month_progress(day):
         pct = int(achieved * 100 / target) if target else None
         res[team_id] = {"target": target, "achieved": achieved, "pct": pct}
     return res
+
+
+def month_matrix(day):
+    """{(team_id|None, user_id): {"sell","net","count"}} for the month of `day` (cards' team + owner)."""
+    first, last = month_bounds(day)
+    out = defaultdict(lambda: {"sell": D0, "net": D0, "count": 0})
+    for model, sell_f, net_f in _SOURCES:
+        qs = model.objects.filter(booking_date__gte=first, booking_date__lte=last)
+        for r in qs.values("card__team_id", "card__created_by_id").annotate(s=_SUM(sell_f), n=_SUM(net_f), c=Count("id")):
+            d = out[(r["card__team_id"], r["card__created_by_id"])]
+            d["sell"] += r["s"]
+            d["net"] += r["n"]
+            d["count"] += r["c"]
+    return out
+
+
+def profit_of(d):
+    return (d["sell"] - d["net"]) if d else D0
+
+
+def pct(achieved, target):
+    return int(achieved * 100 / target) if target else None
