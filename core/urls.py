@@ -73,6 +73,7 @@ urlpatterns = [
     path("search/", views.global_search, name="global_search"),
     path("employees/", views.employees_list, name="employees_list"),
     path("teams/", views.teams_manage, name="teams_manage"),
+    path("targets/", views.targets_page, name="targets_page"),
 
     # Accounts
     path(

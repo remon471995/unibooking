@@ -12,7 +12,7 @@ from django.contrib.contenttypes.models import ContentType
 
 from .forms import BookingAmendmentForm
 from .permissions import can_edit_card, is_manager, team_of, current_memberships, role_of, manageable_user_ids
-from core.services.teams import team_totals, month_progress, current_cycle
+from core.services.teams import team_totals, month_progress, current_cycle, month_matrix, month_bounds, profit_of, pct as _pct
 from .models import BookingAmendment
 from django.contrib.contenttypes.models import ContentType
 from decimal import Decimal
@@ -2979,4 +2979,148 @@ def teams_manage(request):
     return render(request, "core/teams.html", {
         "rows": rows, "teams": teams, "unassigned": unassigned,
         "no_leaders": not leaders_all, "no_supervisors": not supervisors_all,
+    })
+
+
+# ===================== Targets page (agent / leader / supervisor / manager) =====================
+@login_required
+def targets_page(request):
+    from datetime import date as _date
+    from decimal import Decimal as _D
+    from .models import Team, TeamTarget
+
+    User = get_user_model()
+    today = timezone.localdate()
+    try:
+        y, mo = (request.GET.get("month") or "").split("-")
+        day = _date(int(y), int(mo), 1)
+    except Exception:
+        day = today.replace(day=1)
+    is_current = (day.year, day.month) == (today.year, today.month)
+    first, last = month_bounds(day)
+    ids = manageable_user_ids(request.user)  # None = everyone
+
+    # ----- leaders / supervisors / managers set the agents' monthly targets -----
+    if request.method == "POST" and request.POST.get("action") == "set_agent_targets":
+        if not is_current:
+            messages.error(request, "التارجت بيتحدد للشهر الحالي بس.")
+        else:
+            cyc = current_cycle(day, create=True)
+            saved = 0
+            for key, val in request.POST.items():
+                if not key.startswith("t_") or not val.strip():
+                    continue
+                try:
+                    uid = int(key[2:])
+                    amount = _D(val.strip())
+                    if amount < 0:
+                        raise ValueError
+                except Exception:
+                    continue
+                if ids is not None and (uid not in ids or uid == request.user.id):
+                    continue
+                emp = User.objects.filter(pk=uid).first()
+                if not emp:
+                    continue
+                tm = team_of(emp)
+                StaffTarget.objects.update_or_create(
+                    cycle=cyc, employee=emp,
+                    defaults={"target_amount": amount, "set_by": request.user,
+                              "leader": tm.leader if tm else None},
+                )
+                saved += 1
+            messages.success(request, f"تم حفظ تارجت {saved} أجنت.")
+        return redirect(f"{request.path}?month={day:%Y-%m}")
+
+    cycle = current_cycle(day)
+    matrix = month_matrix(day)
+    team_targets = {t.team_id: t.target_amount for t in TeamTarget.objects.filter(cycle=cycle)} if cycle else {}
+    staff_targets = {s.employee_id: s.target_amount for s in StaffTarget.objects.filter(cycle=cycle)} if cycle else {}
+
+    users = {u.id: u for u in User.objects.all()}
+    def name(uid):
+        u = users.get(uid)
+        return (u.get_full_name() or u.username) if u else "—"
+
+    def agent_total(uid):
+        return sum((profit_of(d) for (t, u), d in matrix.items() if u == uid), D0)
+
+    def team_block(team):
+        member_ids = [m.user_id for m in current_memberships([team.id])]
+        seen = set(member_ids) | {u for (t, u) in matrix if t == team.id}
+        achieved = sum((profit_of(d) for (t, u), d in matrix.items() if t == team.id), D0)
+        target = team_targets.get(team.id)
+        agents = []
+        for uid in sorted(seen, key=name):
+            ach = profit_of(matrix.get((team.id, uid)))
+            tgt = staff_targets.get(uid)
+            agents.append({
+                "id": uid, "name": name(uid), "username": users[uid].username if uid in users else "",
+                "target": tgt, "achieved": ach,
+                "remaining": (tgt - ach) if tgt else None,
+                "pct_own": _pct(ach, tgt),
+                "share": _pct(ach, target),       # contribution to the team target
+                "count": matrix.get((team.id, uid), {}).get("count", 0),
+            })
+        agents.sort(key=lambda a: a["achieved"], reverse=True)
+        return {
+            "team": team,
+            "leader": name(team.leader_id) if team.leader_id else "—",
+            "supervisor": name(team.supervisor_id) if team.supervisor_id else "—",
+            "target": target, "achieved": achieved,
+            "remaining": (target - achieved) if target else None,
+            "pct": _pct(achieved, target),
+            "agents": agents,
+            "agents_target_sum": sum((a["target"] or D0 for a in agents), D0),
+            "can_set": is_current and (ids is None or team.leader_id == request.user.id or team.supervisor_id == request.user.id),
+        }
+
+    def summary(blocks):
+        tgt = sum((b["target"] or D0 for b in blocks), D0)
+        ach = sum((b["achieved"] for b in blocks), D0)
+        return {"target": tgt or None, "achieved": ach, "remaining": (tgt - ach) if tgt else None, "pct": _pct(ach, tgt), "teams": len(blocks)}
+
+    # ----- personal card (everyone who is not a pure manager) -----
+    role = role_of(request.user)
+    me = None
+    my_target = staff_targets.get(request.user.id)
+    my_ach = agent_total(request.user.id)
+    is_plain_agent = ids is not None and len(ids) <= 1     # nobody below him in the hierarchy
+    if is_plain_agent or my_target or my_ach:
+        days_left = max((last - today).days + 1, 0) if is_current else 0
+        remaining = (my_target - my_ach) if my_target else None
+        me = {
+            "target": my_target, "achieved": my_ach, "remaining": remaining, "pct": _pct(my_ach, my_target),
+            "days_left": days_left,
+            "per_day": (remaining / days_left) if (remaining and remaining > 0 and days_left) else None,
+        }
+
+    # ----- sections by structure -----
+    sections = []
+    active = Team.objects.filter(is_active=True).select_related("leader", "supervisor")
+    if ids is None:                                    # manager / admin: grouped by supervisor
+        groups = {}
+        for t in active:
+            groups.setdefault(t.supervisor_id, []).append(t)
+        for sup_id, ts in sorted(groups.items(), key=lambda kv: name(kv[0]) if kv[0] else "~"):
+            blocks = [team_block(t) for t in ts]
+            sections.append({"title": ("سوبرفايزر: " + name(sup_id)) if sup_id else "فرق بدون سوبرفايزر",
+                             "summary": summary(blocks), "teams": blocks})
+    else:
+        sup_teams = [t for t in active if t.supervisor_id == request.user.id]
+        led_teams = [t for t in active if t.leader_id == request.user.id and t.supervisor_id != request.user.id]
+        if sup_teams:
+            blocks = [team_block(t) for t in sup_teams]
+            sections.append({"title": "الفرق اللي بتشرف عليها", "summary": summary(blocks), "teams": blocks})
+        if led_teams:
+            blocks = [team_block(t) for t in led_teams]
+            sections.append({"title": "فريقي", "summary": summary(blocks), "teams": blocks})
+
+    overall = summary([b for s in sections for b in s["teams"]]) if sections else None
+    prev_m = (first - timedelta(days=1)).replace(day=1)
+    next_m = (last + timedelta(days=1))
+    return render(request, "core/targets.html", {
+        "me": me, "sections": sections, "overall": overall,
+        "month": day, "is_current": is_current,
+        "prev_month": f"{prev_m:%Y-%m}", "next_month": f"{next_m:%Y-%m}" if next_m <= today else None,
     })
