@@ -11,7 +11,8 @@ from django.contrib.auth.decorators import permission_required
 from django.contrib.contenttypes.models import ContentType
 
 from .forms import BookingAmendmentForm
-from .permissions import can_edit_card, is_manager, team_of, current_memberships, role_of
+from .permissions import can_edit_card, is_manager, team_of, current_memberships, role_of, manageable_user_ids
+from core.services.teams import team_totals, month_progress, current_cycle
 from .models import BookingAmendment
 from django.contrib.contenttypes.models import ContentType
 from decimal import Decimal
@@ -111,7 +112,7 @@ def _render_pdf_from_template(template_name: str, context: dict, request) -> byt
     return HTML(string=html_string, base_url=base_url).write_pdf()
 
 def _cards_base_qs(request):
-    return UniBookingCard.objects.all()
+    return UniBookingCard.objects.all().select_related("created_by", "team")
 
 def _latest_emp_subquery(model, fk_name):
     return Subquery(
@@ -1954,16 +1955,13 @@ def performance_dashboard(request):
     لوحة الأداء — ظاهرة فقط للسوبر والليدر والسوبرفايزر والمدير.
     الموظف العادي (agent) لا يراها ولا يستطيع دخولها.
     """
-    # فحص الصلاحيات
-    if not request.user.is_superuser:
-        profile = getattr(request.user, "employee_profile", None)
-        role = getattr(profile, "role", "").lower() if profile else ""
-        allowed_roles = ["leader", "supervisor", "manager"]
-        if role not in allowed_roles:
-            # لو عايز تمنع الدخول برسالة:
-            return HttpResponseForbidden("🚫 غير مصرح لك بالدخول إلى لوحة الأداء.")
-            # أو لو تفضل إعادة توجيه للداشبورد بدل الخطأ:
-            # return redirect("dashboard")
+    # Access: admin / sales manager, anyone who leads or supervises a team, or the old leader roles
+    scope_ids = manageable_user_ids(request.user)   # None = everyone
+    legacy_profile = getattr(request.user, "employee_profile", None)
+    legacy_role = getattr(legacy_profile, "role", "").lower() if legacy_profile else ""
+    has_people = scope_ids is None or len(scope_ids) > 1
+    if not (request.user.is_superuser or has_people or legacy_role in ("leader", "supervisor", "manager")):
+        return HttpResponseForbidden("🚫 غير مصرح لك بالدخول إلى لوحة الأداء.")
 
     # فلاتر
     q_from = (request.GET.get("from") or "").strip()
@@ -1987,6 +1985,12 @@ def performance_dashboard(request):
         h = h.filter(booking_date__lte=date_to)
         f = f.filter(booking_date__lte=date_to)
         o = o.filter(booking_date__lte=date_to)
+
+    # Scope: a leader sees his team, a supervisor his teams, a manager everything
+    if scope_ids is not None:
+        h = h.filter(card__created_by_id__in=scope_ids)
+        f = f.filter(card__created_by_id__in=scope_ids)
+        o = o.filter(card__created_by_id__in=scope_ids)
 
     # تجميع حسب الموظف
     rows_map = defaultdict(lambda: {"sell": D0, "net": D0, "count": 0, "paid": D0})
@@ -2013,6 +2017,11 @@ def performance_dashboard(request):
         ph = ph.filter(installment_date__lte=date_to)
         pf = pf.filter(installment_date__lte=date_to)
         po = po.filter(installment_date__lte=date_to)
+
+    if scope_ids is not None:
+        ph = ph.filter(booking_hotel__card__created_by_id__in=scope_ids)
+        pf = pf.filter(booking_flight__card__created_by_id__in=scope_ids)
+        po = po.filter(booking_other__card__created_by_id__in=scope_ids)
 
     for r in ph.values("employee_name").annotate(p=_sumdec("paid_amount")):
         rows_map[(r["employee_name"] or "—").strip()]["paid"] += r["p"]
@@ -2062,10 +2071,28 @@ def performance_dashboard(request):
     else:
         values = [float(r["profit"]) for r in rows]
 
+    # Team table (period filter above) + this month's target and achievement
+    from .models import Team
+    totals = team_totals(date_from, date_to, scope_ids)
+    progress = month_progress(today)
+    team_map = {t.id: t for t in Team.objects.select_related("leader", "supervisor")}
+    team_rows = []
+    for tid, d in totals.items():
+        t = team_map.get(tid)
+        pr = progress.get(tid) or {}
+        team_rows.append({
+            "name": t.name if t else "بدون فريق",
+            "leader": (t.leader.get_full_name() or t.leader.username) if t and t.leader else "—",
+            "supervisor": (t.supervisor.get_full_name() or t.supervisor.username) if t and t.supervisor else "—",
+            "count": d["count"], "sell": d["sell"], "profit": d["sell"] - d["net"],
+            "target": pr.get("target"), "achieved": pr.get("achieved"), "pct": pr.get("pct"),
+        })
+    team_rows.sort(key=lambda r: r["profit"], reverse=True)
+
     return render(request, "core/performance.html", {
         "q_from": q_from, "q_to": q_to,
         "sort": sort, "dir": direction, "today": today,
-        "kpis": kpis, "rows": rows,
+        "kpis": kpis, "rows": rows, "team_rows": team_rows,
         "labels": labels, "values": values,
     })
 
@@ -2871,7 +2898,25 @@ def teams_manage(request):
                 if not su or _profile_role(su) != "supervisor":
                     messages.error(request, "السوبرفايزر لازم يكون دوره سوبرفايزر. غيّر دوره من إدارة الموظفين الأول.")
                     ok = False
+            raw_target = (request.POST.get("target_amount") or "").strip()
+            target_val = None
+            if raw_target != "":
+                try:
+                    from decimal import Decimal as _D
+                    target_val = _D(raw_target)
+                    if target_val < 0:
+                        raise ValueError
+                except Exception:
+                    messages.error(request, "التارجت لازم يكون رقم صحيح أو عشري موجب.")
+                    ok = False
             if ok:
+                if target_val is not None:
+                    from .models import TeamTarget
+                    cyc = current_cycle(today, create=True)
+                    TeamTarget.objects.update_or_create(
+                        cycle=cyc, team=team,
+                        defaults={"target_amount": target_val, "set_by": request.user},
+                    )
                 team.leader_id = leader_id
                 team.supervisor_id = sup_id
                 team.is_active = request.POST.get("is_active") == "1"
@@ -2922,8 +2967,10 @@ def teams_manage(request):
                 return options + [cur]
         return options
 
+    progress = month_progress(today)
     rows = [{
         "team": t,
+        "progress": progress.get(t.id),
         "members": members_by_team.get(t.id, []),
         "leader_options": with_current(leaders_all, t.leader_id),
         "supervisor_options": with_current(supervisors_all, t.supervisor_id),

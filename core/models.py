@@ -974,3 +974,26 @@ class TeamMembership(models.Model):
 
     def __str__(self):
         return f"{self.user} -> {self.team} ({self.start_date})"
+
+
+class TeamTarget(models.Model):
+    """Monthly PROFIT target of a team. It belongs to the team, so changing the leader never resets it."""
+    cycle = models.ForeignKey(TargetCycle, on_delete=models.CASCADE, related_name="team_targets")
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="targets")
+    target_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, default=Decimal("0"),
+        validators=[MinValueValidator(Decimal("0"))],
+    )
+    set_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="set_team_targets",
+    )
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("cycle", "team")
+
+    def __str__(self):
+        return f"{self.team} @ {self.cycle}"
