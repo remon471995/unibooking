@@ -79,6 +79,7 @@ urlpatterns = [
     path("review/action/", views_review.review_action, name="review_action"),
     path("review/fix/<str:kind>/<int:pk>/", views_review.booking_fix, name="booking_fix"),
     path("review/payment/<str:kind>/<int:pk>/fix/", views_review.payment_fix, name="payment_fix"),
+    path("review/resubmit/", views_review.resubmit, name="resubmit"),
     path("review/unlock/", views_review.unlock_request, name="unlock_request"),
     path("review/unlock/decide/", views_review.unlock_decide, name="unlock_decide"),
 

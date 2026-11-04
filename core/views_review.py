@@ -28,6 +28,7 @@ KINDS = {
     "other": dict(booking=OtherBooking, sell="sell_price", net="net_price", payment=OtherPayment, fk="booking_other", label="خدمة أخرى"),
 }
 PENDING, RETURNED, APPROVED = ReviewFields.REVIEW_PENDING, ReviewFields.REVIEW_RETURNED, ReviewFields.REVIEW_APPROVED
+REASON_LABELS = {"numbers": "الأرقام", "invoice": "الفاتورة", "voucher": "الفاوتشر", "proof": "إثبات الدفع"}
 METHOD_LABELS = {"cash": "كاش", "bank": "تحويل بنكي", "link": "رابط دفع"}
 
 
@@ -78,7 +79,7 @@ def _booking_item(kind, cfg, b):
         "sell": sell, "net": net, "profit": sell - net, "created": b.created_at, "status": b.review_status,
         "note": b.review_note,
         "payments": [{"method": METHOD_LABELS.get(p.method, p.method), "paid": p.paid_amount, "date": p.installment_date,
-                      "invoice": p.invoice_file, "bank": p.bank_file, "link": p.payment_link,
+                      "invoice": p.invoice_file, "voucher": p.voucher_original, "bank": p.bank_file, "link": p.payment_link,
                       "pending": p.review_status == PENDING} for p in pays],
     }
 
@@ -91,7 +92,7 @@ def _payment_item(kind, cfg, p):
         "customer": b.card.customer_name, "card_id": b.card_id,
         "agent": _name(b.card.created_by), "team": b.card.team.name if b.card.team else "—",
         "paid": p.paid_amount, "method": METHOD_LABELS.get(p.method, p.method), "date": p.installment_date,
-        "invoice": p.invoice_file, "bank": p.bank_file, "link": p.payment_link,
+        "invoice": p.invoice_file, "voucher": p.voucher_original, "bank": p.bank_file, "link": p.payment_link,
         "created": p.created_at, "status": p.review_status, "note": p.review_note,
     }
 
@@ -169,7 +170,7 @@ def review_action(request):
     desc = _desc(what, kind, obj, booking, cfg)
 
     if action == "approve":
-        needed = ("chk_sell", "chk_net", "chk_pay") if what == "b" else ("chk_amount", "chk_method")
+        needed = ("chk_sell", "chk_net", "chk_docs", "chk_pay") if what == "b" else ("chk_amount", "chk_method", "chk_docs")
         if not all(request.POST.get(k) for k in needed):
             messages.error(request, "علّم على كل بنود المطابقة قبل الاعتماد.")
             return redirect("review_queue")
@@ -184,13 +185,22 @@ def review_action(request):
         _notify(card.created_by, f"تم اعتماد {desc} وقفل الأرقام.", card)
         messages.success(request, f"تم اعتماد {desc}.")
     elif action == "return":
-        if not note:
-            messages.error(request, "اكتب سبب الإرجاع عشان الأجنت يعرف يصلّح إيه.")
+        reasons = [r for r in request.POST.getlist("reason") if r in REASON_LABELS]
+        if not note and not reasons:
+            messages.error(request, "حدد إيه الغلط (أرقام / فاتورة / فاوتشر / إثبات دفع) أو اكتب السبب.")
             return redirect("review_queue")
-        obj.review_status, obj.review_note, obj.reviewed_by, obj.reviewed_at = RETURNED, note, request.user, now
+        text = ("[" + "، ".join(REASON_LABELS[r] for r in reasons) + "] " if reasons else "") + note
+        text = text.strip()
+        obj.review_status, obj.review_note, obj.reviewed_by, obj.reviewed_at = RETURNED, text, request.user, now
         obj.save(update_fields=["review_status", "review_note", "reviewed_by", "reviewed_at"])
-        _log(obj, "returned", note, request.user)
-        _notify(card.created_by, f"تم إرجاع {desc} للتصحيح: {note}", card)
+        _log(obj, "returned", text, request.user)
+        if what == "b" and set(reasons) & {"invoice", "voucher", "proof"}:
+            # a wrong document lives on the payment, so the pending payments go back to the agent with it
+            for p in getattr(booking, "payments").filter(review_status=PENDING):
+                p.review_status, p.review_note, p.reviewed_by, p.reviewed_at = RETURNED, text, request.user, now
+                p.save(update_fields=["review_status", "review_note", "reviewed_by", "reviewed_at"])
+                _log(p, "returned", text, request.user)
+        _notify(card.created_by, f"تم إرجاع {desc} للتصحيح: {text}", card)
         messages.success(request, f"تم إرجاع {desc} للأجنت.")
     return redirect("review_queue")
 
@@ -232,13 +242,19 @@ def booking_fix(request, kind, pk):
         _log(obj, "fixed", f"بيع {old_sell} → {new_sell} | نت {old_net} → {new_net}", request.user)
         messages.success(request, "تم حفظ التصحيح وإرسال الحجز للمراجعة." if was_returned else "تم حفظ الأرقام.")
         return redirect("card_detail", pk=card.pk)
+    docs = [{
+        "id": p.pk, "method": METHOD_LABELS.get(p.method, p.method), "paid": p.paid_amount, "status": p.review_status,
+        "invoice": p.invoice_file, "voucher": p.voucher_original, "bank": p.bank_file,
+        "editable": p.review_status != APPROVED,
+    } for p in getattr(obj, "payments").all().order_by("created_at")]
     return render(request, "core/review_fix.html", {
         "form": form, "title": f"تصحيح أرقام {_desc('b', kind, obj, booking, cfg)}",
         "note": obj.review_note if obj.review_status == RETURNED else "", "card": card, "multipart": False,
+        "docs": docs, "kind": kind,
     })
 
 
-_PAY_FIELDS = ["paid_amount", "method", "installment_date", "payment_link", "bank_file", "invoice_file"]
+_PAY_FIELDS = ["paid_amount", "method", "installment_date", "payment_link", "invoice_file", "voucher_original", "bank_file"]
 
 
 @login_required
@@ -265,7 +281,13 @@ def payment_fix(request, kind, pk):
             p.review_status = PENDING
             p.save()
             _log(p, "fixed", f"المبلغ {p.paid_amount} — {METHOD_LABELS.get(p.method, p.method)}", request.user)
-            messages.success(request, "تم حفظ التصحيح وإرسال الدفعة للمراجعة." if was_returned else "تم حفظ الدفعة.")
+            if was_returned:
+                msg = "تم حفظ تصحيح الدفعة."
+                if booking.review_status == RETURNED:
+                    msg += " لما تخلص كل التصحيحات اضغط «إعادة إرسال للمراجعة» على الحجز."
+                messages.success(request, msg)
+            else:
+                messages.success(request, "تم حفظ الدفعة.")
             return redirect("card_detail", pk=card.pk)
     return render(request, "core/review_fix.html", {
         "form": form, "title": f"تصحيح دفعة — {_desc('p', kind, obj, booking, cfg)}",
@@ -340,3 +362,25 @@ def unlock_decide(request):
         messages.success(request, "تم رفض الطلب.")
     req.save()
     return redirect("review_queue")
+
+
+@login_required
+@require_POST
+def resubmit(request):
+    """Agent finished the corrections (numbers and/or documents) and sends the booking back to review."""
+    obj, booking, card, cfg = _get("b", request.POST.get("kind"), request.POST.get("pk"))
+    if obj is None or not _may_fix(request.user, card):
+        messages.error(request, "غير مسموح.")
+        return redirect("dashboard")
+    if obj.review_status != RETURNED:
+        messages.info(request, "الحجز مش مرجوع.")
+        return redirect("card_detail", pk=card.pk)
+    still = getattr(obj, "payments").filter(review_status=RETURNED).count()
+    obj.review_status = PENDING
+    obj.save(update_fields=["review_status"])
+    _log(obj, "resubmitted", "", request.user)
+    if still:
+        messages.warning(request, f"اتبعت للمراجعة، بس لسه فيه {still} دفعة مرجوعة لازم تصلّحها.")
+    else:
+        messages.success(request, "تم إرسال الحجز للمراجعة.")
+    return redirect("card_detail", pk=card.pk)
