@@ -282,6 +282,7 @@ def card_detail(request, pk):
         "flight_bookings": flight_bookings,
         "other_bookings": other_bookings,
         "totals": totals,
+        "can_fix": can_edit_card(request.user, card) and role_of(request.user) != "data_entry",
     })
 
 

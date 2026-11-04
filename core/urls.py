@@ -1,7 +1,7 @@
 # core/urls.py
 from django.urls import path
 from django.views.generic import RedirectView
-from . import views
+from . import views, views_review
 from . import views_accounts
 
 
@@ -74,6 +74,13 @@ urlpatterns = [
     path("employees/", views.employees_list, name="employees_list"),
     path("teams/", views.teams_manage, name="teams_manage"),
     path("targets/", views.targets_page, name="targets_page"),
+    # Accounts review cycle (data entry)
+    path("review/", views_review.review_queue, name="review_queue"),
+    path("review/action/", views_review.review_action, name="review_action"),
+    path("review/fix/<str:kind>/<int:pk>/", views_review.booking_fix, name="booking_fix"),
+    path("review/payment/<str:kind>/<int:pk>/fix/", views_review.payment_fix, name="payment_fix"),
+    path("review/unlock/", views_review.unlock_request, name="unlock_request"),
+    path("review/unlock/decide/", views_review.unlock_decide, name="unlock_decide"),
 
     # Accounts
     path(

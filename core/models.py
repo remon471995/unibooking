@@ -20,6 +20,34 @@ from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelatio
 
 
 # ==============================
+# ACCOUNTS REVIEW (Data Entry checks sell / net / payments against the invoice and proof)
+# ==============================
+class ReviewFields(models.Model):
+    REVIEW_PENDING = "pending"
+    REVIEW_RETURNED = "returned"
+    REVIEW_APPROVED = "approved"
+    REVIEW_CHOICES = [
+        (REVIEW_PENDING, "بانتظار المراجعة"),
+        (REVIEW_RETURNED, "مرجوع للتصحيح"),
+        (REVIEW_APPROVED, "معتمد"),
+    ]
+    review_status = models.CharField(max_length=16, choices=REVIEW_CHOICES, default=REVIEW_PENDING, db_index=True)
+    review_note = models.TextField(blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        abstract = True
+
+    @property
+    def is_locked(self):
+        return self.review_status == self.REVIEW_APPROVED
+
+
+# ==============================
 # VOUCHER BASE MIXIN
 # ==============================
 class VoucherMixin(models.Model):
@@ -141,7 +169,7 @@ class UniBookingCard(models.Model):
 # ==============================
 # HOTEL BOOKING
 # ==============================
-class HotelBooking(VoucherMixin, models.Model):
+class HotelBooking(VoucherMixin, ReviewFields, models.Model):
     _VOUCHER_PREFIX = "H"
 
     POLICY_CHOICES = [
@@ -268,7 +296,7 @@ class Room(models.Model):
 # ==============================
 # PAYMENTS (HOTELS)
 # ==============================
-class Payment(models.Model):
+class Payment(ReviewFields, models.Model):
     METHODS = [
         ("cash", "كاش"),
         ("bank", "تحويل بنكي"),
@@ -349,7 +377,7 @@ class Payment(models.Model):
 # ==============================
 # FLIGHT BOOKING
 # ==============================
-class FlightBooking(VoucherMixin, models.Model):
+class FlightBooking(VoucherMixin, ReviewFields, models.Model):
     _VOUCHER_PREFIX = "F"
 
     card    = models.ForeignKey("UniBookingCard", on_delete=models.CASCADE, related_name="flights", db_index=True)
@@ -438,7 +466,7 @@ class FlightBooking(VoucherMixin, models.Model):
 # ==============================
 # FLIGHT PAYMENTS
 # ==============================
-class FlightPayment(models.Model):
+class FlightPayment(ReviewFields, models.Model):
     METHODS = [
         ("cash", "كاش"),
         ("bank", "تحويل بنكي"),
@@ -512,7 +540,7 @@ class FlightPayment(models.Model):
 # ==============================
 # OTHER BOOKING
 # ==============================
-class OtherBooking(VoucherMixin, models.Model):
+class OtherBooking(VoucherMixin, ReviewFields, models.Model):
     _VOUCHER_PREFIX = "O"
 
     card = models.ForeignKey(UniBookingCard, on_delete=models.CASCADE, related_name="others", db_index=True)
@@ -602,7 +630,7 @@ class OtherBooking(VoucherMixin, models.Model):
         return self.profit + self.adjustments_total
 
 
-class OtherPayment(models.Model):
+class OtherPayment(ReviewFields, models.Model):
     METHODS = [
         ("cash", "كاش"),
         ("bank", "تحويل بنكي"),
@@ -997,3 +1025,33 @@ class TeamTarget(models.Model):
 
     def __str__(self):
         return f"{self.team} @ {self.cycle}"
+
+
+class ReviewLog(models.Model):
+    """Who did what in the review cycle (submitted, approved, returned, unlock requested / decided)."""
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField(db_index=True)
+    action = models.CharField(max_length=32)
+    note = models.TextField(blank=True)
+    by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-at", "-id"]
+        indexes = [models.Index(fields=["content_type", "object_id"])]
+
+
+class UnlockRequest(models.Model):
+    """Agent asks to reopen an approved booking or payment (needs leader / data entry / manager approval)."""
+    STATUS = [("requested", "مطلوب"), ("approved", "تمت الموافقة"), ("rejected", "مرفوض")]
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField(db_index=True)
+    reason = models.TextField()
+    status = models.CharField(max_length=12, choices=STATUS, default="requested", db_index=True)
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    decided_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
