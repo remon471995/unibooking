@@ -23,7 +23,7 @@
 </style>
 
 <h1 class="text-xl font-bold mb-1">مراجعة الحسابات</h1>
-<p class="mu mb-4">راجع <b>سعر البيع</b> و<b>سعر النت</b> مع الفاتورة، و<b>المبلغ وطريقة الدفع</b> مع إثبات الدفع. لو في غلط ارجّعه للأجنت مع السبب، ومتعدّلش الرقم بنفسك.</p>
+<p class="mu mb-4">راجع <b>سعر البيع</b> و<b>سعر النت</b> مع الفاتورة، و<b>المبلغ وطريقة الدفع</b> مع إثبات الدفع، وتأكد إن <b>الفاتورة والفاوتشر</b> المرفوعين هما الصح. لو في غلط (أرقام أو مستند) حدد نوعه وارجّعه للأجنت، ومتعدّلش بنفسك.</p>
 
 {# ----------- unlock requests ----------- #}
 {% if unlocks %}
@@ -60,18 +60,19 @@
     <div><b>{{ it.profit|floatformat:2|intcomma }}</b><span>الربح</span></div>
   </div>
   <table class="rv-table">
-    <tr><th>الدفعة</th><th>طريقة الدفع</th><th>المبلغ</th><th>ميعاد السداد</th><th>الفاتورة</th><th>إثبات الدفع</th></tr>
+    <tr><th>الدفعة</th><th>طريقة الدفع</th><th>المبلغ</th><th>ميعاد السداد</th><th>الفاتورة</th><th>الفاوتشر الأصلي</th><th>إثبات الدفع</th></tr>
     {% for p in it.payments %}
     <tr>
       <td>{% if p.pending %}جديدة{% else %}معتمدة{% endif %}</td>
       <td>{{ p.method }}{% if p.link %} — <a class="underline" target="_blank" href="{{ p.link }}">الرابط</a>{% endif %}</td>
       <td>{{ p.paid|floatformat:2|intcomma }}</td>
       <td>{{ p.date|default:"—" }}</td>
-      <td>{% if p.invoice %}<a class="underline" target="_blank" href="{{ p.invoice.url }}">فتح</a>{% else %}—{% endif %}</td>
+      <td>{% if p.invoice %}<a class="underline" target="_blank" href="{{ p.invoice.url }}">فتح</a>{% else %}<span style="color:#b91c1c">ناقص</span>{% endif %}</td>
+      <td>{% if p.voucher %}<a class="underline" target="_blank" href="{{ p.voucher.url }}">فتح</a>{% else %}<span style="color:#b91c1c">ناقص</span>{% endif %}</td>
       <td>{% if p.bank %}<a class="underline" target="_blank" href="{{ p.bank.url }}">فتح</a>{% else %}—{% endif %}</td>
     </tr>
     {% empty %}
-    <tr><td colspan="6" class="mu">لسه مفيش دفعات على الحجز ده.</td></tr>
+    <tr><td colspan="7" class="mu">لسه مفيش دفعات على الحجز ده.</td></tr>
     {% endfor %}
   </table>
   <div class="rv-actions">
@@ -80,13 +81,18 @@
       <input type="hidden" name="what" value="b"><input type="hidden" name="kind" value="{{ it.kind }}"><input type="hidden" name="pk" value="{{ it.id }}">
       <label><input type="checkbox" name="chk_sell"> البيع مطابق للفاتورة</label>
       <label><input type="checkbox" name="chk_net"> النت مطابق للفاتورة</label>
+      <label><input type="checkbox" name="chk_docs"> المستندات صحيحة (الفاتورة والفاوتشر)</label>
       <label><input type="checkbox" name="chk_pay"> الدفع مطابق لإثبات الدفع</label>
       <button name="action" value="approve" class="btn-ok">اعتماد وقفل</button>
     </form>
     <form method="post" action="{% url 'review_action' %}">
       {% csrf_token %}
       <input type="hidden" name="what" value="b"><input type="hidden" name="kind" value="{{ it.kind }}"><input type="hidden" name="pk" value="{{ it.id }}">
-      <input type="text" name="note" placeholder="سبب الإرجاع (مثلاً: النت 800 والفاتورة 850)">
+      <label><input type="checkbox" name="reason" value="numbers"> الأرقام</label>
+      <label><input type="checkbox" name="reason" value="invoice"> الفاتورة</label>
+      <label><input type="checkbox" name="reason" value="voucher"> الفاوتشر</label>
+      <label><input type="checkbox" name="reason" value="proof"> إثبات الدفع</label>
+      <input type="text" name="note" placeholder="تفاصيل (مثلاً: النت 800 والفاتورة 850)">
       <button name="action" value="return" class="btn-no">إرجاع للأجنت</button>
     </form>
   </div>
@@ -115,12 +121,17 @@
       <input type="hidden" name="what" value="p"><input type="hidden" name="kind" value="{{ it.kind }}"><input type="hidden" name="pk" value="{{ it.id }}">
       <label><input type="checkbox" name="chk_amount"> المبلغ مطابق لإثبات الدفع</label>
       <label><input type="checkbox" name="chk_method"> طريقة الدفع مطابقة</label>
+      <label><input type="checkbox" name="chk_docs"> المستندات صحيحة</label>
       <button name="action" value="approve" class="btn-ok">اعتماد</button>
     </form>
     <form method="post" action="{% url 'review_action' %}">
       {% csrf_token %}
       <input type="hidden" name="what" value="p"><input type="hidden" name="kind" value="{{ it.kind }}"><input type="hidden" name="pk" value="{{ it.id }}">
-      <input type="text" name="note" placeholder="سبب الإرجاع">
+      <label><input type="checkbox" name="reason" value="numbers"> الأرقام</label>
+      <label><input type="checkbox" name="reason" value="invoice"> الفاتورة</label>
+      <label><input type="checkbox" name="reason" value="voucher"> الفاوتشر</label>
+      <label><input type="checkbox" name="reason" value="proof"> إثبات الدفع</label>
+      <input type="text" name="note" placeholder="تفاصيل الإرجاع">
       <button name="action" value="return" class="btn-no">إرجاع للأجنت</button>
     </form>
   </div>

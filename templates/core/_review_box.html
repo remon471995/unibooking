@@ -8,7 +8,14 @@
   {% elif obj.review_status == 'returned' %}
     <div style="background:#fee2e2;color:#991b1b;padding:8px 12px;border-radius:8px">
       ↩ مرجوع للتصحيح: <b>{{ obj.review_note }}</b>
-      {% if can_fix %}<a href="{% url 'booking_fix' kind obj.pk %}" style="text-decoration:underline;margin-right:8px">تصحيح الأرقام</a>{% endif %}
+      {% if can_fix %}
+        <a href="{% url 'booking_fix' kind obj.pk %}" style="text-decoration:underline;margin-right:8px">تصحيح الأرقام والمستندات</a>
+        <form method="post" action="{% url 'resubmit' %}" style="display:inline-block;margin-right:8px">
+          {% csrf_token %}
+          <input type="hidden" name="kind" value="{{ kind }}"><input type="hidden" name="pk" value="{{ obj.pk }}">
+          <button style="background:#991b1b;color:#fff;border-radius:6px;padding:3px 10px" title="اضغطه بعد ما تخلص كل التصحيحات">إعادة إرسال للمراجعة</button>
+        </form>
+      {% endif %}
     </div>
   {% else %}
     <div style="background:#dcfce7;color:#166534;padding:8px 12px;border-radius:8px">

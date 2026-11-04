@@ -7,6 +7,21 @@
   {% if note %}
     <div style="background:#fee2e2;color:#991b1b;padding:10px 12px;border-radius:8px;margin-bottom:12px">سبب الإرجاع: <b>{{ note }}</b></div>
   {% endif %}
+  {% if docs %}
+  <div class="p-4 rounded bg-white dark:bg-gray-900 shadow mb-3">
+    <div class="text-sm font-bold mb-2">المستندات المرفوعة (لو الغلط في مستند، استبدله من الدفعة)</div>
+    {% for d in docs %}
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:13px;padding:5px 0;border-top:1px solid rgba(100,116,139,.2)">
+        <span>دفعة {{ d.paid|floatformat:2 }} — {{ d.method }}</span>
+        <span>{% if d.invoice %}<a class="underline" target="_blank" href="{{ d.invoice.url }}">الفاتورة</a>{% else %}<span style="color:#b91c1c">الفاتورة ناقصة</span>{% endif %}</span>
+        <span>{% if d.voucher %}<a class="underline" target="_blank" href="{{ d.voucher.url }}">الفاوتشر</a>{% else %}<span style="color:#b91c1c">الفاوتشر ناقص</span>{% endif %}</span>
+        <span>{% if d.bank %}<a class="underline" target="_blank" href="{{ d.bank.url }}">إثبات الدفع</a>{% else %}<span style="color:#b91c1c">إثبات الدفع ناقص</span>{% endif %}</span>
+        {% if d.editable %}<a class="underline" style="color:#2563eb" href="{% url 'payment_fix' kind d.id %}">استبدال المستندات / تعديل الدفعة</a>
+        {% else %}<span style="color:#166534">معتمدة (مقفولة)</span>{% endif %}
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
   <form method="post" {% if multipart %}enctype="multipart/form-data"{% endif %} class="p-4 rounded bg-white dark:bg-gray-900 shadow">
     {% csrf_token %}
     {% for field in form %}
