@@ -25,6 +25,7 @@ class UserProfile(models.Model):
         ("leader", "Team Leader"),
         ("supervisor", "Supervisor"),
         ("sales_manager", "Sales Manager"),
+        ("data_entry", "Data Entry"),
         ("agent", "موظف مبيعات"),
         ("other", "أخرى"),
     ]

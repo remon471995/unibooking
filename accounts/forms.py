@@ -12,6 +12,7 @@ ROLE_CHOICES = [
     ("leader", "ليدر"),
     ("supervisor", "سوبرفايزر"),
     ("sales_manager", "سيلز مانجر"),
+    ("data_entry", "داتا انتري"),
     ("admin", "سوبر/مدير"),
 ]
 
