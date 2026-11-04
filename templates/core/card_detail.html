@@ -78,6 +78,7 @@
       <div>Remaining<br><b class="{% if booking.remaining_balance <= 0 %}text-green-600{% else %}text-red-600{% endif %}">{{ booking.remaining_balance|floatformat:2 }}</b></div>
       <div>Profit<br><b>{{ booking.profit|floatformat:2 }}</b></div>
     </div>
+    {% include "core/_review_box.html" with obj=booking kind="hotel" %}
   </div>
   {% empty %}
   <p class="text-gray-500 text-center py-5">لا توجد حجوزات فنادق.</p>
@@ -106,6 +107,7 @@
       <div>Remaining<br><b class="{% if f.remaining_balance <= 0 %}text-green-600{% else %}text-red-600{% endif %}">{{ f.remaining_balance|floatformat:2 }}</b></div>
       <div>Profit<br><b>{{ f.profit|floatformat:2 }}</b></div>
     </div>
+    {% include "core/_review_box.html" with obj=f kind="flight" %}
   </div>
   {% empty %}
   <p class="text-gray-500 text-center py-5">لا توجد حجوزات طيران.</p>
@@ -136,6 +138,7 @@
       <div>Remaining<br><b class="{% if o.remaining_balance <= 0 %}text-green-600{% else %}text-red-600{% endif %}">{{ o.remaining_balance|floatformat:2 }}</b></div>
       <div>Profit<br><b>{{ o.profit|floatformat:2 }}</b></div>
     </div>
+    {% include "core/_review_box.html" with obj=o kind="other" %}
   </div>
   {% empty %}
   <p class="text-gray-500 text-center py-5">لا توجد حجوزات أخرى.</p>
