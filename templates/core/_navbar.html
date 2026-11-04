@@ -42,6 +42,14 @@
           {% endif %}
         {% endif %}
 
+        {% if user.is_superuser or user.profile.role == 'data_entry' or user.profile.role == 'sales_manager' or user.profile.role == 'leader' or user.profile.role == 'supervisor' %}
+          {% url 'review_queue' as review_url %}
+          <a href="{{ review_url }}"
+             class="px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 whitespace-nowrap">
+            المراجعة
+          </a>
+        {% endif %}
+
         {% url 'targets_page' as targets_url %}
         <a href="{{ targets_url }}"
            class="px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 whitespace-nowrap">
