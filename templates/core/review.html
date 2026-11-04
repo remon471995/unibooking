@@ -1,0 +1,146 @@
+{% extends "core/base.html" %}
+{% load humanize %}
+{% block title %}المراجعة{% endblock %}
+
+{% block content %}
+<style>
+  .rv-box{padding:14px 16px;border-radius:12px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.08);margin-bottom:14px}
+  .dark .rv-box{background:#111827}
+  .rv-head{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline}
+  .rv-nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin:10px 0}
+  .rv-nums div{padding:8px 10px;border-radius:8px;background:rgba(100,116,139,.08)}
+  .rv-nums b{display:block;font-size:17px}
+  .rv-nums span{font-size:12px;color:#6b7280}
+  .rv-table{width:100%;font-size:13px;border-collapse:collapse;margin-bottom:8px}
+  .rv-table th,.rv-table td{padding:5px 8px;text-align:right;border-top:1px solid rgba(100,116,139,.2)}
+  .rv-actions{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;margin-top:8px}
+  .rv-actions form{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .rv-actions input[type=text]{border:1px solid #cbd5e1;border-radius:6px;padding:5px 8px;min-width:220px;color:#111;background:#fff}
+  .btn-ok{background:#16a34a;color:#fff;border-radius:6px;padding:6px 14px}
+  .btn-no{background:#dc2626;color:#fff;border-radius:6px;padding:6px 14px}
+  .btn-b{background:#2563eb;color:#fff;border-radius:6px;padding:6px 14px}
+  .mu{color:#6b7280;font-size:12px}
+</style>
+
+<h1 class="text-xl font-bold mb-1">مراجعة الحسابات</h1>
+<p class="mu mb-4">راجع <b>سعر البيع</b> و<b>سعر النت</b> مع الفاتورة، و<b>المبلغ وطريقة الدفع</b> مع إثبات الدفع. لو في غلط ارجّعه للأجنت مع السبب، ومتعدّلش الرقم بنفسك.</p>
+
+{# ----------- unlock requests ----------- #}
+{% if unlocks %}
+<h2 class="text-lg font-bold mb-2">طلبات فتح للتعديل ({{ unlocks|length }})</h2>
+{% for u in unlocks %}
+<div class="rv-box">
+  <div class="rv-head">
+    <div><b>{{ u.what_label }}</b> — {{ u.customer }} · <a class="underline" href="{% url 'card_detail' u.card_id %}">الكارت</a></div>
+    <div class="mu">طلب: {{ u.by }} · {{ u.created|date:"Y-m-d H:i" }}</div>
+  </div>
+  <div style="margin:6px 0">السبب: <b>{{ u.reason }}</b></div>
+  <form method="post" action="{% url 'unlock_decide' %}" class="rv-actions">
+    {% csrf_token %}
+    <input type="hidden" name="id" value="{{ u.id }}">
+    <button name="decision" value="approve" class="btn-ok">موافقة (يتفتح للأجنت)</button>
+    <button name="decision" value="reject" class="btn-no">رفض</button>
+  </form>
+</div>
+{% endfor %}
+{% endif %}
+
+{% if reviewer %}
+{# ----------- pending bookings ----------- #}
+<h2 class="text-lg font-bold mb-2 mt-4">حجوزات بانتظار المراجعة ({{ pending_b|length }})</h2>
+{% for it in pending_b %}
+<div class="rv-box">
+  <div class="rv-head">
+    <div><b>{{ it.label }} — {{ it.ref }}</b> · {{ it.customer }} · <a class="underline" href="{% url 'card_detail' it.card_id %}">الكارت</a></div>
+    <div class="mu">{{ it.agent }} · {{ it.team }} · {{ it.created|date:"Y-m-d H:i" }}</div>
+  </div>
+  <div class="rv-nums">
+    <div><b>{{ it.sell|floatformat:2|intcomma }}</b><span>سعر البيع</span></div>
+    <div><b>{{ it.net|floatformat:2|intcomma }}</b><span>سعر النت</span></div>
+    <div><b>{{ it.profit|floatformat:2|intcomma }}</b><span>الربح</span></div>
+  </div>
+  <table class="rv-table">
+    <tr><th>الدفعة</th><th>طريقة الدفع</th><th>المبلغ</th><th>ميعاد السداد</th><th>الفاتورة</th><th>إثبات الدفع</th></tr>
+    {% for p in it.payments %}
+    <tr>
+      <td>{% if p.pending %}جديدة{% else %}معتمدة{% endif %}</td>
+      <td>{{ p.method }}{% if p.link %} — <a class="underline" target="_blank" href="{{ p.link }}">الرابط</a>{% endif %}</td>
+      <td>{{ p.paid|floatformat:2|intcomma }}</td>
+      <td>{{ p.date|default:"—" }}</td>
+      <td>{% if p.invoice %}<a class="underline" target="_blank" href="{{ p.invoice.url }}">فتح</a>{% else %}—{% endif %}</td>
+      <td>{% if p.bank %}<a class="underline" target="_blank" href="{{ p.bank.url }}">فتح</a>{% else %}—{% endif %}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="6" class="mu">لسه مفيش دفعات على الحجز ده.</td></tr>
+    {% endfor %}
+  </table>
+  <div class="rv-actions">
+    <form method="post" action="{% url 'review_action' %}">
+      {% csrf_token %}
+      <input type="hidden" name="what" value="b"><input type="hidden" name="kind" value="{{ it.kind }}"><input type="hidden" name="pk" value="{{ it.id }}">
+      <label><input type="checkbox" name="chk_sell"> البيع مطابق للفاتورة</label>
+      <label><input type="checkbox" name="chk_net"> النت مطابق للفاتورة</label>
+      <label><input type="checkbox" name="chk_pay"> الدفع مطابق لإثبات الدفع</label>
+      <button name="action" value="approve" class="btn-ok">اعتماد وقفل</button>
+    </form>
+    <form method="post" action="{% url 'review_action' %}">
+      {% csrf_token %}
+      <input type="hidden" name="what" value="b"><input type="hidden" name="kind" value="{{ it.kind }}"><input type="hidden" name="pk" value="{{ it.id }}">
+      <input type="text" name="note" placeholder="سبب الإرجاع (مثلاً: النت 800 والفاتورة 850)">
+      <button name="action" value="return" class="btn-no">إرجاع للأجنت</button>
+    </form>
+  </div>
+</div>
+{% empty %}
+<div class="rv-box mu">مفيش حجوزات بانتظار المراجعة. 👌</div>
+{% endfor %}
+
+{# ----------- pending payments of approved bookings ----------- #}
+<h2 class="text-lg font-bold mb-2 mt-6">دفعات جديدة بانتظار المراجعة ({{ pending_p|length }})</h2>
+{% for it in pending_p %}
+<div class="rv-box">
+  <div class="rv-head">
+    <div><b>{{ it.label }} — {{ it.ref }}</b> · {{ it.customer }} · <a class="underline" href="{% url 'card_detail' it.card_id %}">الكارت</a></div>
+    <div class="mu">{{ it.agent }} · {{ it.team }} · {{ it.created|date:"Y-m-d H:i" }}</div>
+  </div>
+  <div class="rv-nums">
+    <div><b>{{ it.paid|floatformat:2|intcomma }}</b><span>المبلغ</span></div>
+    <div><b>{{ it.method }}</b><span>طريقة الدفع</span></div>
+    <div><b>{{ it.date|default:"—" }}</b><span>ميعاد السداد</span></div>
+    <div>{% if it.invoice %}<a class="underline" target="_blank" href="{{ it.invoice.url }}">فاتورة</a>{% endif %} {% if it.bank %}<a class="underline" target="_blank" href="{{ it.bank.url }}">إثبات الدفع</a>{% endif %}{% if not it.invoice and not it.bank %}—{% endif %}<br><span>الملفات</span></div>
+  </div>
+  <div class="rv-actions">
+    <form method="post" action="{% url 'review_action' %}">
+      {% csrf_token %}
+      <input type="hidden" name="what" value="p"><input type="hidden" name="kind" value="{{ it.kind }}"><input type="hidden" name="pk" value="{{ it.id }}">
+      <label><input type="checkbox" name="chk_amount"> المبلغ مطابق لإثبات الدفع</label>
+      <label><input type="checkbox" name="chk_method"> طريقة الدفع مطابقة</label>
+      <button name="action" value="approve" class="btn-ok">اعتماد</button>
+    </form>
+    <form method="post" action="{% url 'review_action' %}">
+      {% csrf_token %}
+      <input type="hidden" name="what" value="p"><input type="hidden" name="kind" value="{{ it.kind }}"><input type="hidden" name="pk" value="{{ it.id }}">
+      <input type="text" name="note" placeholder="سبب الإرجاع">
+      <button name="action" value="return" class="btn-no">إرجاع للأجنت</button>
+    </form>
+  </div>
+</div>
+{% empty %}
+<div class="rv-box mu">مفيش دفعات جديدة بانتظار المراجعة.</div>
+{% endfor %}
+
+{# ----------- returned (waiting for the agent) ----------- #}
+<h2 class="text-lg font-bold mb-2 mt-6">مرجوعة للأجنت ({{ returned|length }})</h2>
+{% for it in returned %}
+<div class="rv-box">
+  <div class="rv-head">
+    <div><b>{{ it.label }} — {{ it.ref }}</b> · {{ it.customer }} · <a class="underline" href="{% url 'card_detail' it.card_id %}">الكارت</a></div>
+    <div class="mu">عند: {{ it.agent }} · {{ it.team }}</div>
+  </div>
+  <div style="color:#991b1b;margin-top:4px">السبب: <b>{{ it.note }}</b></div>
+</div>
+{% empty %}
+<div class="rv-box mu">مفيش حاجة مرجوعة دلوقتي.</div>
+{% endfor %}
+{% endif %}
+{% endblock %}

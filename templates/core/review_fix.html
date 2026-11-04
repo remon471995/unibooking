@@ -1,0 +1,28 @@
+{% extends "core/base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div style="max-width:560px;margin:0 auto">
+  <a href="{% url 'card_detail' card.pk %}" class="text-sm underline">← رجوع للكارت</a>
+  <h1 class="text-xl font-bold mb-3 mt-2">{{ title }}</h1>
+  {% if note %}
+    <div style="background:#fee2e2;color:#991b1b;padding:10px 12px;border-radius:8px;margin-bottom:12px">سبب الإرجاع: <b>{{ note }}</b></div>
+  {% endif %}
+  <form method="post" {% if multipart %}enctype="multipart/form-data"{% endif %} class="p-4 rounded bg-white dark:bg-gray-900 shadow">
+    {% csrf_token %}
+    {% for field in form %}
+      <div class="mb-3">
+        <label class="text-sm text-gray-600 dark:text-gray-300">{{ field.label }}</label><br>
+        {{ field }}
+        {% for e in field.errors %}<div style="color:#b91c1c;font-size:13px">{{ e }}</div>{% endfor %}
+      </div>
+    {% endfor %}
+    {% for e in form.non_field_errors %}<div style="color:#b91c1c;font-size:13px">{{ e }}</div>{% endfor %}
+    <button class="px-4 py-2 rounded bg-blue-600 text-white">حفظ وإرسال للمراجعة</button>
+  </form>
+</div>
+<style>
+  form input[type=text], form input[type=number], form input[type=date], form input[type=url], form select {
+    border:1px solid #cbd5e1; border-radius:6px; padding:6px 10px; width:100%; color:#111; background:#fff;
+  }
+</style>
+{% endblock %}
