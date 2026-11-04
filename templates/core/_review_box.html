@@ -1,0 +1,57 @@
+{# Review status box shown under each booking on the card page. Needs: obj, kind, can_fix #}
+<div class="px-4 pb-4" style="font-size:14px">
+  {% if obj.review_status == 'pending' %}
+    <div style="background:#fef3c7;color:#92400e;padding:8px 12px;border-radius:8px">
+      ⏳ بانتظار مراجعة الداتا انتري (البيع والنت والدفعات).
+      {% if can_fix %}<a href="{% url 'booking_fix' kind obj.pk %}" style="text-decoration:underline;margin-right:8px">تعديل الأرقام</a>{% endif %}
+    </div>
+  {% elif obj.review_status == 'returned' %}
+    <div style="background:#fee2e2;color:#991b1b;padding:8px 12px;border-radius:8px">
+      ↩ مرجوع للتصحيح: <b>{{ obj.review_note }}</b>
+      {% if can_fix %}<a href="{% url 'booking_fix' kind obj.pk %}" style="text-decoration:underline;margin-right:8px">تصحيح الأرقام</a>{% endif %}
+    </div>
+  {% else %}
+    <div style="background:#dcfce7;color:#166534;padding:8px 12px;border-radius:8px">
+      ✅ معتمد ومقفول (الأرقام والدفعات المعتمدة).
+      {% if can_fix %}
+        <details style="display:inline-block;margin-right:8px">
+          <summary style="cursor:pointer;text-decoration:underline">طلب فتح للتعديل</summary>
+          <form method="post" action="{% url 'unlock_request' %}" style="margin-top:6px">
+            {% csrf_token %}
+            <input type="hidden" name="what" value="b"><input type="hidden" name="kind" value="{{ kind }}"><input type="hidden" name="pk" value="{{ obj.pk }}">
+            <input type="text" name="reason" placeholder="سبب التعديل" required style="border:1px solid #cbd5e1;border-radius:6px;padding:4px 8px;color:#111">
+            <button style="background:#166534;color:#fff;border-radius:6px;padding:4px 10px">إرسال</button>
+          </form>
+        </details>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% for p in obj.payments.all %}
+    {% if p.review_status != 'approved' or can_fix %}
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;padding:6px 10px;border-radius:8px;background:rgba(100,116,139,.08)">
+      <span>💳 دفعة {{ p.paid_amount|floatformat:2 }} — {{ p.get_method_display }}</span>
+      {% if p.review_status == 'pending' %}
+        <span style="color:#92400e">⏳ بانتظار المراجعة</span>
+        {% if can_fix %}<a href="{% url 'payment_fix' kind p.pk %}" style="text-decoration:underline">تعديل</a>{% endif %}
+      {% elif p.review_status == 'returned' %}
+        <span style="color:#991b1b">↩ مرجوعة: <b>{{ p.review_note }}</b></span>
+        {% if can_fix %}<a href="{% url 'payment_fix' kind p.pk %}" style="text-decoration:underline">تصحيح</a>{% endif %}
+      {% else %}
+        <span style="color:#166534">✅ معتمدة</span>
+        {% if can_fix %}
+          <details style="display:inline-block">
+            <summary style="cursor:pointer;text-decoration:underline">طلب فتح</summary>
+            <form method="post" action="{% url 'unlock_request' %}" style="margin-top:6px">
+              {% csrf_token %}
+              <input type="hidden" name="what" value="p"><input type="hidden" name="kind" value="{{ kind }}"><input type="hidden" name="pk" value="{{ p.pk }}">
+              <input type="text" name="reason" placeholder="سبب التعديل" required style="border:1px solid #cbd5e1;border-radius:6px;padding:4px 8px;color:#111">
+              <button style="background:#166534;color:#fff;border-radius:6px;padding:4px 10px">إرسال</button>
+            </form>
+          </details>
+        {% endif %}
+      {% endif %}
+    </div>
+    {% endif %}
+  {% endfor %}
+</div>
