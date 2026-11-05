@@ -25,15 +25,35 @@
   <form method="post" {% if multipart %}enctype="multipart/form-data"{% endif %} class="p-4 rounded bg-white dark:bg-gray-900 shadow">
     {% csrf_token %}
     {% for field in form %}
-      <div class="mb-3">
+      <div class="mb-3" data-field="{{ field.name }}">
         <label class="text-sm text-gray-600 dark:text-gray-300">{{ field.label }}</label><br>
         {{ field }}
         {% for e in field.errors %}<div style="color:#b91c1c;font-size:13px">{{ e }}</div>{% endfor %}
       </div>
     {% endfor %}
     {% for e in form.non_field_errors %}<div style="color:#b91c1c;font-size:13px">{{ e }}</div>{% endfor %}
+    {% if pay and pay.hint %}<div class="mu" style="font-size:12px;color:#6b7280;margin-bottom:8px">{{ pay.hint }}</div>{% endif %}
     <button class="px-4 py-2 rounded bg-blue-600 text-white">حفظ وإرسال للمراجعة</button>
   </form>
+  {% if pay %}
+  <script>
+  (function () {
+    const first = {{ pay.first|yesno:"true,false" }}, sellTotal = parseFloat("{{ pay.sell_total }}") || 0;
+    const box = n => document.querySelector('[data-field="' + n + '"]');
+    const method = document.querySelector('[name="method"]'), amount = document.querySelector('[name="paid_amount"]');
+    function show(n, on) { const b = box(n); if (b) b.style.display = on ? "" : "none"; }
+    function sync() {
+      const m = method.value, paid = parseFloat(amount.value || "0");
+      show("payment_link", m === "link");                          // payment link only for "رابط دفع"
+      show("bank_file", m === "cash" || m === "bank");             // proof file for cash / bank
+      show("installment_date", first && paid < sellTotal);         // deadline only when the first payment is partial
+    }
+    method.addEventListener("change", sync);
+    amount.addEventListener("input", sync);
+    sync();
+  })();
+  </script>
+  {% endif %}
 </div>
 <style>
   form input[type=text], form input[type=number], form input[type=date], form input[type=url], form select {
