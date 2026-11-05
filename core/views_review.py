@@ -255,6 +255,24 @@ def booking_fix(request, kind, pk):
 
 
 _PAY_FIELDS = ["paid_amount", "method", "installment_date", "payment_link", "invoice_file", "voucher_original", "bank_file"]
+_PAY_LABELS = {
+    "paid_amount": "المبلغ المدفوع", "method": "طريقة الدفع", "installment_date": "آخر ميعاد للسداد",
+    "payment_link": "رابط الدفع", "invoice_file": "الفاتورة", "voucher_original": "الفاوتشر الأصلي",
+    "bank_file": "إثبات الدفع (تحويل / إيصال)",
+}
+
+
+def _due_limits(kind, booking):
+    """(min date, max date, why) for the last-payment date.
+    Hotel: not after check-in, and not after the last refund date when the rate is refundable."""
+    min_d = booking.booking_date
+    max_d, why = None, ""
+    if kind == "hotel":
+        max_d, why = booking.checkin, "تاريخ الدخول"
+        if booking.cancellation_policy in ("refundable", "refundable_with_penalty") and booking.refundable_until:
+            if not max_d or booking.refundable_until < max_d:
+                max_d, why = booking.refundable_until, "آخر يوم استرداد"
+    return min_d, max_d, why
 
 
 @login_required
@@ -269,15 +287,38 @@ def payment_fix(request, kind, pk):
         messages.error(request, "الدفعة معتمدة ومقفولة. اطلب فتحها الأول.")
         return redirect("card_detail", pk=card.pk)
 
-    Form = modelform_factory(cfg["payment"], fields=_PAY_FIELDS, widgets={
+    sell_total = getattr(booking, cfg["sell"]) or Decimal("0")
+    is_first = not getattr(booking, "payments").filter(pk__lt=obj.pk).exists()
+    min_d, max_d, why = _due_limits(kind, booking)
+
+    Form = modelform_factory(cfg["payment"], fields=_PAY_FIELDS, labels=_PAY_LABELS, widgets={
         "installment_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d")})
     form = Form(request.POST or None, request.FILES or None, instance=obj)
+    attrs = form.fields["installment_date"].widget.attrs
+    if min_d:
+        attrs["min"] = min_d.isoformat()
+    if max_d:
+        attrs["max"] = max_d.isoformat()
+
     if request.method == "POST" and form.is_valid():
-        if form.cleaned_data["paid_amount"] < 0:
+        cd = form.cleaned_data
+        paid, method, due, link = cd["paid_amount"], cd["method"], cd.get("installment_date"), cd.get("payment_link")
+        if paid < 0:
             form.add_error("paid_amount", "المبلغ لازم يكون موجب.")
-        else:
+        if method == "link" and not link:
+            form.add_error("payment_link", "رابط الدفع مطلوب لما الطريقة رابط دفع.")
+        if is_first and paid < sell_total and not due:
+            form.add_error("installment_date", "ده أول دفعة وهي أقل من سعر البيع، فلازم تحدد آخر ميعاد للسداد.")
+        if due:
+            if min_d and due < min_d:
+                form.add_error("installment_date", f"آخر ميعاد للسداد مينفعش يكون قبل تاريخ الحجز ({min_d:%Y-%m-%d}).")
+            if max_d and due > max_d:
+                form.add_error("installment_date", f"آخر ميعاد للسداد لازم يكون في {why} ({max_d:%Y-%m-%d}) أو قبله.")
+        if not form.errors:
             was_returned = obj.review_status == RETURNED
             p = form.save(commit=False)
+            if method != "link":
+                p.payment_link = ""
             p.review_status = PENDING
             p.save()
             _log(p, "fixed", f"المبلغ {p.paid_amount} — {METHOD_LABELS.get(p.method, p.method)}", request.user)
@@ -292,6 +333,8 @@ def payment_fix(request, kind, pk):
     return render(request, "core/review_fix.html", {
         "form": form, "title": f"تصحيح دفعة — {_desc('p', kind, obj, booking, cfg)}",
         "note": obj.review_note if obj.review_status == RETURNED else "", "card": card, "multipart": True,
+        "pay": {"first": is_first, "sell_total": str(sell_total),
+                "hint": (f"آخر ميعاد للسداد لازم يكون في {why} ({max_d:%Y-%m-%d}) أو قبله." if max_d else "")},
     })
 
 
