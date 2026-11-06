@@ -14,6 +14,8 @@ class UserProfile(models.Model):
         ("sales", "المبيعات"),
         ("cs", "خدمة العملاء"),
         ("ops", "الأوبريشن"),
+        ("quotation", "الكوتيشن"),
+        ("fft", "FFT (الطيران)"),
         ("accounts", "الحسابات"),
         ("hr", "الموارد البشرية"),
         ("it", "IT"),
