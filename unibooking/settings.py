@@ -30,6 +30,12 @@ ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1" if DEBUG 
 # Example: CSRF_TRUSTED_ORIGINS=https://crm.example.com,https://my-app.onrender.com
 CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
 
+# Render sets this automatically, so the site works on its *.onrender.com address without extra setup
+_render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME")
+if _render_host:
+    ALLOWED_HOSTS.append(_render_host)
+    CSRF_TRUSTED_ORIGINS.append(f"https://{_render_host}")
+
 INSTALLED_APPS = [
     # Django
     "django.contrib.admin",
@@ -76,6 +82,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 # الإشعارات في الشريط العلوي
                 "core.context_processors.notifications_context",
+                "helpdesk.context.dept_context",
             ],
         },
     },
@@ -158,6 +165,8 @@ if env_bool("USE_S3", False):
     AWS_QUERYSTRING_AUTH = True       # links are signed and expire
     AWS_QUERYSTRING_EXPIRE = 600      # seconds
     AWS_S3_FILE_OVERWRITE = False     # never overwrite a file with the same name
+    AWS_S3_SIGNATURE_VERSION = "s3v4"
+    AWS_S3_ADDRESSING_STYLE = "path"  # required by Supabase Storage and most S3-compatible services
     STORAGES["default"] = {"BACKEND": "storages.backends.s3.S3Storage"}
 
 # === Production security (active only when DEBUG is off) ===
@@ -181,4 +190,4 @@ LOGGING = {
 INSTALLMENT_REMINDER_DAYS = 5
 
 # تشغيل/إيقاف نظام الهيلب دِسك
-HELPDESK_ENABLED = env_bool("HELPDESK_ENABLED", False)
+HELPDESK_ENABLED = env_bool("HELPDESK_ENABLED", True)
