@@ -3,6 +3,16 @@
 {% block title %}{{ card.ub_code }} — {{ card.customer_name }}{% endblock %}
 
 {% block content %}
+{% url 'helpdesk:ticket_create' as hd_new %}
+{% if hd_new %}
+<div class="p-3 mb-4 rounded bg-white dark:bg-gray-900 shadow" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+  <span class="text-sm font-bold">ابعت طلب عن الكارت ده:</span>
+  <a class="px-3 py-1 rounded bg-blue-600 text-white text-sm" href="{{ hd_new }}?department=cs&related_app=core&related_model=unibookingcard&related_id={{ card.pk }}&related_ref={{ card.ub_code|urlencode }}&subject={{ "CS — "|urlencode }}{{ card.customer_name|urlencode }}">CS (تأكيد فندق / تعديل أو إلغاء طيران / مشكلة / شكوى)</a>
+  <a class="px-3 py-1 rounded bg-blue-600 text-white text-sm" href="{{ hd_new }}?department=quotation&related_app=core&related_model=unibookingcard&related_id={{ card.pk }}&related_ref={{ card.ub_code|urlencode }}&subject={{ "كوتيشن — "|urlencode }}{{ card.customer_name|urlencode }}">كوتيشن (طلب سعر)</a>
+  <span class="text-xs text-gray-500">الأوبريشن وFFT بيتواصلوا معاك عن طريق CS.</span>
+</div>
+{% endif %}
+
 <!-- Header -->
 <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 p-4 bg-white rounded-lg shadow border">
   <div>
