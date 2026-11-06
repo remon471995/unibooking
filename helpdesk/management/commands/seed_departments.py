@@ -3,36 +3,42 @@ from django.core.management.base import BaseCommand
 from helpdesk.models import Department, TicketCategory
 
 DEPARTMENTS = [
-    ("Sales", "sales"),
-    ("Product", "product"),
-    ("Operations", "operations"),
-    ("After Sales", "after_sales"),
-    ("HR", "hr"),
+    ("كوتيشن (Quotation)", "quotation"),
+    ("أوبريشن (Operations)", "operations"),
+    ("FFT (الطيران)", "fft"),
+    ("CS (خدمة ما بعد البيع)", "cs"),
 ]
 
 CATEGORIES = {
-    "after_sales": [
-        ("booking_issue", "مشكلة في حجز"),
-        ("customer_complaint", "شكوى عميل"),
-        ("modify_request", "طلب تعديل"),
-        ("refund", "ريفند"),
-        ("change_booking_date", "تغيير ميعاد حجز"),
-        ("follow_up", "متابعة على طلب"),
-    ],
-    "hr": [
-        ("leave_request", "طلب إجازة"),
-        ("official_letter", "طلب ورقة لجهة"),
+    "quotation": [
+        ("price_request", "طلب سعر حجز (مش أونلاين)"),
+        ("quote_update", "تعديل عرض سعر"),
+        ("quote_follow_up", "متابعة عرض سعر"),
     ],
     "operations": [
+        ("hotel_confirmation", "تأكيد من الفندق"),
         ("need_hcn", "محتاج HCN"),
         ("email_hotel", "محتاج إرسال إيميل للفندق"),
+        ("special_request", "طلب خاص من الفندق"),
     ],
-    "product": [
-        ("new_booking", "حجز جديد"),
+    "fft": [
+        ("flight_change", "تعديل طيران"),
+        ("flight_cancel", "إلغاء طيران"),
+        ("flight_date_change", "تغيير ميعاد رحلة"),
+        ("issue_ticket", "إصدار تذكرة"),
     ],
-    "sales": [
-        ("lead_inquiry", "استفسار عميل"),
-        ("discount_request", "طلب خصم"),
+    "cs": [
+        ("hotel_confirmation_request", "طلب تأكيد / HCN من الفندق"),
+        ("flight_change_request", "تعديل طيران"),
+        ("flight_cancel_request", "إلغاء طيران"),
+        ("flight_date_request", "تغيير ميعاد رحلة"),
+        ("issue_ticket_request", "إصدار تذكرة"),
+        ("customer_complaint", "شكوى عميل"),
+        ("booking_issue", "مشكلة في حجز"),
+        ("modify_request", "طلب تعديل"),
+        ("cancel_request", "طلب إلغاء"),
+        ("refund", "ريفند"),
+        ("follow_up", "متابعة على طلب"),
     ],
 }
 
@@ -78,5 +84,12 @@ class Command(BaseCommand):
                         defaults={"name": c_name, "order": i}
                     )
             self.stdout.write(self.style.SUCCESS("Categories seeded."))
+
+        # employees whose department was set before the helpdesk existed join their inbox now
+        # (adds missing memberships only, never removes anyone)
+        from accounts.models import UserProfile
+        from helpdesk.signals import sync_membership
+        for prof in UserProfile.objects.exclude(department="").select_related("user"):
+            sync_membership(prof, only_add=True)
 
         self.stdout.write(self.style.SUCCESS(f"Done. created={created}, updated={updated}"))
