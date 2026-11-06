@@ -32,7 +32,13 @@ class TicketForm(forms.ModelForm):
         widgets = {"subject": forms.TextInput(attrs={"class": "w-full"})}
 
     def __init__(self, *args, **kwargs):
+        user = kwargs.pop("user", None)
         super().__init__(*args, **kwargs)
+        if user is not None:
+            from .permissions import allowed_department_slugs
+            self.fields["department"].queryset = Department.objects.filter(
+                is_active=True, slug__in=allowed_department_slugs(user)
+            )
 
         # فلترة ContentTypes المسموحة (اختياري)
         allowed_ids = []

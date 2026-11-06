@@ -18,7 +18,10 @@ from .models import (
     TicketCategory,
 )
 from .forms import TicketForm, TicketReplyForm
-from .permissions import can_view_ticket, can_reply_ticket, is_dept_member
+from .permissions import (
+    can_view_ticket, can_reply_ticket, is_dept_member, can_forward, can_see_internal,
+    allowed_department_slugs,
+)
 
 # Mentions: @username
 MENTION_RE = re.compile(r"@(\w[\w\.+-]{1,30})")
@@ -227,7 +230,7 @@ def export_csv(request):
 @login_required
 def ticket_create(request):
     if request.method == "POST":
-        form = TicketForm(request.POST, request.FILES)
+        form = TicketForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
             ticket: Ticket = form.save(commit=False)
             ticket.requester = request.user
@@ -259,7 +262,7 @@ def ticket_create(request):
             messages.success(request, "تم إنشاء التذكرة بنجاح.")
             return redirect(ticket.get_absolute_url())
     else:
-        form = TicketForm()
+        form = TicketForm(user=request.user)
         dept_slug = request.GET.get("department")
         subj = request.GET.get("subject")
         r_app = request.GET.get("related_app")
@@ -278,6 +281,11 @@ def ticket_create(request):
 
         if subj:
             form.fields["subject"].initial = subj
+
+        if request.GET.get("related_ref"):
+            form.fields["related_ref"].initial = request.GET["related_ref"][:100]
+        if request.GET.get("related_url"):
+            form.fields["related_url"].initial = request.GET["related_url"][:200]
 
         if r_app and r_model and r_id and r_id.isdigit():
             try:
@@ -308,6 +316,8 @@ def ticket_detail(request, pk: int):
             reply: TicketMessage = form.save(commit=False)
             reply.ticket = ticket
             reply.sender = request.user
+            if not can_see_internal(request.user, ticket):
+                reply.is_internal_note = False       # only staff may write internal notes
             reply.save()
 
             att = form.cleaned_data.get("attachment")
@@ -337,14 +347,26 @@ def ticket_detail(request, pk: int):
     else:
         form = TicketReplyForm(department=ticket.department)
 
+    staff_view = can_see_internal(request.user, ticket)
+    msgs = ticket.messages.select_related("sender").prefetch_related("attachments")
+    if not staff_view:
+        msgs = msgs.filter(is_internal_note=False)
+
     ctx = {
         "ticket": ticket,
-        "messages": ticket.messages.select_related("sender").prefetch_related(
-            "attachments"
-        ),
+        "messages": msgs,
         "form": form,
         "status_choices": Ticket.Status.choices,
+        "staff_view": staff_view,
     }
+    if ticket.parent_id and is_dept_member(request.user, ticket.parent.department):
+        ctx["parent"] = ticket.parent
+    if can_forward(request.user, ticket):
+        first = ticket.messages.filter(is_internal_note=False).order_by("created_at").first()
+        ctx["can_forward"] = True
+        ctx["forward_departments"] = Department.objects.filter(is_active=True, slug__in=["operations", "fft"])
+        ctx["first_body"] = first.body if first else ""
+        ctx["children"] = ticket.children.select_related("department").prefetch_related("messages__attachments", "messages__sender").order_by("created_at")
     return render(request, "helpdesk/ticket_detail.html", ctx)
 
 
@@ -385,6 +407,13 @@ def change_status(request, pk: int, new_status: str):
     ticket.status = new_status
     ticket.save(update_fields=["status", "updated_at", "resolved_at"])
 
+    if ticket.requester_id != request.user.id and ticket.requester.is_active:
+        from core.models import Notification
+        Notification.objects.create(
+            to_user=ticket.requester, target_url=ticket.get_absolute_url(),
+            message=f"تم تحديث حالة الطلب #{ticket.pk} إلى {ticket.get_status_display()}: {ticket.subject}",
+        )
+
     messages.success(request, "تم تحديث حالة التذكرة.")
     return redirect(ticket.get_absolute_url())
 
@@ -396,12 +425,10 @@ def ticket_messages_partial(request, pk: int):
     if not can_view_ticket(request.user, ticket):
         return HttpResponse("", status=403)
 
-    ctx = {
-        "ticket": ticket,
-        "messages": ticket.messages.select_related("sender").prefetch_related(
-            "attachments"
-        ),
-    }
+    msgs = ticket.messages.select_related("sender").prefetch_related("attachments")
+    if not can_see_internal(request.user, ticket):
+        msgs = msgs.filter(is_internal_note=False)
+    ctx = {"ticket": ticket, "messages": msgs}
     return render(request, "helpdesk/_messages_partial.html", ctx)
 
 
@@ -427,3 +454,57 @@ def category_options(request):
 
     options.append("</select>")
     return HttpResponse("".join(options))
+
+
+# ---------------------------------------------------------------------------
+# CS forwards a sales request to Operations / FFT, and relays their answer back to the agent
+# ---------------------------------------------------------------------------
+@login_required
+def ticket_forward(request, pk: int):
+    ticket = get_object_or_404(Ticket, pk=pk)
+    if request.method != "POST" or not can_forward(request.user, ticket):
+        messages.error(request, "التحويل متاح لـ CS فقط.")
+        return redirect("helpdesk:ticket_detail", pk=ticket.pk)
+
+    dept = Department.objects.filter(is_active=True, slug=request.POST.get("department"), slug__in=["operations", "fft"]).first()
+    body = (request.POST.get("body") or "").strip()
+    if not dept or not body:
+        messages.error(request, "اختار القسم (أوبريشن أو FFT) واكتب الرسالة.")
+        return redirect("helpdesk:ticket_detail", pk=ticket.pk)
+
+    child = Ticket.objects.create(
+        subject=f"[CS #{ticket.pk}] {ticket.subject}"[:200], department=dept, requester=request.user,
+        parent=ticket, priority=ticket.priority,
+        related_content_type=ticket.related_content_type, related_object_id=ticket.related_object_id,
+        related_ref=ticket.related_ref, related_url=ticket.related_url,
+    )
+    child.watchers.add(request.user)
+    TicketMessage.objects.create(ticket=child, sender=request.user, body=body)
+    TicketMessage.objects.create(
+        ticket=ticket, sender=request.user, is_internal_note=True,
+        body=f"تم التحويل إلى {dept.name} (طلب #{child.pk}).",
+    )
+    if ticket.assigned_to_id is None:
+        ticket.assigned_to = request.user
+        ticket.save(update_fields=["assigned_to", "updated_at"])
+    messages.success(request, f"تم التحويل إلى {dept.name}. هتلاقي ردهم تحت وتنقله للأجنت.")
+    return redirect("helpdesk:ticket_detail", pk=ticket.pk)
+
+
+@login_required
+def ticket_relay(request, pk: int, msg_id: int):
+    """Copy a public reply (and its files) from a forwarded request into the sales request."""
+    ticket = get_object_or_404(Ticket, pk=pk)
+    if request.method != "POST" or not can_forward(request.user, ticket):
+        messages.error(request, "غير مسموح.")
+        return redirect("helpdesk:ticket_detail", pk=ticket.pk)
+    src = get_object_or_404(TicketMessage, pk=msg_id, ticket__parent=ticket, is_internal_note=False)
+    note = (request.POST.get("note") or "").strip()
+    body = f"رد {src.ticket.department.name}:\n{src.body}" + (f"\n\n{note}" if note else "")
+    msg = TicketMessage.objects.create(ticket=ticket, sender=request.user, body=body)
+    for att in src.attachments.all():
+        TicketAttachment.objects.create(message=msg, uploaded_by=request.user, file=att.file)
+    ticket.updated_at = timezone.now()
+    ticket.save(update_fields=["updated_at"])
+    messages.success(request, "تم نقل الرد للأجنت.")
+    return redirect("helpdesk:ticket_detail", pk=ticket.pk)

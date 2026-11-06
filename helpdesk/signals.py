@@ -85,3 +85,74 @@ def notify_new_message(sender, instance: TicketMessage, created, **kwargs):
             send_mail(subject, body, DEFAULT_FROM, list(emails), fail_silently=True)
         except Exception:
             pass
+
+
+# ---------------------------------------------------------------------------
+# Staff department  ->  helpdesk department membership
+# (set the department on the employee in "إدارة الموظفين" and he joins that inbox automatically)
+# ---------------------------------------------------------------------------
+from django.db.models.signals import post_save as _post_save  # noqa: E402
+
+PROFILE_DEPT_TO_SLUG = {"cs": "cs", "ops": "operations", "quotation": "quotation", "fft": "fft"}
+
+
+def sync_membership(profile, only_add=False):
+    from .models import Department, DepartmentMembership
+    wanted = PROFILE_DEPT_TO_SLUG.get(profile.department)
+    for dept in Department.objects.filter(slug__in=PROFILE_DEPT_TO_SLUG.values()):
+        m = DepartmentMembership.objects.filter(user=profile.user, department=dept).first()
+        if dept.slug == wanted:
+            if m is None:
+                DepartmentMembership.objects.create(user=profile.user, department=dept, is_active=True)
+            elif not m.is_active:
+                m.is_active = True
+                m.save(update_fields=["is_active"])
+        elif m is not None and m.is_active and not only_add:
+            m.is_active = False
+            m.save(update_fields=["is_active"])
+
+
+def _connect_profile_sync():
+    from accounts.models import UserProfile
+
+    @receiver(_post_save, sender=UserProfile, weak=False)
+    def _on_profile_save(sender, instance, **kwargs):
+        sync_membership(instance)
+
+
+_connect_profile_sync()
+
+
+# ---------------------------------------------------------------------------
+# In-app notifications (the bell), on top of the e-mails above
+# ---------------------------------------------------------------------------
+def _bell(users, message, ticket, exclude=None):
+    from core.models import Notification
+    seen = set()
+    for u in users:
+        if u is None or u.pk in seen or (exclude and u.pk == exclude.pk) or not u.is_active:
+            continue
+        seen.add(u.pk)
+        Notification.objects.create(to_user=u, message=message, target_url=ticket.get_absolute_url())
+
+
+@receiver(post_save, sender=Ticket, dispatch_uid="hd_bell_new_ticket")
+def bell_new_ticket(sender, instance: Ticket, created, **kwargs):
+    if not created:
+        return
+    dept = instance.department
+    members = [m.user for m in dept.memberships.filter(is_active=True).select_related("user")]
+    _bell(members + [dept.manager, instance.assigned_to],
+          f"طلب جديد لقسم {dept.name}: {instance.subject}", instance, exclude=instance.requester)
+
+
+@receiver(post_save, sender=TicketMessage, dispatch_uid="hd_bell_new_message")
+def bell_new_message(sender, instance: TicketMessage, created, **kwargs):
+    if not created:
+        return
+    t = instance.ticket
+    if instance.is_internal_note:
+        people = [t.assigned_to, t.department.manager]
+    else:
+        people = [t.requester, t.assigned_to, t.department.manager] + list(t.watchers.all())
+    _bell(people, f"رد جديد على الطلب #{t.pk}: {t.subject}", t, exclude=instance.sender)

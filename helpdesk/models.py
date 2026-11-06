@@ -111,6 +111,8 @@ class Ticket(models.Model):
         URGENT = "urgent", "Urgent"
 
     subject = models.CharField(max_length=200)
+    # a request CS forwards to Operations / FFT points back to the sales request it came from
+    parent = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="children")
     department = models.ForeignKey(Department, on_delete=models.PROTECT, related_name="tickets")
     requester = models.ForeignKey(User, on_delete=models.PROTECT, related_name="requested_tickets")
     assigned_to = models.ForeignKey(
