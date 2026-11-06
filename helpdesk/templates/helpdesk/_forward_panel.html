@@ -1,0 +1,45 @@
+{# CS only: forward to Operations / FFT and relay their answers back to the agent #}
+{% if parent %}
+<div class="rounded-xl border border-blue-200 bg-blue-50 text-blue-800 p-3 text-sm">
+  ده طلب محوّل من CS. الطلب الأصلي:
+  <a class="underline font-bold" href="{{ parent.get_absolute_url }}">#{{ parent.pk }} {{ parent.subject }}</a>
+</div>
+{% endif %}
+
+{% if can_forward %}
+<div class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-5">
+  <h2 class="text-sm font-bold text-gray-700 dark:text-gray-200 mb-1">تحويل لأوبريشن / FFT</h2>
+  <p class="text-xs text-gray-500 mb-3">الأجنت بيتواصل مع CS بس. حوّل الطلب للقسم، وارجع انقل ردّه للأجنت من هنا.</p>
+  <form method="post" action="{% url 'helpdesk:ticket_forward' ticket.pk %}" class="space-y-2">
+    {% csrf_token %}
+    <select name="department" class="w-full rounded-lg border-gray-300 text-sm" required>
+      {% for d in forward_departments %}<option value="{{ d.slug }}">{{ d.name }}</option>{% endfor %}
+    </select>
+    <textarea name="body" rows="3" required class="w-full rounded-lg border-gray-300 text-sm" placeholder="الرسالة للقسم">{{ first_body }}</textarea>
+    <button class="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm">تحويل للقسم</button>
+  </form>
+
+  {% for c in children %}
+  <div class="mt-4 rounded-xl border border-gray-200 dark:border-gray-800 p-3">
+    <div class="flex items-center justify-between text-sm">
+      <div><b>{{ c.department.name }}</b> — <a class="underline text-blue-600" href="{{ c.get_absolute_url }}">طلب #{{ c.pk }}</a></div>
+      <span class="px-2 py-0.5 rounded-md bg-gray-100 text-xs">{{ c.get_status_display }}</span>
+    </div>
+    {% for m in c.messages.all %}{% if not m.is_internal_note %}
+    <div class="mt-2 rounded-lg bg-gray-50 dark:bg-gray-800/50 p-2 text-sm">
+      <div class="text-xs text-gray-500 mb-1">{{ m.sender }} · {{ m.created_at|date:"Y-m-d H:i" }}</div>
+      <div class="whitespace-pre-wrap">{{ m.body }}</div>
+      {% for a in m.attachments.all %}<a class="text-xs underline text-blue-600 ml-2" target="_blank" href="{{ a.file.url }}">📎 {{ a.file.name|cut:"tickets/" }}</a>{% endfor %}
+      {% if m.sender_id != c.requester_id %}
+      <form method="post" action="{% url 'helpdesk:ticket_relay' ticket.pk m.pk %}" class="mt-2 flex gap-2 items-center">
+        {% csrf_token %}
+        <input type="text" name="note" placeholder="تعليق إضافي للأجنت (اختياري)" class="flex-1 rounded-lg border-gray-300 text-xs">
+        <button class="px-3 py-1 rounded-lg bg-green-600 text-white text-xs whitespace-nowrap">نقل الرد للأجنت</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}{% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}

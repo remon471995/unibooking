@@ -43,26 +43,40 @@
       <!-- الأقسام -->
       <span class="text-xs sm:text-sm text-gray-500">الأقسام:</span>
 
-      <a href="{% url 'helpdesk:department_inbox' 'sales' %}"
-         class="px-2 py-1 rounded-full bg-gray-50 hover:bg-gray-100 text-xs sm:text-sm">
-        Sales
-      </a>
-      <a href="{% url 'helpdesk:department_inbox' 'product' %}"
-         class="px-2 py-1 rounded-full bg-gray-50 hover:bg-gray-100 text-xs sm:text-sm">
-        Product
-      </a>
+      {% if 'quotation' in hd_inbox_slugs %}
+      <a href="{% url 'helpdesk:department_inbox' 'quotation' %}"
+         class="px-2 py-1 rounded-full bg-gray-50 hover:bg-gray-100 text-xs sm:text-sm">كوتيشن</a>
+      {% endif %}
+      {% if 'operations' in hd_inbox_slugs %}
       <a href="{% url 'helpdesk:department_inbox' 'operations' %}"
-         class="px-2 py-1 rounded-full bg-gray-50 hover:bg-gray-100 text-xs sm:text-sm">
-        Operations
-      </a>
-      <a href="{% url 'helpdesk:department_inbox' 'after_sales' %}"
-         class="px-2 py-1 rounded-full bg-gray-50 hover:bg-gray-100 text-xs sm:text-sm">
-        After Sales
-      </a>
-      <a href="{% url 'helpdesk:department_inbox' 'hr' %}"
-         class="px-2 py-1 rounded-full bg-gray-50 hover:bg-gray-100 text-xs sm:text-sm">
-        HR
-      </a>
+         class="px-2 py-1 rounded-full bg-gray-50 hover:bg-gray-100 text-xs sm:text-sm">أوبريشن</a>
+      {% endif %}
+      {% if 'fft' in hd_inbox_slugs %}
+      <a href="{% url 'helpdesk:department_inbox' 'fft' %}"
+         class="px-2 py-1 rounded-full bg-gray-50 hover:bg-gray-100 text-xs sm:text-sm">FFT</a>
+      {% endif %}
+      {% if 'cs' in hd_inbox_slugs %}
+      <a href="{% url 'helpdesk:department_inbox' 'cs' %}"
+         class="px-2 py-1 rounded-full bg-gray-50 hover:bg-gray-100 text-xs sm:text-sm">CS</a>
+      {% endif %}
+
+      <span class="text-xs sm:text-sm text-gray-500 ms-2">طلب سريع:</span>
+      {% if 'quotation' in hd_write_slugs %}
+      <a href="{% url 'helpdesk:ticket_create' %}?department=quotation"
+         class="px-2 py-1 rounded-full bg-green-50 hover:bg-green-100 text-green-800 text-xs sm:text-sm">+ كوتيشن</a>
+      {% endif %}
+      {% if 'operations' in hd_write_slugs %}
+      <a href="{% url 'helpdesk:ticket_create' %}?department=operations"
+         class="px-2 py-1 rounded-full bg-green-50 hover:bg-green-100 text-green-800 text-xs sm:text-sm">+ أوبريشن</a>
+      {% endif %}
+      {% if 'fft' in hd_write_slugs %}
+      <a href="{% url 'helpdesk:ticket_create' %}?department=fft"
+         class="px-2 py-1 rounded-full bg-green-50 hover:bg-green-100 text-green-800 text-xs sm:text-sm">+ FFT</a>
+      {% endif %}
+      {% if 'cs' in hd_write_slugs %}
+      <a href="{% url 'helpdesk:ticket_create' %}?department=cs"
+         class="px-2 py-1 rounded-full bg-green-50 hover:bg-green-100 text-green-800 text-xs sm:text-sm">+ CS</a>
+      {% endif %}
     </div>
 
     <!-- البحث في الهلب ديسك -->

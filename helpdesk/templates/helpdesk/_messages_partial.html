@@ -1,7 +1,8 @@
 {# helpdesk/_messages_partial.html #}
 <div class="flex flex-col gap-3">
   {% for msg in messages %}
-    <article class="border border-gray-200 dark:border-gray-800 rounded-lg bg-gray-50 dark:bg-gray-900/40 px-3 py-2">
+    <article class="border rounded-lg px-3 py-2 {% if msg.is_internal_note %}border-yellow-300 bg-yellow-50{% else %}border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/40{% endif %}">
+      {% if msg.is_internal_note %}<div class="text-[11px] font-bold text-yellow-800 mb-1">🔒 ملاحظة داخلية — مش بتظهر للأجنت</div>{% endif %}
       <div class="flex items-center justify-between text-xs text-gray-500 mb-1">
         <span class="font-semibold text-gray-800 dark:text-gray-100">
           {{ msg.sender }}
