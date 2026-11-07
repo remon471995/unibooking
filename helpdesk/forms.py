@@ -6,9 +6,36 @@ from .models import (
     CannedReply, TicketCategory, Department
 )
 
+
+MAX_FILES, MAX_FILE_MB = 10, 15
+
+
+class MultipleFileInput(forms.ClearableFileInput):
+    allow_multiple_selected = True
+
+
+class MultipleFileField(forms.FileField):
+    """Several attachments in one go (up to 10 files, 15 MB each). cleaned value is always a list."""
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("widget", MultipleFileInput(attrs={"multiple": True}))
+        super().__init__(*args, **kwargs)
+
+    def clean(self, data, initial=None):
+        single = super().clean
+        files = data if isinstance(data, (list, tuple)) else ([data] if data else [])
+        files = [f for f in files if f]
+        if len(files) > MAX_FILES:
+            raise forms.ValidationError(f"أقصى عدد للمرفقات {MAX_FILES} ملفات في المرة.")
+        for f in files:
+            if f.size > MAX_FILE_MB * 1024 * 1024:
+                raise forms.ValidationError(f"الملف {f.name} أكبر من {MAX_FILE_MB} ميجا.")
+        return [single(f, initial) for f in files]
+
+
 class TicketForm(forms.ModelForm):
     body = forms.CharField(label="تفاصيل الطلب", widget=forms.Textarea(attrs={"rows": 5}))
-    attachment = forms.FileField(label="مرفق (اختياري)", required=False)
+    attachment = MultipleFileField(label="مرفقات (اختياري)", required=False)
 
     related_model = forms.ModelChoiceField(label="كيان مرتبط (اختياري)", required=False, queryset=ContentType.objects.none())
     related_id = forms.IntegerField(label="المعرف المرتبط (ID)", required=False)
@@ -77,7 +104,7 @@ class TicketForm(forms.ModelForm):
 
 
 class TicketReplyForm(forms.ModelForm):
-    attachment = forms.FileField(label="مرفق (اختياري)", required=False)
+    attachment = MultipleFileField(label="مرفقات (اختياري)", required=False)
     canned = forms.ModelChoiceField(label="إدراج رد جاهز", required=False, queryset=CannedReply.objects.none())
 
     class Meta:

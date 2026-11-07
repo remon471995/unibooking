@@ -46,6 +46,8 @@ def notify_new_message(sender, instance: TicketMessage, created, **kwargs):
       - إن كانت ملاحظة داخلية: تُخطر المعيّن ومدير القسم والـ watchers (بدون الطالب).
       - وإلا: تُخطر الطالب + المعيّن + مدير القسم + الـ watchers.
     """
+    if getattr(instance, "_system_note", False):
+        return          # hand-over / forward / reassign notes are logged silently
     if not created:
         return
 
@@ -148,7 +150,7 @@ def bell_new_ticket(sender, instance: Ticket, created, **kwargs):
 
 @receiver(post_save, sender=TicketMessage, dispatch_uid="hd_bell_new_message")
 def bell_new_message(sender, instance: TicketMessage, created, **kwargs):
-    if not created:
+    if not created or getattr(instance, "_system_note", False):
         return
     t = instance.ticket
     if instance.is_internal_note:

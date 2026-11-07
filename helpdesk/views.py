@@ -12,6 +12,7 @@ from django.utils import timezone
 
 from .models import (
     Department,
+    DepartmentMembership,
     Ticket,
     TicketMessage,
     TicketAttachment,
@@ -253,8 +254,7 @@ def ticket_create(request):
                 ticket=ticket, sender=request.user, body=body
             )
 
-            att = form.cleaned_data.get("attachment")
-            if att:
+            for att in form.cleaned_data.get("attachment") or []:
                 TicketAttachment.objects.create(
                     message=msg, uploaded_by=request.user, file=att
                 )
@@ -320,8 +320,7 @@ def ticket_detail(request, pk: int):
                 reply.is_internal_note = False       # only staff may write internal notes
             reply.save()
 
-            att = form.cleaned_data.get("attachment")
-            if att:
+            for att in form.cleaned_data.get("attachment") or []:
                 TicketAttachment.objects.create(
                     message=reply, uploaded_by=request.user, file=att
                 )
@@ -358,6 +357,7 @@ def ticket_detail(request, pk: int):
         "form": form,
         "status_choices": Ticket.Status.choices,
         "staff_view": staff_view,
+        "assignees": eligible_assignees(ticket.department, exclude=ticket.assigned_to) if staff_view else [],
     }
     if ticket.parent_id and is_dept_member(request.user, ticket.parent.department):
         ctx["parent"] = ticket.parent
@@ -480,10 +480,7 @@ def ticket_forward(request, pk: int):
     )
     child.watchers.add(request.user)
     TicketMessage.objects.create(ticket=child, sender=request.user, body=body)
-    TicketMessage.objects.create(
-        ticket=ticket, sender=request.user, is_internal_note=True,
-        body=f"تم التحويل إلى {dept.name} (طلب #{child.pk}).",
-    )
+    _system_note(ticket, request.user, f"تم التحويل إلى {dept.name} (طلب #{child.pk}).")
     if ticket.assigned_to_id is None:
         ticket.assigned_to = request.user
         ticket.save(update_fields=["assigned_to", "updated_at"])
@@ -508,3 +505,136 @@ def ticket_relay(request, pk: int, msg_id: int):
     ticket.save(update_fields=["updated_at"])
     messages.success(request, "تم نقل الرد للأجنت.")
     return redirect("helpdesk:ticket_detail", pk=ticket.pk)
+
+
+# ---------------------------------------------------------------------------
+# Hand over cases (end of shift / leave / reassignment)
+# ---------------------------------------------------------------------------
+OPEN_STATUSES = [Ticket.Status.OPEN, Ticket.Status.PENDING, Ticket.Status.ON_HOLD]
+
+
+def eligible_assignees(department, exclude=None):
+    """Active members / leaders of the department, plus its manager (never viewers)."""
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    ids = set(DepartmentMembership.objects.filter(
+        department=department, is_active=True, role__in=["member", "leader"]).values_list("user_id", flat=True))
+    if department.manager_id:
+        ids.add(department.manager_id)
+    qs = User.objects.filter(pk__in=ids, is_active=True)
+    return qs.exclude(pk=exclude.pk) if exclude else qs
+
+
+def _can_move_tickets(user, ticket) -> bool:
+    from .permissions import _is_manager
+    return _is_manager(user) or is_dept_member(user, ticket.department)
+
+
+def _system_note(ticket, sender, body):
+    """Internal note written by the system (reassign / forward / hand-over): kept in the log, no notifications."""
+    m = TicketMessage(ticket=ticket, sender=sender, is_internal_note=True, body=body)
+    m._system_note = True
+    m.save()
+    return m
+
+
+def _bell(to_user, message, url):
+    from core.models import Notification
+    Notification.objects.create(to_user=to_user, message=message, target_url=url)
+
+
+@login_required
+def ticket_assign(request, pk: int):
+    """Move one request to a colleague of the same department."""
+    from django.contrib.auth import get_user_model
+    ticket = get_object_or_404(Ticket, pk=pk)
+    if request.method != "POST" or not _can_move_tickets(request.user, ticket):
+        messages.error(request, "غير مسموح.")
+        return redirect("helpdesk:ticket_detail", pk=ticket.pk)
+    target = eligible_assignees(ticket.department).filter(pk=request.POST.get("to_user") or 0).first()
+    if not target:
+        messages.error(request, "اختار زميل من نفس القسم.")
+        return redirect("helpdesk:ticket_detail", pk=ticket.pk)
+    old = ticket.assigned_to
+    ticket.assigned_to = target
+    ticket.save(update_fields=["assigned_to", "updated_at"])
+    _system_note(ticket, request.user, f"تحويل الطلب من {old or 'بدون مسؤول'} إلى {target}.")
+    if target.pk != request.user.pk:
+        _bell(target, f"اتحوّلك الطلب #{ticket.pk}: {ticket.subject}", ticket.get_absolute_url())
+    messages.success(request, f"تم تحويل الطلب إلى {target}.")
+    return redirect("helpdesk:ticket_detail", pk=ticket.pk)
+
+
+@login_required
+def handover(request):
+    """End of shift: move all (or some) of my open requests to a colleague, or release them to the department."""
+    from django.contrib.auth import get_user_model
+    from .permissions import _is_manager
+    User = get_user_model()
+    me = request.user
+
+    from_id = request.POST.get("from_user") or request.GET.get("from")
+    from_user = me
+    if from_id and str(from_id) != str(me.pk):
+        other = get_object_or_404(User, pk=from_id)
+        is_dept_manager = Department.objects.filter(
+            manager=me, memberships__user=other, memberships__is_active=True).exists()
+        if not (_is_manager(me) or is_dept_manager):
+            messages.error(request, "تسليم شيفت موظف تاني متاح للمدير أو مدير القسم.")
+            return redirect("helpdesk:my_inbox")
+        from_user = other
+
+    tickets = list(
+        Ticket.objects.filter(assigned_to=from_user, status__in=OPEN_STATUSES)
+        .select_related("department", "requester").order_by("department__name", "-updated_at")
+    )
+    dept_ids = {t.department_id for t in tickets} or set(
+        DepartmentMembership.objects.filter(user=from_user, is_active=True).values_list("department_id", flat=True))
+    people = {}
+    for d in Department.objects.filter(pk__in=dept_ids):
+        for u in eligible_assignees(d, exclude=from_user):
+            people[u.pk] = u
+
+    if request.method == "POST":
+        selected = set(request.POST.getlist("tickets"))
+        to_id = request.POST.get("to_user") or ""
+        note = (request.POST.get("note") or "").strip()
+        chosen = [t for t in tickets if str(t.pk) in selected]
+        if not chosen:
+            messages.error(request, "اختار طلب واحد على الأقل.")
+            return redirect(request.get_full_path())
+        target = None
+        if to_id:
+            target = User.objects.filter(pk=to_id, is_active=True).first()
+            if not target:
+                messages.error(request, "الموظف المستلم غير موجود.")
+                return redirect(request.get_full_path())
+        moved, skipped = 0, []
+        for t in chosen:
+            if target and target.pk not in {u.pk for u in eligible_assignees(t.department)}:
+                skipped.append(t)           # the receiver is not in that request's department
+                continue
+            t.assigned_to = target
+            t.save(update_fields=["assigned_to", "updated_at"])
+            where = f"إلى {target}" if target else "للقسم (من غير مسؤول)"
+            _system_note(t, me, f"تسليم شيفت: من {from_user} {where}." + (f"\nملاحظة: {note}" if note else ""))
+            moved += 1
+        if target and moved:
+            _bell(target, f"استلمت {moved} طلب من {from_user} (تسليم شيفت)" + (f" — {note}" if note else ""),
+                  "/helpdesk/")
+        if moved:
+            messages.success(request, f"تم تسليم {moved} طلب" + (f" إلى {target}." if target else " للقسم."))
+        if skipped:
+            messages.warning(request, f"{len(skipped)} طلب ما اتنقلوش لأن المستلم مش من القسم بتاعهم.")
+        return redirect("helpdesk:handover")
+
+    managers_view = _is_manager(me) or Department.objects.filter(manager=me).exists()
+    team = []
+    if managers_view:
+        team = list(User.objects.filter(
+            pk__in=DepartmentMembership.objects.filter(is_active=True).values_list("user_id", flat=True), is_active=True
+        ).order_by("first_name", "username"))
+    return render(request, "helpdesk/handover.html", {
+        "from_user": from_user, "tickets": tickets, "people": sorted(people.values(), key=lambda u: u.get_full_name() or u.username),
+        "is_self": from_user.pk == me.pk, "team": team,
+    })
