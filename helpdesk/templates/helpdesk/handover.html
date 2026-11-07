@@ -1,0 +1,67 @@
+{% extends "helpdesk/base.html" %}
+{% block title %}تسليم الشيفت | UniBooking{% endblock %}
+{% block content %}
+<div class="max-w-4xl mx-auto mt-6 mb-10" dir="rtl">
+  {% include "helpdesk/_topbar.html" %}
+
+  <div class="bg-white dark:bg-gray-900 rounded-2xl shadow border border-gray-200 dark:border-gray-800 p-5 mt-4">
+    <h1 class="text-lg font-bold mb-1">تسليم الشيفت / نقل الطلبات</h1>
+    <p class="text-sm text-gray-500 mb-4">
+      {% if is_self %}طلباتك المفتوحة ({{ tickets|length }}). اختار زميل يستلمها، أو سيبها للقسم وأي حد يستلمها.
+      {% else %}الطلبات المفتوحة عند <b>{{ from_user.get_full_name|default:from_user.username }}</b> ({{ tickets|length }}).{% endif %}
+    </p>
+
+    {% if team %}
+    <form method="get" class="flex gap-2 items-center mb-4">
+      <label class="text-sm text-gray-600">تسليم شيفت موظف:</label>
+      <select name="from" class="rounded-lg border-gray-300 text-sm" onchange="this.form.submit()">
+        <option value="">أنا</option>
+        {% for u in team %}<option value="{{ u.pk }}" {% if u.pk == from_user.pk and not is_self %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>{% endfor %}
+      </select>
+    </form>
+    {% endif %}
+
+    {% if tickets %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="from_user" value="{{ from_user.pk }}">
+      <div class="overflow-x-auto mb-4">
+        <table class="w-full text-sm">
+          <tr class="text-xs text-gray-500">
+            <th class="p-2 text-right"><input type="checkbox" checked onclick="document.querySelectorAll('.tk').forEach(c=>c.checked=this.checked)"></th>
+            <th class="p-2 text-right">#</th><th class="p-2 text-right">الموضوع</th><th class="p-2 text-right">القسم</th><th class="p-2 text-right">الحالة</th><th class="p-2 text-right">آخر تحديث</th>
+          </tr>
+          {% for t in tickets %}
+          <tr class="border-t">
+            <td class="p-2"><input type="checkbox" class="tk" name="tickets" value="{{ t.pk }}" checked></td>
+            <td class="p-2"><a class="underline text-blue-600" href="{{ t.get_absolute_url }}">#{{ t.pk }}</a></td>
+            <td class="p-2">{{ t.subject }}</td>
+            <td class="p-2">{{ t.department.name }}</td>
+            <td class="p-2">{{ t.get_status_display }}</td>
+            <td class="p-2 text-xs text-gray-500">{{ t.updated_at|date:"Y-m-d H:i" }}</td>
+          </tr>
+          {% endfor %}
+        </table>
+      </div>
+
+      <div class="grid md:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-sm mb-1">يستلمها</label>
+          <select name="to_user" class="w-full rounded-lg border-gray-300 text-sm">
+            <option value="">— سيبها للقسم (من غير مسؤول) —</option>
+            {% for u in people %}<option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }} ({{ u.username }})</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm mb-1">ملاحظة للمستلم (اختياري)</label>
+          <input type="text" name="note" class="w-full rounded-lg border-gray-300 text-sm" placeholder="مثلاً: العميل مستني رد الفندق النهاردة">
+        </div>
+      </div>
+      <button class="mt-4 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm">تسليم الطلبات المختارة</button>
+    </form>
+    {% else %}
+      <div class="text-sm text-gray-500">مفيش طلبات مفتوحة عندك. 👌</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

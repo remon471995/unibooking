@@ -32,6 +32,16 @@
           <i class="fa-solid fa-user-plus ml-1"></i> إسناد لي
         </a>
         {% endif %}
+        {% if staff_view and assignees %}
+        <form method="post" action="{% url 'helpdesk:ticket_assign' ticket.pk %}" class="flex items-center gap-1">
+          {% csrf_token %}
+          <select name="to_user" class="rounded-lg border-gray-300 text-xs py-1" required>
+            <option value="">حوّل لزميل…</option>
+            {% for u in assignees %}<option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }}</option>{% endfor %}
+          </select>
+          <button class="px-2 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs">تحويل</button>
+        </form>
+        {% endif %}
       </div>
     </div>
 
@@ -69,6 +79,7 @@
              {% render_field form.body class="w-full rounded-xl border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm focus:ring-blue-500 focus:border-blue-500 pr-4 pl-4 py-3" rows="3" placeholder="اكتب ردك هنا..." %}
           </div>
 
+          {% for e in form.attachment.errors %}<div class="text-red-600 text-xs mb-2">{{ e }}</div>{% endfor %}
           {% if staff_view %}
           <label class="flex items-center gap-2 text-xs text-yellow-800 mb-2">
             <input type="checkbox" name="is_internal_note"> 🔒 ملاحظة داخلية (مش بتظهر للأجنت)
@@ -79,8 +90,10 @@
             <div class="flex items-center gap-3">
               <label class="cursor-pointer text-gray-400 hover:text-gray-600 transition-colors relative group">
                 <i class="fa-solid fa-paperclip text-lg"></i>
-                <input type="file" name="{{ form.attachment.name }}" class="hidden">
-                <span class="absolute bottom-full mb-2 right-0 w-max px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity">إرفاق ملف</span>
+                <input type="file" name="{{ form.attachment.name }}" class="hidden" multiple
+                       onchange="var n=this.files.length; this.parentNode.querySelector('[data-count]').textContent = n ? ('📎 ' + n + ' ملف') : '';">
+                <span data-count class="text-xs text-blue-600 mr-1"></span>
+                <span class="absolute bottom-full mb-2 right-0 w-max px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity">إرفاق ملف أو أكتر</span>
               </label>
 
               {% if form.canned.field.queryset.exists %}

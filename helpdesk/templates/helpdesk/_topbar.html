@@ -60,6 +60,10 @@
          class="px-2 py-1 rounded-full bg-gray-50 hover:bg-gray-100 text-xs sm:text-sm">CS</a>
       {% endif %}
 
+      {% if hd_inbox_slugs %}
+      <a href="{% url 'helpdesk:handover' %}"
+         class="px-2 py-1 rounded-full bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs sm:text-sm">🔄 تسليم الشيفت</a>
+      {% endif %}
       <span class="text-xs sm:text-sm text-gray-500 ms-2">طلب سريع:</span>
       {% if 'quotation' in hd_write_slugs %}
       <a href="{% url 'helpdesk:ticket_create' %}?department=quotation"
