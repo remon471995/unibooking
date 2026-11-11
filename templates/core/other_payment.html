@@ -9,7 +9,7 @@
     <div>
       <h1 class="text-3xl font-bold text-gray-800">💳 إدارة دفع أخرى</h1>
       <p class="text-lg text-gray-600">
-        {{ booking.service_name|default:booking.reference|default:"حجز آخر" }}
+        {{ booking.get_service_type_display }} - {{ booking.provider_name|default:"حجز آخر" }}
       </p>
     </div>
     <a href="{% url 'other_payment_modify' booking.pk %}"
