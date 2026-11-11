@@ -98,17 +98,67 @@ class TicketTag(models.Model):
 # ========= التذاكر =========
 class Ticket(models.Model):
     class Status(models.TextChoices):
-        OPEN = "open", "Open"
-        PENDING = "pending", "Pending (Waiting Customer)"
-        ON_HOLD = "on_hold", "On Hold"
-        RESOLVED = "resolved", "Resolved"
-        CANCELLED = "cancelled", "Cancelled"
+        OPEN = "open", "مفتوح (جديد)"
+        IN_PROGRESS = "in_progress", "قيد التنفيذ"
+        PENDING_ENTRY = "pending_entry", "بانتظار الداتا انتري"
+        WAITING_THIRD_PARTY = "waiting_third_party", "بانتظار طرف ثالث (فندق / مورد / أوبريشن / FFT)"
+        CALLS = "calls", "اتصالات (مطلوب مكالمة)"
+        PENDING = "pending", "بانتظار رد العميل / الأجنت"
+        ON_HOLD = "on_hold", "متوقف مؤقتاً"
+        RESOLVED = "resolved", "تم الحل"
+        CANCELLED = "cancelled", "مُلغى"
+
+    CLOSED_STATUSES = ("resolved", "cancelled")
+    _TONES = {
+        "open": "blue", "in_progress": "indigo", "pending_entry": "violet",
+        "waiting_third_party": "orange", "calls": "teal", "pending": "amber",
+        "on_hold": "gray", "resolved": "emerald", "cancelled": "red",
+    }
+    _BADGE = {
+        "blue": "bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200",
+        "indigo": "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200",
+        "violet": "bg-violet-50 text-violet-700 dark:bg-violet-900/40 dark:text-violet-200",
+        "orange": "bg-orange-50 text-orange-700 dark:bg-orange-900/40 dark:text-orange-200",
+        "teal": "bg-teal-50 text-teal-700 dark:bg-teal-900/40 dark:text-teal-200",
+        "amber": "bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200",
+        "gray": "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200",
+        "emerald": "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200",
+        "red": "bg-red-50 text-red-700 dark:bg-red-900/40 dark:text-red-200",
+    }
+    _DOT = {
+        "blue": "bg-blue-500", "indigo": "bg-indigo-500", "violet": "bg-violet-500", "orange": "bg-orange-500",
+        "teal": "bg-teal-500", "amber": "bg-amber-500", "gray": "bg-gray-400", "emerald": "bg-emerald-500", "red": "bg-red-500",
+    }
+    _TEXT = {
+        "blue": "text-blue-600", "indigo": "text-indigo-600", "violet": "text-violet-600", "orange": "text-orange-600",
+        "teal": "text-teal-600", "amber": "text-amber-600", "gray": "text-gray-600", "emerald": "text-green-600", "red": "text-red-600",
+    }
+
+    @property
+    def status_tone(self):
+        return self._TONES.get(self.status, "gray")
+
+    @property
+    def status_badge(self):
+        return self._BADGE[self.status_tone]
+
+    @property
+    def status_dot(self):
+        return self._DOT[self.status_tone]
+
+    @property
+    def status_text(self):
+        return self._TEXT[self.status_tone]
+
+    @property
+    def is_closed(self):
+        return self.status in self.CLOSED_STATUSES
 
     class Priority(models.TextChoices):
-        LOW = "low", "Low"
-        NORMAL = "normal", "Normal"
-        HIGH = "high", "High"
-        URGENT = "urgent", "Urgent"
+        LOW = "low", "منخفضة"
+        NORMAL = "normal", "عادية"
+        HIGH = "high", "عالية"
+        URGENT = "urgent", "عاجلة"
 
     subject = models.CharField(max_length=200)
     # a request CS forwards to Operations / FFT points back to the sales request it came from
@@ -119,7 +169,7 @@ class Ticket(models.Model):
         User, null=True, blank=True, on_delete=models.SET_NULL, related_name="assigned_tickets"
     )
 
-    status = models.CharField(max_length=12, choices=Status.choices, default=Status.OPEN)
+    status = models.CharField(max_length=24, choices=Status.choices, default=Status.OPEN)
     priority = models.CharField(max_length=8, choices=Priority.choices, default=Priority.NORMAL)
 
     category = models.ForeignKey(TicketCategory, null=True, blank=True, on_delete=models.SET_NULL, related_name="tickets")

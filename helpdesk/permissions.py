@@ -131,3 +131,25 @@ def can_see_internal(user, ticket: Ticket) -> bool:
     if _is_manager(user) or is_dept_member(user, ticket.department):
         return True
     return bool(ticket.parent_id and is_dept_member(user, ticket.parent.department))
+
+
+def visible_tickets(user):
+    """Every request this user may open (same rules as can_view_ticket) as one queryset.
+    Used by search, the dashboard and the CSV export so nobody can list requests they could not open."""
+    from django.db.models import Q
+    qs = Ticket.objects.all()
+    if not user.is_authenticated:
+        return qs.none()
+    if user.is_superuser:
+        return qs
+    from core.permissions import manageable_user_ids
+    ids = manageable_user_ids(user)
+    if ids is None:                       # sales manager / admin
+        return qs
+    dept_ids = set(DepartmentMembership.objects.filter(user=user, is_active=True).values_list("department_id", flat=True))
+    dept_ids |= set(Department.objects.filter(manager=user).values_list("id", flat=True))
+    return qs.filter(
+        Q(requester=user) | Q(assigned_to=user) | Q(watchers=user)
+        | Q(department_id__in=dept_ids) | Q(parent__department_id__in=dept_ids)
+        | Q(requester_id__in=ids)
+    ).distinct()

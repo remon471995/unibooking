@@ -21,7 +21,7 @@ from .models import (
 from .forms import TicketForm, TicketReplyForm
 from .permissions import (
     can_view_ticket, can_reply_ticket, is_dept_member, can_forward, can_see_internal,
-    allowed_department_slugs,
+    allowed_department_slugs, visible_tickets,
 )
 
 # Mentions: @username
@@ -99,9 +99,10 @@ def department_inbox(request, slug: str):
 
 @login_required
 def dashboard(request):
-    by_status = Ticket.objects.values("status").annotate(c=Count("id")).order_by()
+    vis = visible_tickets(request.user)
+    by_status = vis.values("status").annotate(c=Count("id")).order_by()
     by_dept = (
-        Ticket.objects.values("department__name")
+        vis.values("department__name")
         .annotate(c=Count("id"))
         .order_by("department__name")
     )
@@ -109,7 +110,7 @@ def dashboard(request):
     duration = ExpressionWrapper(
         F("resolved_at") - F("created_at"), output_field=DurationField()
     )
-    avg_res_hours = Ticket.objects.filter(resolved_at__isnull=False).aggregate(
+    avg_res_hours = vis.filter(resolved_at__isnull=False).aggregate(
         h=Avg(duration)
     )
     avg_hours = (
@@ -118,10 +119,40 @@ def dashboard(request):
         else 0
     )
 
+    q = (request.GET.get("q") or "").strip()
+    status = (request.GET.get("status") or "").strip()
+    dept_slug = (request.GET.get("department") or request.GET.get("dept") or "").strip()
+    priority = (request.GET.get("priority") or "").strip()
+    lst = vis
+    if dept_slug:
+        lst = lst.filter(department__slug=dept_slug)
+    if status:
+        lst = lst.filter(status=status)
+    if priority:
+        lst = lst.filter(priority=priority)
+    if q:
+        lst = lst.filter(
+            Q(subject__icontains=q) | Q(id__icontains=q) | Q(related_ref__icontains=q)
+            | Q(requester__username__icontains=q) | Q(assigned_to__username__icontains=q)
+        ).distinct()
+    labels = dict(Ticket.Status.choices)
+
+    S = Ticket.Status
+    counts = {r["status"]: r["c"] for r in by_status}
+    grp = lambda *codes: sum(counts.get(c, 0) for c in codes)
+
     ctx = {
-        "by_status": list(by_status),
+        "total_count": sum(counts.values()),
+        "open_count": grp(S.OPEN, S.IN_PROGRESS, S.PENDING_ENTRY, S.CALLS),
+        "pending_count": grp(S.PENDING, S.WAITING_THIRD_PARTY, S.ON_HOLD),
+        "resolved_count": grp(S.RESOLVED, S.CANCELLED),
+        "by_status": [{**r, "label": labels.get(r["status"], r["status"])} for r in by_status],
         "by_dept": list(by_dept),
         "avg_hours": avg_hours,
+        "q": q, "status": status, "dept_slug": dept_slug,
+        "status_choices": Ticket.Status.choices,
+        "departments": Department.objects.filter(is_active=True).order_by("name"),
+        "tickets": lst.select_related("department", "requester", "assigned_to").prefetch_related("tags").order_by("-created_at")[:300],
     }
     return render(request, "helpdesk/dashboard.html", ctx)
 
@@ -141,7 +172,7 @@ def search(request):
     status = (request.GET.get("status") or "").strip()
     dept_slug = (request.GET.get("dept") or "").strip()
 
-    qs = Ticket.objects.all()
+    qs = visible_tickets(request.user)
 
     # فلتر القسم
     if dept_slug:
@@ -181,7 +212,7 @@ def search(request):
 @login_required
 def export_csv(request):
     since = timezone.now() - timezone.timedelta(days=90)
-    qs = Ticket.objects.filter(created_at__gte=since).select_related(
+    qs = visible_tickets(request.user).filter(created_at__gte=since).select_related(
         "department", "requester", "assigned_to"
     )
 
@@ -319,6 +350,13 @@ def ticket_detail(request, pk: int):
             if not can_see_internal(request.user, ticket):
                 reply.is_internal_note = False       # only staff may write internal notes
             reply.save()
+            if not reply.is_internal_note:
+                if request.user.pk == ticket.requester_id:
+                    if ticket.status == Ticket.Status.PENDING:
+                        set_status(ticket, Ticket.Status.IN_PROGRESS if ticket.assigned_to_id else Ticket.Status.OPEN,
+                                   request.user, auto=True)
+                elif ticket.status == Ticket.Status.OPEN:
+                    set_status(ticket, Ticket.Status.IN_PROGRESS, request.user, auto=True)
 
             for att in form.cleaned_data.get("attachment") or []:
                 TicketAttachment.objects.create(
@@ -380,6 +418,10 @@ def assign_me(request, pk: int):
 
     ticket.assigned_to = request.user
     ticket.save(update_fields=["assigned_to", "updated_at"])
+    if ticket.status == Ticket.Status.OPEN:
+        set_status(ticket, Ticket.Status.IN_PROGRESS, request.user, auto=True)
+        if ticket.requester_id != request.user.id:
+            _bell(ticket.requester, f"تم استلام طلبك #{ticket.pk} بواسطة {request.user} (قيد التنفيذ).", ticket.get_absolute_url())
 
     messages.success(request, "تم إسناد التذكرة لك.")
     return redirect(ticket.get_absolute_url())
@@ -398,16 +440,14 @@ def change_status(request, pk: int, new_status: str):
         messages.error(request, "حالة غير صحيحة.")
         return redirect(ticket.get_absolute_url())
 
-    if new_status == Ticket.Status.RESOLVED and ticket.resolved_at is None:
-        ticket.resolved_at = timezone.now()
+    staff = is_dept_member(request.user, ticket.department) or can_see_internal(request.user, ticket)
+    if not staff and new_status not in (Ticket.Status.RESOLVED, Ticket.Status.CANCELLED, Ticket.Status.OPEN):
+        messages.error(request, "الحالة دي بيحددها القسم.")
+        return redirect(ticket.get_absolute_url())
 
-    if ticket.status == Ticket.Status.RESOLVED and new_status != Ticket.Status.RESOLVED:
-        ticket.resolved_at = None
+    changed = set_status(ticket, new_status, request.user)
 
-    ticket.status = new_status
-    ticket.save(update_fields=["status", "updated_at", "resolved_at"])
-
-    if ticket.requester_id != request.user.id and ticket.requester.is_active:
+    if changed and ticket.requester_id != request.user.id and ticket.requester.is_active:
         from core.models import Notification
         Notification.objects.create(
             to_user=ticket.requester, target_url=ticket.get_absolute_url(),
@@ -484,6 +524,8 @@ def ticket_forward(request, pk: int):
     if ticket.assigned_to_id is None:
         ticket.assigned_to = request.user
         ticket.save(update_fields=["assigned_to", "updated_at"])
+    if not ticket.is_closed:
+        set_status(ticket, Ticket.Status.WAITING_THIRD_PARTY, request.user, auto=True)
     messages.success(request, f"تم التحويل إلى {dept.name}. هتلاقي ردهم تحت وتنقله للأجنت.")
     return redirect("helpdesk:ticket_detail", pk=ticket.pk)
 
@@ -510,7 +552,31 @@ def ticket_relay(request, pk: int, msg_id: int):
 # ---------------------------------------------------------------------------
 # Hand over cases (end of shift / leave / reassignment)
 # ---------------------------------------------------------------------------
-OPEN_STATUSES = [Ticket.Status.OPEN, Ticket.Status.PENDING, Ticket.Status.ON_HOLD]
+CLOSED = Ticket.CLOSED_STATUSES
+
+
+def set_status(ticket, new_status, actor, auto=False):
+    """Single place that changes a request's status: resolved_at, a silent log line, and the parent follow-up."""
+    old = ticket.status
+    if new_status == old:
+        return False
+    if new_status == Ticket.Status.RESOLVED and ticket.resolved_at is None:
+        ticket.resolved_at = timezone.now()
+    if old == Ticket.Status.RESOLVED and new_status != Ticket.Status.RESOLVED:
+        ticket.resolved_at = None
+    ticket.status = new_status
+    ticket.save(update_fields=["status", "updated_at", "resolved_at"])
+    labels = dict(Ticket.Status.choices)
+    _system_note(ticket, actor, f"الحالة: {labels.get(old, old)} ← {labels.get(new_status, new_status)}" + (" (تلقائي)" if auto else ""))
+
+    # a request CS forwarded came back: when every forwarded request is closed, the sales request is back in CS's hands
+    if new_status in Ticket.CLOSED_STATUSES and ticket.parent_id:
+        parent = ticket.parent
+        if parent.status == Ticket.Status.WAITING_THIRD_PARTY and not parent.children.exclude(status__in=Ticket.CLOSED_STATUSES).exists():
+            set_status(parent, Ticket.Status.IN_PROGRESS, actor, auto=True)
+            if parent.assigned_to_id and parent.assigned_to_id != actor.id:
+                _bell(parent.assigned_to, f"القسم رد على الطلب #{ticket.pk} — رجع لك الطلب #{parent.pk}", parent.get_absolute_url())
+    return True
 
 
 def eligible_assignees(department, exclude=None):
@@ -559,6 +625,8 @@ def ticket_assign(request, pk: int):
     ticket.assigned_to = target
     ticket.save(update_fields=["assigned_to", "updated_at"])
     _system_note(ticket, request.user, f"تحويل الطلب من {old or 'بدون مسؤول'} إلى {target}.")
+    if ticket.status == Ticket.Status.OPEN:
+        set_status(ticket, Ticket.Status.IN_PROGRESS, request.user, auto=True)
     if target.pk != request.user.pk:
         _bell(target, f"اتحوّلك الطلب #{ticket.pk}: {ticket.subject}", ticket.get_absolute_url())
     messages.success(request, f"تم تحويل الطلب إلى {target}.")
@@ -585,7 +653,7 @@ def handover(request):
         from_user = other
 
     tickets = list(
-        Ticket.objects.filter(assigned_to=from_user, status__in=OPEN_STATUSES)
+        Ticket.objects.filter(assigned_to=from_user).exclude(status__in=CLOSED)
         .select_related("department", "requester").order_by("department__name", "-updated_at")
     )
     dept_ids = {t.department_id for t in tickets} or set(
@@ -616,6 +684,10 @@ def handover(request):
                 continue
             t.assigned_to = target
             t.save(update_fields=["assigned_to", "updated_at"])
+            if target and t.status == Ticket.Status.OPEN:
+                set_status(t, Ticket.Status.IN_PROGRESS, me, auto=True)
+            elif not target and t.status == Ticket.Status.IN_PROGRESS:
+                set_status(t, Ticket.Status.OPEN, me, auto=True)      # back to the pool: anyone can take it
             where = f"إلى {target}" if target else "للقسم (من غير مسؤول)"
             _system_note(t, me, f"تسليم شيفت: من {from_user} {where}." + (f"\nملاحظة: {note}" if note else ""))
             moved += 1
