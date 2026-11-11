@@ -142,20 +142,9 @@
 
                 <td class="px-3 py-2.5 text-xs">
                   <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full
-                    {% if t.status == 'open' %}
-                      bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200
-                    {% elif t.status == 'pending' %}
-                      bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200
-                    {% elif t.status == 'resolved' %}
-                      bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200
-                    {% else %}
-                      bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200
-                    {% endif %}">
+                    {{ t.status_badge }}">
                     <span class="w-1.5 h-1.5 rounded-full
-                      {% if t.status == 'open' %} bg-blue-500
-                      {% elif t.status == 'pending' %} bg-amber-500
-                      {% elif t.status == 'resolved' %} bg-emerald-500
-                      {% else %} bg-gray-400{% endif %}">
+                      {{ t.status_dot }}">
                     </span>
                     {{ t.get_status_display }}
                   </span>

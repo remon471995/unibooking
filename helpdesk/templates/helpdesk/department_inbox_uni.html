@@ -127,7 +127,15 @@
   .hd-badge-pending { background:#fef3c7; color:#92400e; }
   .hd-badge-resolved { background:#dcfce7; color:#166534; }
   .hd-badge-closed { background:#e5e7eb; color:#374151; }
-  .hd-badge-default { background:#f3f4f6; color:#4b5563; }
+  .hd-badge-default, .hd-badge-gray { background:#f3f4f6; color:#4b5563; }
+  .hd-badge-blue { background:#dbeafe; color:#1d4ed8; }
+  .hd-badge-indigo { background:#e0e7ff; color:#4338ca; }
+  .hd-badge-violet { background:#ede9fe; color:#6d28d9; }
+  .hd-badge-orange { background:#ffedd5; color:#c2410c; }
+  .hd-badge-teal { background:#ccfbf1; color:#0f766e; }
+  .hd-badge-amber { background:#fef3c7; color:#92400e; }
+  .hd-badge-emerald { background:#dcfce7; color:#166534; }
+  .hd-badge-red { background:#fee2e2; color:#b91c1c; }
 
   .hd-badge-prio-urgent { background:#fee2e2; color:#b91c1c; }
   .hd-badge-prio-high   { background:#ffedd5; color:#c2410c; }
@@ -234,12 +242,7 @@
               </td>
               <td>
                 <span class="hd-badge
-                  {% if t.status == 'open' %}hd-badge-open
-                  {% elif t.status == 'pending' %}hd-badge-pending
-                  {% elif t.status == 'resolved' %}hd-badge-resolved
-                  {% elif t.status == 'closed' %}hd-badge-closed
-                  {% else %}hd-badge-default
-                  {% endif %}">
+                  hd-badge-{{ t.status_tone }}">
                   {{ t.get_status_display }}
                 </span>
               </td>

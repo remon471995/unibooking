@@ -121,11 +121,7 @@
       <div class="space-y-3 text-sm">
         <div class="flex justify-between py-1 border-b border-gray-50 dark:border-gray-800">
           <span class="text-gray-500">الحالة</span>
-          <span class="font-medium 
-            {% if ticket.status == 'open' %}text-blue-600
-            {% elif ticket.status == 'resolved' %}text-green-600
-            {% elif ticket.status == 'pending' %}text-amber-600
-            {% else %}text-gray-600{% endif %}">
+          <span class="font-medium {{ ticket.status_text }}">
             {{ ticket.get_status_display }}
           </span>
         </div>
@@ -163,6 +159,14 @@
       <h3 class="text-xs font-bold text-gray-500 uppercase mb-3">إجراءات</h3>
       
       <div class="flex flex-col gap-2">
+        {% if staff_view %}
+        <select class="w-full rounded-lg border-gray-300 text-sm py-2" onchange="if(this.value){location.href=this.value}">
+          <option value="">تغيير الحالة…</option>
+          {% for code, label in status_choices %}{% if code != ticket.status %}
+            <option value="{% url 'helpdesk:change_status' ticket.pk code %}">{{ label }}</option>
+          {% endif %}{% endfor %}
+        </select>
+        {% endif %}
         {% if ticket.status != 'resolved' %}
         <a href="{% url 'helpdesk:change_status' ticket.pk 'resolved' %}" 
            class="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 text-sm transition-colors">
