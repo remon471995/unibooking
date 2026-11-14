@@ -391,7 +391,7 @@ def ticket_detail(request, pk: int):
 
     ctx = {
         "ticket": ticket,
-        "messages": msgs,
+        "thread": msgs,
         "form": form,
         "status_choices": Ticket.Status.choices,
         "staff_view": staff_view,
@@ -468,7 +468,7 @@ def ticket_messages_partial(request, pk: int):
     msgs = ticket.messages.select_related("sender").prefetch_related("attachments")
     if not can_see_internal(request.user, ticket):
         msgs = msgs.filter(is_internal_note=False)
-    ctx = {"ticket": ticket, "messages": msgs}
+    ctx = {"ticket": ticket, "thread": msgs}
     return render(request, "helpdesk/_messages_partial.html", ctx)
 
 
