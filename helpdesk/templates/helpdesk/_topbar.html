@@ -1,5 +1,27 @@
 {# helpdesk/_topbar.html #}
 <div class="container mx-auto max-w-[1400px] px-4 mt-4 mb-2">
+  {# back to the main application #}
+  <div class="flex flex-wrap items-center gap-2 mb-2 text-sm">
+    {% url 'dashboard' as app_home %}
+    {% url 'card_create' as app_new_card %}
+    {% url 'targets_page' as app_targets %}
+    <a href="{{ app_home }}" class="px-3 py-1.5 rounded-full bg-blue-600 text-white font-medium">← الرجوع للنظام (الكروت)</a>
+    <a href="{{ app_new_card }}" class="px-3 py-1.5 rounded-full bg-white border border-gray-200 hover:bg-gray-50">+ كارت عميل</a>
+    <a href="{{ app_targets }}" class="px-3 py-1.5 rounded-full bg-white border border-gray-200 hover:bg-gray-50">التارجت</a>
+    {% if user.is_superuser or user.profile.role == 'data_entry' or user.profile.role == 'sales_manager' or user.profile.role == 'leader' or user.profile.role == 'supervisor' %}
+      {% url 'review_queue' as app_review %}
+      <a href="{{ app_review }}" class="px-3 py-1.5 rounded-full bg-white border border-gray-200 hover:bg-gray-50">المراجعة</a>
+    {% endif %}
+    {% if user.is_superuser or user.profile.role == 'sales_manager' or user.profile.role == 'leader' or user.profile.role == 'supervisor' %}
+      {% url 'performance_dashboard' as app_perf %}
+      <a href="{{ app_perf }}" class="px-3 py-1.5 rounded-full bg-white border border-gray-200 hover:bg-gray-50">الأداء</a>
+    {% endif %}
+    {% if user.is_superuser or user.profile.role == 'sales_manager' %}
+      {% url 'teams_manage' as app_teams %}
+      <a href="{{ app_teams }}" class="px-3 py-1.5 rounded-full bg-white border border-gray-200 hover:bg-gray-50">الفرق</a>
+    {% endif %}
+  </div>
+
   <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800
               px-4 py-3 flex flex-wrap items-center gap-3">
 
