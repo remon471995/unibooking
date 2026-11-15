@@ -6,13 +6,15 @@
     {% url 'card_create' as app_new_card %}
     {% url 'targets_page' as app_targets %}
     <a href="{{ app_home }}" class="px-3 py-1.5 rounded-full bg-blue-600 text-white font-medium">← الرجوع للنظام (الكروت)</a>
-    <a href="{{ app_new_card }}" class="px-3 py-1.5 rounded-full bg-white border border-gray-200 hover:bg-gray-50">+ كارت عميل</a>
-    <a href="{{ app_targets }}" class="px-3 py-1.5 rounded-full bg-white border border-gray-200 hover:bg-gray-50">التارجت</a>
-    {% if user.is_superuser or user.profile.role == 'data_entry' or user.profile.role == 'sales_manager' or user.profile.role == 'leader' or user.profile.role == 'supervisor' %}
+    {% if is_sales_side %}
+      <a href="{{ app_new_card }}" class="px-3 py-1.5 rounded-full bg-white border border-gray-200 hover:bg-gray-50">+ كارت عميل</a>
+      <a href="{{ app_targets }}" class="px-3 py-1.5 rounded-full bg-white border border-gray-200 hover:bg-gray-50">التارجت</a>
+    {% endif %}
+    {% if sees_review %}
       {% url 'review_queue' as app_review %}
       <a href="{{ app_review }}" class="px-3 py-1.5 rounded-full bg-white border border-gray-200 hover:bg-gray-50">المراجعة</a>
     {% endif %}
-    {% if user.is_superuser or user.profile.role == 'sales_manager' or user.profile.role == 'leader' or user.profile.role == 'supervisor' %}
+    {% if sees_performance %}
       {% url 'performance_dashboard' as app_perf %}
       <a href="{{ app_perf }}" class="px-3 py-1.5 rounded-full bg-white border border-gray-200 hover:bg-gray-50">الأداء</a>
     {% endif %}
