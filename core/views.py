@@ -11,7 +11,7 @@ from django.contrib.auth.decorators import permission_required
 from django.contrib.contenttypes.models import ContentType
 
 from .forms import BookingAmendmentForm
-from .permissions import can_edit_card, is_manager, team_of, current_memberships, role_of, manageable_user_ids
+from .permissions import can_edit_card, is_manager, team_of, current_memberships, role_of, manageable_user_ids, is_sales_side
 from core.services.teams import team_totals, month_progress, current_cycle, month_matrix, month_bounds, profit_of, pct as _pct
 from .models import BookingAmendment
 from django.contrib.contenttypes.models import ContentType
@@ -2986,6 +2986,9 @@ def teams_manage(request):
 # ===================== Targets page (agent / leader / supervisor / manager) =====================
 @login_required
 def targets_page(request):
+    if not is_sales_side(request.user):
+        messages.info(request, "التارجت خاص بفريق المبيعات.")
+        return redirect("dashboard")
     from datetime import date as _date
     from decimal import Decimal as _D
     from .models import Team, TeamTarget

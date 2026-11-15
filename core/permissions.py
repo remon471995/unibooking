@@ -66,3 +66,43 @@ def can_edit_card(user, card):
         return True
     team = getattr(card, "team", None)
     return bool(team and user.id in (team.leader_id, team.supervisor_id))
+
+
+# ---------------------------------------------------------------------------
+# What belongs to the sales side of the company
+# CS / Operations / FFT / Quotation / HR / IT staff have no targets, no installments and no sales dashboards.
+# (an empty department counts as sales: that is how every existing employee was created)
+# ---------------------------------------------------------------------------
+NON_SALES_DEPARTMENTS = {"cs", "ops", "fft", "quotation", "hr", "it", "other", "accounts"}
+
+
+def _department(user):
+    prof = getattr(user, "profile", None)
+    return (getattr(prof, "department", "") or "") if prof else ""
+
+
+def is_sales_side(user):
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if user.is_superuser or role_of(user) in ("admin", "sales_manager"):
+        return True
+    if role_of(user) == "data_entry" or _department(user) in NON_SALES_DEPARTMENTS:
+        return False
+    return True
+
+
+def sees_installments(user):
+    """The installments board is about money owed by customers: sales, data entry and the accounts department."""
+    return is_sales_side(user) or role_of(user) == "data_entry" or _department(user) == "accounts"
+
+
+def sees_review(user):
+    if user.is_superuser or role_of(user) in ("data_entry", "sales_manager", "admin"):
+        return True
+    return is_sales_side(user) and role_of(user) in ("leader", "supervisor")
+
+
+def sees_performance(user):
+    if user.is_superuser or role_of(user) in ("sales_manager", "admin"):
+        return True
+    return is_sales_side(user) and role_of(user) in ("leader", "supervisor")
