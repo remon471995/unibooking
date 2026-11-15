@@ -45,6 +45,29 @@
     {% endif %}
 
     <script>
+      // counters (bell, inbox badges) refresh every 30 s without reloading the page
+      (function () {
+        var baseTitle = document.title;
+        function setBadge(el, n) { el.textContent = n; el.classList.toggle('hidden', !n); }
+        function tick() {
+          fetch("{% url 'helpdesk:bell' %}", {credentials: 'same-origin', headers: {'Accept': 'application/json'}})
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (d) {
+              if (!d) return;
+              document.querySelectorAll('[data-bell-count]').forEach(function (el) { setBadge(el, d.unread); });
+              document.querySelectorAll('[data-badge="mine"]').forEach(function (el) { setBadge(el, d.mine); });
+              Object.keys(d.badges || {}).forEach(function (slug) {
+                document.querySelectorAll('[data-badge="' + slug + '"]').forEach(function (el) { setBadge(el, d.badges[slug]); });
+              });
+              document.title = d.unread ? '(' + d.unread + ') ' + baseTitle : baseTitle;
+            }).catch(function () {});
+        }
+        setInterval(tick, 30000);
+        if ({{ hd_unread|default:0 }}) { document.title = '({{ hd_unread|default:0 }}) ' + baseTitle; }
+      })();
+    </script>
+
+    <script>
       // flash messages disappear by themselves (errors stay a bit longer)
       document.querySelectorAll('[data-toast]').forEach(function (el) {
         var ms = el.className.indexOf('bg-red-600') > -1 ? 9000 : 5000;

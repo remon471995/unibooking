@@ -20,6 +20,25 @@
       {% url 'teams_manage' as app_teams %}
       <a href="{{ app_teams }}" class="px-3 py-1.5 rounded-full bg-white border border-gray-200 hover:bg-gray-50">الفرق</a>
     {% endif %}
+    <details class="relative ms-auto">
+      <summary class="list-none cursor-pointer px-3 py-1.5 rounded-full bg-white border border-gray-200 hover:bg-gray-50 select-none">
+        🔔 التنبيهات
+        <span data-bell-count class="ms-1 px-1.5 rounded-full bg-red-500 text-white text-[11px] {% if not hd_unread %}hidden{% endif %}">{{ hd_unread }}</span>
+      </summary>
+      <div class="absolute left-0 mt-2 w-80 max-h-96 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg z-50 p-2 text-sm">
+        {% for n in hd_bell_items %}
+          {% url 'notification_mark_read' n.pk as mark_url %}
+          <a href="{{ mark_url }}" class="block px-3 py-2 rounded-lg hover:bg-gray-50 border-b border-gray-100">
+            <div class="text-gray-900">{{ n.message }}</div>
+            <div class="text-[11px] text-gray-500">{{ n.created_at|date:"Y-m-d H:i" }}</div>
+          </a>
+        {% empty %}
+          <div class="px-3 py-4 text-center text-gray-500">مفيش تنبيهات جديدة 👌</div>
+        {% endfor %}
+        {% url 'notifications_list' as notif_all %}
+        <a href="{{ notif_all }}" class="block text-center text-blue-600 py-2">عرض كل التنبيهات</a>
+      </div>
+    </details>
   </div>
 
   <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800
@@ -37,6 +56,7 @@
                   bg-gray-900 text-white
                 {% endif %}">
         واردى
+        <span data-badge="mine" class="ms-1 px-1.5 rounded-full bg-red-500 text-white text-[10px] {% if not hd_mine %}hidden{% endif %}" title="طلبات عندك بانتظار ردك">{{ hd_mine }}</span>
       </a>
 
       {# تذكرة جديدة #}
@@ -67,19 +87,19 @@
 
       {% if 'quotation' in hd_inbox_slugs %}
       <a href="{% url 'helpdesk:department_inbox' 'quotation' %}"
-         class="px-2 py-1 rounded-full bg-gray-50 hover:bg-gray-100 text-xs sm:text-sm">كوتيشن</a>
+         class="px-2 py-1 rounded-full bg-gray-50 hover:bg-gray-100 text-xs sm:text-sm">كوتيشن<span data-badge="quotation" class="ms-1 px-1.5 rounded-full bg-red-500 text-white text-[10px] {% if not hd_badges.quotation %}hidden{% endif %}" title="بانتظار رد القسم">{{ hd_badges.quotation|default:0 }}</span></a>
       {% endif %}
       {% if 'operations' in hd_inbox_slugs %}
       <a href="{% url 'helpdesk:department_inbox' 'operations' %}"
-         class="px-2 py-1 rounded-full bg-gray-50 hover:bg-gray-100 text-xs sm:text-sm">أوبريشن</a>
+         class="px-2 py-1 rounded-full bg-gray-50 hover:bg-gray-100 text-xs sm:text-sm">أوبريشن<span data-badge="operations" class="ms-1 px-1.5 rounded-full bg-red-500 text-white text-[10px] {% if not hd_badges.operations %}hidden{% endif %}" title="بانتظار رد القسم">{{ hd_badges.operations|default:0 }}</span></a>
       {% endif %}
       {% if 'fft' in hd_inbox_slugs %}
       <a href="{% url 'helpdesk:department_inbox' 'fft' %}"
-         class="px-2 py-1 rounded-full bg-gray-50 hover:bg-gray-100 text-xs sm:text-sm">FFT</a>
+         class="px-2 py-1 rounded-full bg-gray-50 hover:bg-gray-100 text-xs sm:text-sm">FFT<span data-badge="fft" class="ms-1 px-1.5 rounded-full bg-red-500 text-white text-[10px] {% if not hd_badges.fft %}hidden{% endif %}" title="بانتظار رد القسم">{{ hd_badges.fft|default:0 }}</span></a>
       {% endif %}
       {% if 'cs' in hd_inbox_slugs %}
       <a href="{% url 'helpdesk:department_inbox' 'cs' %}"
-         class="px-2 py-1 rounded-full bg-gray-50 hover:bg-gray-100 text-xs sm:text-sm">CS</a>
+         class="px-2 py-1 rounded-full bg-gray-50 hover:bg-gray-100 text-xs sm:text-sm">CS<span data-badge="cs" class="ms-1 px-1.5 rounded-full bg-red-500 text-white text-[10px] {% if not hd_badges.cs %}hidden{% endif %}" title="بانتظار رد القسم">{{ hd_badges.cs|default:0 }}</span></a>
       {% endif %}
 
       {% if hd_inbox_slugs %}
