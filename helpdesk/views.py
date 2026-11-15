@@ -352,7 +352,10 @@ def ticket_detail(request, pk: int):
             reply.save()
             if not reply.is_internal_note:
                 if request.user.pk == ticket.requester_id:
-                    if ticket.status == Ticket.Status.PENDING:
+                    if ticket.status == Ticket.Status.RESOLVED:
+                        set_status(ticket, Ticket.Status.IN_PROGRESS if ticket.assigned_to_id else Ticket.Status.OPEN,
+                                   request.user, auto=True)
+                    elif ticket.status == Ticket.Status.PENDING:
                         set_status(ticket, Ticket.Status.IN_PROGRESS if ticket.assigned_to_id else Ticket.Status.OPEN,
                                    request.user, auto=True)
                 elif ticket.status == Ticket.Status.OPEN:
@@ -565,7 +568,14 @@ def set_status(ticket, new_status, actor, auto=False):
     if old == Ticket.Status.RESOLVED and new_status != Ticket.Status.RESOLVED:
         ticket.resolved_at = None
     ticket.status = new_status
-    ticket.save(update_fields=["status", "updated_at", "resolved_at"])
+    fields = ["status", "updated_at", "resolved_at"]
+    if new_status in Ticket.CLOSED_STATUSES:
+        ticket.awaiting_staff = False
+        fields.append("awaiting_staff")
+    elif old in Ticket.CLOSED_STATUSES:
+        ticket.awaiting_staff = True
+        fields.append("awaiting_staff")
+    ticket.save(update_fields=fields)
     labels = dict(Ticket.Status.choices)
     _system_note(ticket, actor, f"الحالة: {labels.get(old, old)} ← {labels.get(new_status, new_status)}" + (" (تلقائي)" if auto else ""))
 
@@ -710,3 +720,12 @@ def handover(request):
         "from_user": from_user, "tickets": tickets, "people": sorted(people.values(), key=lambda u: u.get_full_name() or u.username),
         "is_self": from_user.pk == me.pk, "team": team,
     })
+
+
+@login_required
+def bell(request):
+    """Small JSON used by the top bar to refresh the counters every few seconds."""
+    from django.http import JsonResponse
+    from .context import dept_context
+    c = dept_context(request)
+    return JsonResponse({"unread": c["hd_unread"], "mine": c["hd_mine"], "badges": c["hd_badges"]})

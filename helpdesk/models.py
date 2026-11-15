@@ -163,6 +163,8 @@ class Ticket(models.Model):
     subject = models.CharField(max_length=200)
     # a request CS forwards to Operations / FFT points back to the sales request it came from
     parent = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="children")
+    # True while the department owes an answer (new request, or the requester wrote last); drives the counters
+    awaiting_staff = models.BooleanField(default=True, db_index=True)
     department = models.ForeignKey(Department, on_delete=models.PROTECT, related_name="tickets")
     requester = models.ForeignKey(User, on_delete=models.PROTECT, related_name="requested_tickets")
     assigned_to = models.ForeignKey(

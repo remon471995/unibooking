@@ -14,6 +14,7 @@ urlpatterns = [
     path("ticket/<int:pk>/assign-me/", views.assign_me, name="assign_me"),
     path("ticket/<int:pk>/assign/", views.ticket_assign, name="ticket_assign"),
     path("handover/", views.handover, name="handover"),
+    path("bell/", views.bell, name="bell"),
     path("ticket/<int:pk>/forward/", views.ticket_forward, name="ticket_forward"),
     path("ticket/<int:pk>/relay/<int:msg_id>/", views.ticket_relay, name="ticket_relay"),
     path("ticket/<int:pk>/status/<str:new_status>/", views.change_status, name="change_status"),

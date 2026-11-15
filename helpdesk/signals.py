@@ -143,9 +143,16 @@ def bell_new_ticket(sender, instance: Ticket, created, **kwargs):
     if not created:
         return
     dept = instance.department
-    members = [m.user for m in dept.memberships.filter(is_active=True).select_related("user")]
-    _bell(members + [dept.manager, instance.assigned_to],
+    _bell(_department_staff(dept) + [instance.assigned_to],
           f"طلب جديد لقسم {dept.name}: {instance.subject}", instance, exclude=instance.requester)
+
+
+def _department_staff(dept):
+    """Everybody who can pick up a request of this department (never viewers) + its manager."""
+    from .models import DepartmentMembership
+    members = [m.user for m in DepartmentMembership.objects.filter(
+        department=dept, is_active=True, role__in=["member", "leader"]).select_related("user")]
+    return members + [dept.manager]
 
 
 @receiver(post_save, sender=TicketMessage, dispatch_uid="hd_bell_new_message")
@@ -153,8 +160,27 @@ def bell_new_message(sender, instance: TicketMessage, created, **kwargs):
     if not created or getattr(instance, "_system_note", False):
         return
     t = instance.ticket
+    if (instance.sender_id == t.requester_id and not instance.is_internal_note
+            and not t.messages.exclude(pk=instance.pk).filter(is_internal_note=False).exists()):
+        return          # the opening message: the "new request" bell already told the department
     if instance.is_internal_note:
         people = [t.assigned_to, t.department.manager]
+        text = f"ملاحظة داخلية على الطلب #{t.pk}: {t.subject}"
+    elif instance.sender_id == t.requester_id:
+        # the person who opened the request wrote: the owner is told; with no owner the whole department is
+        staff = [t.assigned_to] if t.assigned_to_id else _department_staff(t.department)
+        people = staff + list(t.watchers.all())
+        text = f"🔔 رد جديد من {instance.sender} على الطلب #{t.pk}: {t.subject}"
     else:
         people = [t.requester, t.assigned_to, t.department.manager] + list(t.watchers.all())
-    _bell(people, f"رد جديد على الطلب #{t.pk}: {t.subject}", t, exclude=instance.sender)
+        text = f"رد جديد على الطلب #{t.pk}: {t.subject}"
+    _bell(people, text, t, exclude=instance.sender)
+
+
+@receiver(post_save, sender=TicketMessage, dispatch_uid="hd_track_awaiting")
+def track_awaiting_staff(sender, instance: TicketMessage, created, **kwargs):
+    """Keeps Ticket.awaiting_staff in step with who wrote last (public messages only)."""
+    if not created or instance.is_internal_note or getattr(instance, "_system_note", False):
+        return
+    t = instance.ticket
+    Ticket.objects.filter(pk=t.pk).update(awaiting_staff=(instance.sender_id == t.requester_id))
