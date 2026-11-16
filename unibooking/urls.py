@@ -12,7 +12,10 @@ urlpatterns = [
 
     # Core
     path("", include("core.urls")),
-
+    
+    # Audit (سجل التعديلات)
+    path("audit/", include("audit.urls")),
+    
     # Accounts (namespace = accounts)
     path("account/", include(("accounts.urls", "accounts"), namespace="accounts")),
 
