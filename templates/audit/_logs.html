@@ -1,0 +1,51 @@
+<style>
+  .au-box{padding:12px 14px;border-radius:12px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.08);margin-bottom:10px}
+  .dark .au-box{background:#111827}
+  .au-head{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline}
+  .au-badge{padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700}
+  .au-create{background:rgba(22,163,74,.14);color:#166534}
+  .au-update{background:rgba(37,99,235,.14);color:#1e40af}
+  .au-delete{background:rgba(220,38,38,.14);color:#991b1b}
+  .au-table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+  .au-table th,.au-table td{padding:5px 8px;border-bottom:1px solid rgba(100,116,139,.2);text-align:right}
+  .au-old{color:#991b1b}.au-new{color:#166534;font-weight:700}
+  .au-mu{color:#6b7280;font-size:12px}
+</style>
+
+{% for log in page %}
+<div class="au-box">
+  <div class="au-head">
+    <div>
+      <span class="au-badge au-{{ log.action }}">{{ log.get_action_display }}</span>
+      <b>{{ log.model_label }}</b> — {{ log.object_repr|default:log.object_id }}
+      {% if log.card_id %}· <a class="underline" href="{% url 'audit:card_history' log.card_id %}">كارت #{{ log.card_id }}</a>{% endif %}
+    </div>
+    <div class="au-mu">
+      بواسطة <b>{{ log.user_repr|default:"النظام" }}</b> · {{ log.created_at|date:"Y-m-d H:i" }}{% if log.ip %} · {{ log.ip }}{% endif %}
+    </div>
+  </div>
+  {% if log.changes %}
+  <details {% if log.action == "update" %}open{% endif %}>
+    <summary class="au-mu" style="cursor:pointer">{{ log.changes|length }} حقل</summary>
+    <table class="au-table">
+      <tr><th>الحقل</th><th>قبل</th><th>بعد</th></tr>
+      {% for key, ch in log.changes.items %}
+      <tr>
+        <td>{{ ch.label }}</td>
+        <td class="au-old">{{ ch.old|default:"—" }}</td>
+        <td class="au-new">{{ ch.new|default:"—" }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </details>
+  {% endif %}
+</div>
+{% empty %}
+<div class="au-box au-mu">مفيش تعديلات مسجلة.</div>
+{% endfor %}
+
+<div class="flex gap-3 items-center mt-3">
+  {% if page.has_previous %}<a class="underline" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page.previous_page_number }}">السابق</a>{% endif %}
+  <span class="au-mu">صفحة {{ page.number }} من {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}<a class="underline" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page.next_page_number }}">التالي</a>{% endif %}
+</div>

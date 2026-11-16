@@ -1,0 +1,8 @@
+{% extends "core/base.html" %}
+{% block title %}سجل تعديلات كارت #{{ card_id }}{% endblock %}
+
+{% block content %}
+<h1 class="text-xl font-bold mb-3">سجل تعديلات الكارت #{{ card_id }}</h1>
+<p class="mb-3"><a class="underline" href="{% url 'card_detail' card_id %}">← رجوع للكارت</a></p>
+{% include "audit/_logs.html" %}
+{% endblock %}

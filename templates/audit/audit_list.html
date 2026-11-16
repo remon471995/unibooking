@@ -1,0 +1,28 @@
+{% extends "core/base.html" %}
+{% block title %}سجل التعديلات{% endblock %}
+
+{% block content %}
+<h1 class="text-xl font-bold mb-3">سجل التعديلات</h1>
+
+<form method="get" class="au-box" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;align-items:end">
+  <label>بحث (مستخدم / وصف / رقم)<input name="q" value="{{ f.q }}" class="border rounded px-2 py-1 w-full"></label>
+  <label>النوع
+    <select name="model" class="border rounded px-2 py-1 w-full">
+      <option value="">الكل</option>
+      {% for m, label in models %}<option value="{{ m }}" {% if f.model == m %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>الإجراء
+    <select name="action" class="border rounded px-2 py-1 w-full">
+      <option value="">الكل</option>
+      {% for a, label in actions %}<option value="{{ a }}" {% if f.action == a %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>رقم الكارت<input name="card" value="{{ f.card }}" class="border rounded px-2 py-1 w-full"></label>
+  <label>من تاريخ<input type="date" name="date_from" value="{{ f.date_from }}" class="border rounded px-2 py-1 w-full"></label>
+  <label>إلى تاريخ<input type="date" name="date_to" value="{{ f.date_to }}" class="border rounded px-2 py-1 w-full"></label>
+  <button class="border rounded px-3 py-1 font-bold">بحث</button>
+</form>
+
+{% include "audit/_logs.html" %}
+{% endblock %}
