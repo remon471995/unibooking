@@ -70,7 +70,7 @@ def _desc(what, kind, obj, booking, cfg):
 # ---------------------------------------------------------------- queue
 def _booking_item(kind, cfg, b):
     sell, net = getattr(b, cfg["sell"]) or Decimal("0"), getattr(b, cfg["net"]) or Decimal("0")
-    pays = list(getattr(b, "payments").all().order_by("created_at"))
+    pays = list(getattr(b, "payments").select_related("reviewed_by").order_by("created_at"))
     return {
         "what": "b", "kind": kind, "id": b.pk, "label": cfg["label"],
         "ref": b.booking_ref or b.voucher_code or f"#{b.pk}",
@@ -78,9 +78,11 @@ def _booking_item(kind, cfg, b):
         "agent": _name(b.card.created_by), "team": b.card.team.name if b.card.team else "—",
         "sell": sell, "net": net, "profit": sell - net, "created": b.created_at, "status": b.review_status,
         "note": b.review_note,
+        "reviewer": _name(b.reviewed_by), "reviewed_at": b.reviewed_at,
         "payments": [{"method": METHOD_LABELS.get(p.method, p.method), "paid": p.paid_amount, "date": p.installment_date,
                       "invoice": p.invoice_file, "voucher": p.voucher_original, "bank": p.bank_file, "link": p.payment_link,
-                      "pending": p.review_status == PENDING} for p in pays],
+                      "pending": p.review_status == PENDING,
+                      "reviewer": _name(p.reviewed_by)} for p in pays],
     }
 
 
@@ -94,6 +96,7 @@ def _payment_item(kind, cfg, p):
         "paid": p.paid_amount, "method": METHOD_LABELS.get(p.method, p.method), "date": p.installment_date,
         "invoice": p.invoice_file, "voucher": p.voucher_original, "bank": p.bank_file, "link": p.payment_link,
         "created": p.created_at, "status": p.review_status, "note": p.review_note,
+        "reviewer": _name(p.reviewed_by), "reviewed_at": p.reviewed_at,
     }
 
 
@@ -108,12 +111,12 @@ def review_queue(request):
     pending_b, pending_p, returned = [], [], []
     if reviewer:
         for kind, cfg in KINDS.items():
-            qs = cfg["booking"].objects.select_related("card__created_by", "card__team")
+            qs = cfg["booking"].objects.select_related("card__created_by", "card__team", "reviewed_by")
             for b in qs.filter(review_status=PENDING).order_by("created_at"):
                 pending_b.append(_booking_item(kind, cfg, b))
             for b in qs.filter(review_status=RETURNED).order_by("-reviewed_at"):
                 returned.append(_booking_item(kind, cfg, b))
-            pq = cfg["payment"].objects.select_related(f"{cfg['fk']}__card__created_by", f"{cfg['fk']}__card__team")
+            pq = cfg["payment"].objects.select_related(f"{cfg['fk']}__card__created_by", f"{cfg['fk']}__card__team", "reviewed_by")
             for p in pq.filter(review_status=PENDING).exclude(**{f"{cfg['fk']}__review_status": PENDING}).order_by("created_at"):
                 pending_p.append(_payment_item(kind, cfg, p))
             for p in pq.filter(review_status=RETURNED).order_by("-reviewed_at"):
@@ -121,6 +124,28 @@ def review_queue(request):
                 returned.append(it)
         pending_b.sort(key=lambda x: x["created"])
         pending_p.sort(key=lambda x: x["created"])
+
+    # latest approvals: shows WHO reviewed each booking / payment
+    recent = []
+    if reviewer:
+        for kind, cfg in KINDS.items():
+            for b in (cfg["booking"].objects.filter(review_status=APPROVED, reviewed_at__isnull=False)
+                      .select_related("card__created_by", "reviewed_by").order_by("-reviewed_at")[:30]):
+                recent.append({
+                    "label": cfg["label"], "ref": b.booking_ref or b.voucher_code or f"#{b.pk}",
+                    "customer": b.card.customer_name, "card_id": b.card_id, "agent": _name(b.card.created_by),
+                    "reviewer": _name(b.reviewed_by), "reviewed_at": b.reviewed_at,
+                })
+            for p in (cfg["payment"].objects.filter(review_status=APPROVED, reviewed_at__isnull=False)
+                      .select_related(f"{cfg['fk']}__card__created_by", "reviewed_by").order_by("-reviewed_at")[:30]):
+                bk = getattr(p, cfg["fk"])
+                recent.append({
+                    "label": cfg["label"] + " — دفعة", "ref": bk.booking_ref or bk.voucher_code or f"#{bk.pk}",
+                    "customer": bk.card.customer_name, "card_id": bk.card_id, "agent": _name(bk.card.created_by),
+                    "reviewer": _name(p.reviewed_by), "reviewed_at": p.reviewed_at,
+                })
+        recent.sort(key=lambda x: x["reviewed_at"], reverse=True)
+        recent = recent[:30]
 
     # unlock requests: reviewers see all, leaders only their people
     unlocks = []
@@ -145,7 +170,7 @@ def review_queue(request):
 
     return render(request, "core/review.html", {
         "reviewer": reviewer, "pending_b": pending_b, "pending_p": pending_p,
-        "returned": returned, "unlocks": unlocks,
+        "returned": returned, "unlocks": unlocks, "recent": recent,
     })
 
 
