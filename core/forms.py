@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError
 from django.db.models import Sum
 from django.utils import timezone
 
+from .countries import COUNTRY_CHOICES, COUNTRY_VALUES
 from .models import (
     UniBookingCard,
     HotelBooking,
@@ -86,6 +87,13 @@ class UniBookingCardForm(forms.ModelForm):
 # =================== Hotel ===================
 
 class HotelBookingForm(forms.ModelForm):
+    # الدولة: اختيار من قائمة دول العالم فقط (بدون كتابة يدوية)
+    country = forms.ChoiceField(
+        label="الدولة",
+        choices=[("", "اختر الدولة...")] + COUNTRY_CHOICES,
+        required=True,
+    )
+
     class Meta:
         model = HotelBooking
         fields = [
@@ -112,6 +120,10 @@ class HotelBookingForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # حجز قديم فيه دولة مكتوبة يدوي وغير موجودة في القائمة: نبقيها كاختيار عشان ما تضيعش عند التعديل
+        _cur = (getattr(self.instance, "country", "") or "").strip()
+        if _cur and _cur not in COUNTRY_VALUES:
+            self.fields["country"].choices = list(self.fields["country"].choices) + [(_cur, _cur)]
         self.fields["booking_date"].required = True
         if not self.initial.get("booking_date"):
             self.initial["booking_date"] = timezone.localdate()
