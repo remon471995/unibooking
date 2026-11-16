@@ -49,7 +49,8 @@ INSTALLED_APPS = [
     # Apps
     "core.apps.CoreConfig",
     'helpdesk',
-    "accounts.apps.AccountsConfig",    
+    "accounts.apps.AccountsConfig",
+    "audit.apps.AuditConfig",
     "widget_tweaks",
     "storages",   # S3-compatible file storage
 ]
@@ -62,6 +63,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "audit.middleware.AuditMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
