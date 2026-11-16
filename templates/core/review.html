@@ -20,6 +20,8 @@
   .btn-no{background:#dc2626;color:#fff;border-radius:6px;padding:6px 14px}
   .btn-b{background:#2563eb;color:#fff;border-radius:6px;padding:6px 14px}
   .mu{color:#6b7280;font-size:12px}
+  .rv-all{font-weight:700}
+  .rv-who{display:inline-block;padding:2px 8px;border-radius:999px;background:rgba(22,163,74,.12);color:#166534;font-size:12px}
 </style>
 
 <h1 class="text-xl font-bold mb-1">مراجعة الحسابات</h1>
@@ -63,7 +65,7 @@
     <tr><th>الدفعة</th><th>طريقة الدفع</th><th>المبلغ</th><th>ميعاد السداد</th><th>الفاتورة</th><th>الفاوتشر الأصلي</th><th>إثبات الدفع</th></tr>
     {% for p in it.payments %}
     <tr>
-      <td>{% if p.pending %}جديدة{% else %}معتمدة{% endif %}</td>
+      <td>{% if p.pending %}جديدة{% else %}معتمدة{% if p.reviewer != "—" %} <span class="mu">(راجعها: {{ p.reviewer }})</span>{% endif %}{% endif %}</td>
       <td>{{ p.method }}{% if p.link %} — <a class="underline" target="_blank" href="{{ p.link }}">الرابط</a>{% endif %}</td>
       <td>{{ p.paid|floatformat:2|intcomma }}</td>
       <td>{{ p.date|default:"—" }}</td>
@@ -79,6 +81,7 @@
     <form method="post" action="{% url 'review_action' %}">
       {% csrf_token %}
       <input type="hidden" name="what" value="b"><input type="hidden" name="kind" value="{{ it.kind }}"><input type="hidden" name="pk" value="{{ it.id }}">
+      <label class="rv-all"><input type="checkbox" class="rv-all-box"> تحديد الكل</label>
       <label><input type="checkbox" name="chk_sell"> البيع مطابق للفاتورة</label>
       <label><input type="checkbox" name="chk_net"> النت مطابق للفاتورة</label>
       <label><input type="checkbox" name="chk_docs"> المستندات صحيحة (الفاتورة والفاوتشر)</label>
@@ -119,6 +122,7 @@
     <form method="post" action="{% url 'review_action' %}">
       {% csrf_token %}
       <input type="hidden" name="what" value="p"><input type="hidden" name="kind" value="{{ it.kind }}"><input type="hidden" name="pk" value="{{ it.id }}">
+      <label class="rv-all"><input type="checkbox" class="rv-all-box"> تحديد الكل</label>
       <label><input type="checkbox" name="chk_amount"> المبلغ مطابق لإثبات الدفع</label>
       <label><input type="checkbox" name="chk_method"> طريقة الدفع مطابقة</label>
       <label><input type="checkbox" name="chk_docs"> المستندات صحيحة</label>
@@ -149,9 +153,49 @@
     <div class="mu">عند: {{ it.agent }} · {{ it.team }}</div>
   </div>
   <div style="color:#991b1b;margin-top:4px">السبب: <b>{{ it.note }}</b></div>
+  {% if it.reviewer != "—" %}<div class="mu" style="margin-top:4px">راجعه ورجّعه: <b>{{ it.reviewer }}</b>{% if it.reviewed_at %} · {{ it.reviewed_at|date:"Y-m-d H:i" }}{% endif %}</div>{% endif %}
 </div>
 {% empty %}
 <div class="rv-box mu">مفيش حاجة مرجوعة دلوقتي.</div>
 {% endfor %}
+
+{# ----------- latest approvals: who reviewed ----------- #}
+<h2 class="text-lg font-bold mb-2 mt-6">آخر ما تمت مراجعته واعتماده ({{ recent|length }})</h2>
+<div class="rv-box">
+  <table class="rv-table">
+    <tr><th>العنصر</th><th>العميل</th><th>الأجنت</th><th>راجعه</th><th>وقت المراجعة</th></tr>
+    {% for it in recent %}
+    <tr>
+      <td>{{ it.label }} — {{ it.ref }} · <a class="underline" href="{% url 'card_detail' it.card_id %}">الكارت</a></td>
+      <td>{{ it.customer }}</td>
+      <td>{{ it.agent }}</td>
+      <td><span class="rv-who">{{ it.reviewer }}</span></td>
+      <td>{{ it.reviewed_at|date:"Y-m-d H:i" }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="5" class="mu">لسه مفيش حاجة اتعتمدت.</td></tr>
+    {% endfor %}
+  </table>
+</div>
 {% endif %}
+
+<script>
+// "تحديد الكل": يعلّم كل بنود المطابقة في نفس الحجز / الدفعة
+(function () {
+  function boxes(f) { return f.querySelectorAll('input[type=checkbox]:not(.rv-all-box)'); }
+  document.addEventListener('change', function (e) {
+    var t = e.target;
+    if (!t || t.type !== 'checkbox') return;
+    var f = t.closest('form');
+    if (!f) return;
+    var all = f.querySelector('.rv-all-box');
+    if (!all) return;
+    if (t.classList.contains('rv-all-box')) {
+      boxes(f).forEach(function (c) { c.checked = t.checked; });
+    } else {
+      all.checked = Array.prototype.every.call(boxes(f), function (c) { return c.checked; });
+    }
+  });
+})();
+</script>
 {% endblock %}

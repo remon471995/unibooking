@@ -8,6 +8,7 @@
   {% elif obj.review_status == 'returned' %}
     <div style="background:#fee2e2;color:#991b1b;padding:8px 12px;border-radius:8px">
       ↩ مرجوع للتصحيح: <b>{{ obj.review_note }}</b>
+      {% if obj.reviewed_by %}<span style="font-size:12px">(بواسطة {{ obj.reviewed_by.get_full_name|default:obj.reviewed_by.username }})</span>{% endif %}
       {% if can_fix %}
         <a href="{% url 'booking_fix' kind obj.pk %}" style="text-decoration:underline;margin-right:8px">تصحيح الأرقام والمستندات</a>
         <form method="post" action="{% url 'resubmit' %}" style="display:inline-block;margin-right:8px">
@@ -20,6 +21,7 @@
   {% else %}
     <div style="background:#dcfce7;color:#166534;padding:8px 12px;border-radius:8px">
       ✅ معتمد ومقفول (الأرقام والدفعات المعتمدة).
+      {% if obj.reviewed_by %}<span style="font-size:12px;margin-right:6px">راجعه: <b>{{ obj.reviewed_by.get_full_name|default:obj.reviewed_by.username }}</b>{% if obj.reviewed_at %} · {{ obj.reviewed_at|date:"Y-m-d H:i" }}{% endif %}</span>{% endif %}
       {% if can_fix %}
         <details style="display:inline-block;margin-right:8px">
           <summary style="cursor:pointer;text-decoration:underline">طلب فتح للتعديل</summary>
@@ -45,7 +47,7 @@
         <span style="color:#991b1b">↩ مرجوعة: <b>{{ p.review_note }}</b></span>
         {% if can_fix %}<a href="{% url 'payment_fix' kind p.pk %}" style="text-decoration:underline">تصحيح</a>{% endif %}
       {% else %}
-        <span style="color:#166534">✅ معتمدة</span>
+        <span style="color:#166534">✅ معتمدة{% if p.reviewed_by %} <span style="font-size:12px">(راجعها: {{ p.reviewed_by.get_full_name|default:p.reviewed_by.username }})</span>{% endif %}</span>
         {% if can_fix %}
           <details style="display:inline-block">
             <summary style="cursor:pointer;text-decoration:underline">طلب فتح</summary>
