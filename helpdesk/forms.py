@@ -98,9 +98,12 @@ class TicketForm(forms.ModelForm):
             "hx-get": reverse("helpdesk:category_options"),
             "hx-trigger": "change",
             "hx-target": "#id_category",
-            "hx-vals": "js:{dept_id: this.value}",
-            "hx-swap": "outerHTML",
+            # المتصفح/HTMX بيبعت قيمة القسم تلقائي باسم "department"، والـ endpoint بيقراه
+            "hx-swap": "innerHTML",
         })
+
+        # اعرض اسم الفئة بس (من غير اسم القسم قدامها)
+        self.fields["category"].label_from_instance = lambda c: c.name
 
 
 class TicketReplyForm(forms.ModelForm):

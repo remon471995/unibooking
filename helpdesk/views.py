@@ -480,22 +480,23 @@ def ticket_messages_partial(request, pk: int):
 @login_required
 def category_options(request):
     """
-    Endpoint بسيط يرجّع <select> للفئات بناءً على القسم (يُستخدم مع HTMX)
+    Endpoint بيرجّع <option> للفئات بناءً على القسم (يُستخدم مع HTMX وبيتحط جوه select الفئة).
+    بيقبل رقم القسم من dept_id أو من department (HTMX بيبعت قيمة القسم المختار باسم department).
     """
-    dept_id = request.GET.get("dept_id")
+    from django.utils.html import escape
 
-    options = ['<select name="category" id="id_category">']
-    options.append('<option value="">— اختر الفئة —</option>')
+    dept_id = request.GET.get("dept_id") or request.GET.get("department")
 
-    if dept_id and dept_id.isdigit():
+    options = ['<option value="">— اختر الفئة —</option>']
+
+    if dept_id and str(dept_id).isdigit():
         qs = TicketCategory.objects.filter(
             department_id=int(dept_id), is_active=True
         ).order_by("order", "name")
 
         for c in qs:
-            options.append(f'<option value="{c.id}">{c.name}</option>')
+            options.append(f'<option value="{c.id}">{escape(c.name)}</option>')
 
-    options.append("</select>")
     return HttpResponse("".join(options))
 
 
