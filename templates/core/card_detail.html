@@ -20,6 +20,7 @@
     <h1 class="text-2xl font-bold text-gray-800">
       {{ card.ub_code }} —
       <span class="font-normal text-gray-600">{{ card.customer_name }}</span>
+      <a class="underline text-sm mr-2" href="{% url 'customers:by_card' card.pk %}">ملف العميل</a>      
     </h1>
   </div>
   <div class="flex flex-wrap items-center gap-2">
