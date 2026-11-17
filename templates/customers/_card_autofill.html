@@ -1,0 +1,61 @@
+{# تعبئة تلقائية في فورم "كارت عميل جديد": لو الموبايل لعميل سابق، بنملا الاسم والجنسية ونعرض ملخص عنه #}
+<script>
+(function () {
+  var mobile = document.getElementById('id_mobile');
+  var country = document.getElementById('id_country');
+  var nameEl = document.getElementById('id_customer_name');
+  var natEl = document.getElementById('id_nationality');
+  if (!mobile || !country || !nameEl) return;
+
+  var url = "{% url 'customers:lookup' %}";
+  var timer = null, seq = 0, touched = {name: false, nat: false};
+  var box = document.createElement('div');
+  box.style.cssText = 'display:none;margin-top:6px;padding:8px 10px;border-radius:8px;font-size:13px;' +
+                      'background:rgba(22,163,74,.12);color:#166534';
+  mobile.parentNode.appendChild(box);
+
+  nameEl.addEventListener('input', function () { touched.name = true; });
+  if (natEl) natEl.addEventListener('change', function () { touched.nat = true; });
+
+  function show(d) {
+    box.textContent = '';
+    var b = document.createElement('b');
+    b.textContent = 'عميل سابق: ' + d.name;
+    box.appendChild(b);
+    box.appendChild(document.createTextNode(
+      ' — ' + d.cards + ' كارت سابق، آخر كارت ' + d.last_date + ' مع ' + d.last_employee + ' '));
+    var a = document.createElement('a');
+    a.href = d.url; a.target = '_blank'; a.textContent = 'فتح ملف العميل';
+    a.style.cssText = 'text-decoration:underline;font-weight:700';
+    box.appendChild(a);
+    box.style.display = 'block';
+  }
+
+  function lookup() {
+    var digits = (mobile.value || '').replace(/\D/g, '');
+    if (digits.length < 6) { box.style.display = 'none'; return; }
+    var my = ++seq;
+    fetch(url + '?country=' + encodeURIComponent(country.value) + '&mobile=' + encodeURIComponent(mobile.value),
+          {credentials: 'same-origin', headers: {'X-Requested-With': 'XMLHttpRequest'}})
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (my !== seq) return;                 // رد قديم، تجاهله
+        if (!d || !d.found) { box.style.display = 'none'; return; }
+        if (!touched.name && d.name) nameEl.value = d.name;
+        if (!touched.nat && natEl && d.nationality) {
+          for (var i = 0; i < natEl.options.length; i++) {
+            if (natEl.options[i].value === d.nationality) { natEl.value = d.nationality; break; }
+          }
+        }
+        show(d);
+      })
+      .catch(function () {});
+  }
+
+  function later() { clearTimeout(timer); timer = setTimeout(lookup, 400); }
+  mobile.addEventListener('input', later);
+  mobile.addEventListener('change', lookup);
+  country.addEventListener('change', lookup);
+  if (mobile.value) lookup();
+})();
+</script>
