@@ -5,9 +5,10 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.core.validators import validate_email
-from django.http import Http404, HttpResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.views.decorators.http import require_POST
+from django.urls import reverse
+from django.views.decorators.http import require_GET, require_POST
 
 from core.models import UniBookingCard
 from core.permissions import is_sales_side, role_of, sees_performance
@@ -191,3 +192,30 @@ def customer_update(request, key):
     p.save()
     messages.success(request, "تم حفظ بيانات العميل.")
     return redirect("customers:detail", key=key)
+
+
+@login_required
+@require_GET
+def customer_lookup(request):
+    """بيدوّر على عميل سابق بالموبايل (كود الدولة + الرقم) عشان فورم الكارت الجديد يتعبّى تلقائي."""
+    key = phone_key(request.GET.get("country"), request.GET.get("mobile"))
+    if len(key) < 8:  # رقم قصير جداً، مفيش داعي نبحث
+        return JsonResponse({"found": False})
+    ids = card_ids_for_key(key)
+    if not ids:
+        return JsonResponse({"found": False})
+    last = (
+        UniBookingCard.objects.filter(id__in=ids)
+        .select_related("created_by").order_by("-created_at").first()
+    )
+    profile = CustomerProfile.objects.filter(phone_key=key).first()
+    return JsonResponse({
+        "found": True,
+        "name": last.customer_name,
+        "nationality": last.nationality,
+        "email": profile.email if profile else "",
+        "cards": len(ids),
+        "last_date": last.created_at.strftime("%Y-%m-%d"),
+        "last_employee": last.created_by.get_full_name() or last.created_by.get_username(),
+        "url": reverse("customers:detail", args=[key]),
+    })
