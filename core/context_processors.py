@@ -6,13 +6,15 @@ from core.permissions import is_sales_side, sees_installments, sees_review, sees
 def notifications_context(request):
     if not request.user.is_authenticated:
         return {}
-    qs = Notification.objects.filter(
-        Q(to_user=request.user) | Q(to_superusers=True),
-        is_read=False
-    ).order_by('-created_at')[:10]
+    # تنبيهات "للسوبر يوزر" بتظهر للسوبر يوزر بس (غيره مايقدرش يعلّمها مقروءة فكانت بتفضل عنده)
+    cond = Q(to_user=request.user)
+    if request.user.is_superuser:
+        cond |= Q(to_superusers=True)
+    unread = Notification.objects.filter(cond, is_read=False)
     u = request.user
     return {
-        "nav_notifications": qs,
+        "nav_notifications": unread.order_by('-created_at')[:10],
+        "nav_unread_count": unread.count(),
         # menu visibility: sales-only items are hidden from CS / Operations / FFT / Quotation staff
         "is_sales_side": is_sales_side(u),
         "sees_installments": sees_installments(u),
