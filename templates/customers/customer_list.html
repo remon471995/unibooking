@@ -1,0 +1,88 @@
+{% extends "core/base.html" %}
+{% block title %}العملاء{% endblock %}
+
+{% block content %}
+<style>
+  .cu-box{padding:12px 14px;border-radius:12px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.08);margin-bottom:12px}
+  .dark .cu-box{background:#111827}
+  .cu-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+  .cu-stat b{display:block;font-size:22px}
+  .cu-mu{color:#6b7280;font-size:12px}
+  .cu-table{width:100%;border-collapse:collapse;font-size:13px}
+  .cu-table th,.cu-table td{padding:7px 8px;border-bottom:1px solid rgba(100,116,139,.2);text-align:right;white-space:nowrap}
+  .cu-badge{padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700}
+  .cu-vip{background:rgba(234,179,8,.2);color:#854d0e}
+  .cu-repeat{background:rgba(37,99,235,.14);color:#1e40af}
+  .cu-new{background:rgba(100,116,139,.15);color:#475569}
+  .cu-btn{border:1px solid rgba(100,116,139,.4);border-radius:8px;padding:5px 12px;font-weight:700;display:inline-block}
+  .cu-scroll{overflow-x:auto}
+</style>
+
+<h1 class="text-xl font-bold mb-3">العملاء</h1>
+
+<div class="cu-grid">
+  <div class="cu-box cu-stat"><span class="cu-mu">إجمالي العملاء</span><b>{{ stats.customers }}</b></div>
+  <div class="cu-box cu-stat"><span class="cu-mu">عملاء VIP</span><b>{{ stats.vip }}</b></div>
+  <div class="cu-box cu-stat"><span class="cu-mu">عملاء متكررين</span><b>{{ stats.repeat }}</b></div>
+  <div class="cu-box cu-stat"><span class="cu-mu">إجمالي البيع</span><b>{{ stats.sell|floatformat:"0g" }}</b></div>
+</div>
+
+<form method="get" class="cu-box" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;align-items:end">
+  <label>بحث (اسم / موبايل / إيميل)<input name="q" value="{{ f.q }}" class="border rounded px-2 py-1 w-full"></label>
+  <label>التصنيف
+    <select name="segment" class="border rounded px-2 py-1 w-full">
+      <option value="">الكل</option>
+      {% for k, label in segments %}<option value="{{ k }}" {% if f.segment == k %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>حملات تسويق
+    <select name="marketing" class="border rounded px-2 py-1 w-full">
+      <option value="">الكل</option>
+      <option value="ok" {% if f.marketing == "ok" %}selected{% endif %}>مسموح تسويق</option>
+      <option value="email" {% if f.marketing == "email" %}selected{% endif %}>مسموح + عنده إيميل</option>
+    </select>
+  </label>
+  <label>ترتيب حسب
+    <select name="sort" class="border rounded px-2 py-1 w-full">
+      {% for k, label in sorts %}<option value="{{ k }}" {% if f.sort == k %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+  </label>
+  <button class="cu-btn">بحث</button>
+  <a class="cu-btn" href="?{% if querystring %}{{ querystring }}&{% endif %}export=csv">تصدير Excel (CSV)</a>
+</form>
+
+<div class="cu-mu" style="margin-bottom:6px">{{ shown }} عميل</div>
+
+<div class="cu-box cu-scroll">
+  <table class="cu-table">
+    <tr>
+      <th>العميل</th><th>الموبايل</th><th>الإيميل</th><th>التصنيف</th>
+      <th>الكروت</th><th>الحجوزات</th><th>إجمالي البيع</th><th>الربح</th><th>آخر حجز</th>
+    </tr>
+    {% for c in page %}
+    <tr>
+      <td>
+        <a class="underline font-bold" href="{% url 'customers:detail' c.key %}">{{ c.name }}</a>
+        {% if c.other_names %}<div class="cu-mu">وأسماء تانية: {{ c.other_names|join:"، " }}</div>{% endif %}
+      </td>
+      <td dir="ltr">+{{ c.key }}</td>
+      <td>{{ c.email|default:"—" }}{% if c.no_marketing %} <span class="cu-mu">(لا تسويق)</span>{% endif %}</td>
+      <td><span class="cu-badge cu-{{ c.segment }}">{{ c.segment_label }}</span></td>
+      <td>{{ c.cards }}</td>
+      <td>{{ c.bookings }}</td>
+      <td>{{ c.sell|floatformat:"2g" }}</td>
+      <td>{{ c.profit|floatformat:"2g" }}</td>
+      <td>{{ c.last|date:"Y-m-d" }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="9" class="cu-mu">مفيش عملاء مطابقين.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="flex gap-3 items-center mt-3">
+  {% if page.has_previous %}<a class="underline" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page.previous_page_number }}">السابق</a>{% endif %}
+  <span class="cu-mu">صفحة {{ page.number }} من {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}<a class="underline" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page.next_page_number }}">التالي</a>{% endif %}
+</div>
+{% endblock %}

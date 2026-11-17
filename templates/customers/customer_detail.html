@@ -1,0 +1,97 @@
+{% extends "core/base.html" %}
+{% block title %}{{ names.0 }} — ملف العميل{% endblock %}
+
+{% block content %}
+<style>
+  .cu-box{padding:14px 16px;border-radius:12px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.08);margin-bottom:12px}
+  .dark .cu-box{background:#111827}
+  .cu-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px}
+  .cu-stat b{display:block;font-size:20px}
+  .cu-mu{color:#6b7280;font-size:12px}
+  .cu-table{width:100%;border-collapse:collapse;font-size:13px}
+  .cu-table th,.cu-table td{padding:7px 8px;border-bottom:1px solid rgba(100,116,139,.2);text-align:right;white-space:nowrap}
+  .cu-badge{padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700}
+  .cu-vip{background:rgba(234,179,8,.2);color:#854d0e}
+  .cu-repeat{background:rgba(37,99,235,.14);color:#1e40af}
+  .cu-new{background:rgba(100,116,139,.15);color:#475569}
+  .cu-btn{border:1px solid rgba(100,116,139,.4);border-radius:8px;padding:5px 14px;font-weight:700}
+  .cu-scroll{overflow-x:auto}
+</style>
+
+<div class="cu-box">
+  <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:baseline">
+    <h1 class="text-xl font-bold">{{ names.0 }}
+      {% if segment %}<span class="cu-badge cu-{{ segment.segment }}">{{ segment.segment_label }}</span>{% endif %}
+    </h1>
+    {% if sees_money %}<a class="underline" href="{% url 'customers:list' %}">← كل العملاء</a>{% endif %}
+  </div>
+  {% if names|length > 1 %}<div class="cu-mu">أسماء تانية بنفس الرقم: {{ names|slice:"1:"|join:"، " }}</div>{% endif %}
+  <div style="margin-top:8px;display:flex;gap:18px;flex-wrap:wrap">
+    <div>الموبايل: <b dir="ltr">+{{ key }}</b></div>
+    <div>الإيميل: <b>{{ profile.email|default:"—" }}</b></div>
+    {% if nationality %}<div>الجنسية: <b>{{ nationality }}</b></div>{% endif %}
+    <div>الموظفين: <b>{{ employees|join:"، " }}</b></div>
+  </div>
+  {% if profile.no_marketing %}<div class="cu-mu" style="margin-top:6px">⚠ العميل ده مستثنى من التسويق.</div>{% endif %}
+  {% if profile.notes %}<div style="margin-top:8px">ملاحظات: {{ profile.notes }}</div>{% endif %}
+</div>
+
+<div class="cu-grid">
+  <div class="cu-box cu-stat"><span class="cu-mu">الكروت</span><b>{{ cards|length }}</b></div>
+  <div class="cu-box cu-stat"><span class="cu-mu">الحجوزات</span><b>{{ bookings|length }}</b></div>
+  <div class="cu-box cu-stat"><span class="cu-mu">إجمالي البيع</span><b>{{ totals.sell|floatformat:"2g" }}</b></div>
+  <div class="cu-box cu-stat"><span class="cu-mu">المدفوع</span><b>{{ totals.paid|floatformat:"2g" }}</b></div>
+  <div class="cu-box cu-stat"><span class="cu-mu">المتبقي</span><b>{{ totals.remaining|floatformat:"2g" }}</b></div>
+  {% if sees_money %}<div class="cu-box cu-stat"><span class="cu-mu">الربح</span><b>{{ totals.profit|floatformat:"2g" }}</b></div>{% endif %}
+</div>
+
+{% if can_edit %}
+<form method="post" action="{% url 'customers:update' key %}" class="cu-box" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;align-items:end">
+  {% csrf_token %}
+  <label>الإيميل<input type="email" name="email" value="{{ profile.email|default:'' }}" class="border rounded px-2 py-1 w-full" dir="ltr"></label>
+  <label>ملاحظات<input name="notes" value="{{ profile.notes|default:'' }}" class="border rounded px-2 py-1 w-full"></label>
+  <label><input type="checkbox" name="no_marketing" {% if profile.no_marketing %}checked{% endif %}> لا يُرسل له تسويق</label>
+  <button class="cu-btn">حفظ</button>
+</form>
+{% endif %}
+
+<h2 class="text-lg font-bold mb-2">الكروت</h2>
+<div class="cu-box cu-scroll">
+  <table class="cu-table">
+    <tr><th>الكود</th><th>الاسم على الكارت</th><th>الموظف</th><th>الفريق</th><th>التاريخ</th><th>إجمالي البيع</th></tr>
+    {% for c in cards %}
+    <tr>
+      <td><a class="underline" href="{% url 'card_detail' c.pk %}">{{ c.ub_code }}</a></td>
+      <td>{{ c.customer_name }}</td>
+      <td>{{ c.created_by.get_full_name|default:c.created_by.username }}</td>
+      <td>{{ c.team|default:"—" }}</td>
+      <td>{{ c.created_at|date:"Y-m-d" }}</td>
+      <td>{{ c.total_sell|floatformat:"2g" }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+<h2 class="text-lg font-bold mb-2">كل الحجوزات ({{ bookings|length }})</h2>
+<div class="cu-box cu-scroll">
+  <table class="cu-table">
+    <tr><th>النوع</th><th>التفاصيل</th><th>المرجع</th><th>تاريخ الحجز</th><th>الفترة</th><th>البيع</th><th>المدفوع</th><th>المتبقي</th><th>المراجعة</th><th>الكارت</th></tr>
+    {% for b in bookings %}
+    <tr>
+      <td>{{ b.kind }}</td>
+      <td>{{ b.title }}</td>
+      <td>{{ b.ref|default:"—" }}</td>
+      <td>{{ b.date|date:"Y-m-d" }}</td>
+      <td>{{ b.period|default:"—" }}</td>
+      <td>{{ b.sell|floatformat:"2g" }}</td>
+      <td>{{ b.paid|floatformat:"2g" }}</td>
+      <td>{{ b.remaining|floatformat:"2g" }}</td>
+      <td>{{ b.review }}</td>
+      <td><a class="underline" href="{% url 'card_detail' b.card.pk %}">{{ b.card.ub_code }}</a></td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="10" class="cu-mu">مفيش حجوزات لسه.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}
