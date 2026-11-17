@@ -215,6 +215,16 @@ def notification_mark_read(request, pk):
     return redirect(n.target_url or 'notifications_list')
 
 
+@login_required
+@require_POST
+def notifications_mark_all_read(request):
+    from django.db.models import Q
+    cond = Q(to_user=request.user)
+    if request.user.is_superuser:
+        cond |= Q(to_superusers=True)
+    updated = Notification.objects.filter(cond, is_read=False).update(is_read=True)
+    return JsonResponse({"ok": True, "updated": updated})
+
 # ===================== Dashboard / Cards =====================
 
 @login_required
