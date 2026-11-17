@@ -156,10 +156,10 @@
     {# ================== اليسار: التنبيهات + الحساب ================== #}
     <div class="shrink-0 flex items-center gap-2">
 
-      <details class="relative">
+      <details class="relative" data-bell data-mark-url="{% url 'notifications_mark_all_read' %}" data-csrf="{{ csrf_token }}">
         <summary class="px-3 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/20 flex items-center gap-2 cursor-pointer list-none whitespace-nowrap">
           <i class="fa-regular fa-bell"></i>
-          <span>({% if nav_notifications %}{{ nav_notifications|length }}{% else %}0{% endif %})</span>
+          <span data-bell-badge data-zero="(0)">({{ nav_unread_count|default:0 }})</span>
         </summary>
         <div class="menu absolute left-0 top-full z-50 mt-2 w-80 bg-white dark:bg-gray-900 shadow rounded-xl p-2 border border-gray-100 dark:border-gray-800">
           {% if nav_notifications %}
@@ -167,7 +167,7 @@
               {% url 'notification_mark_read' n.pk as mark_url %}
               <a class="block px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800" href="{{ mark_url }}">
                 <div class="text-sm leading-5">{{ n.message }}</div>
-                <div class="text-xs text-gray-500 mt-1">{{ n.due_date }}</div>
+                <div class="text-xs text-gray-500 mt-1">{% if n.due_date %}استحقاق: {{ n.due_date }}{% else %}{{ n.created_at|date:"Y-m-d H:i" }}{% endif %}</div>
               </a>
             {% endfor %}
             <div class="px-3 py-2 text-right border-t mt-1">
@@ -179,6 +179,31 @@
           {% endif %}
         </div>
       </details>
+<script>
+// فتح الجرس = اعتبار التنبيهات اتشافت (العدّاد بيصفّر، والقايمة تفضل ظاهرة لحد ما الصفحة تتحدّث)
+(function () {
+  document.querySelectorAll('details[data-bell]').forEach(function (d) {
+    if (d.dataset.bound) return;
+    d.dataset.bound = '1';
+    d.addEventListener('toggle', function () {
+      if (!d.open || d.dataset.marked) return;
+      d.dataset.marked = '1';
+      fetch(d.dataset.markUrl, {
+        method: 'POST', credentials: 'same-origin',
+        headers: {'X-CSRFToken': d.dataset.csrf, 'X-Requested-With': 'XMLHttpRequest'}
+      }).then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) {
+          if (!j || !j.ok) { delete d.dataset.marked; return; }
+          d.querySelectorAll('[data-bell-badge]').forEach(function (el) {
+            el.textContent = el.dataset.zero || '0';
+            if (el.hasAttribute('data-hide-zero')) el.classList.add('hidden');
+          });
+        }).catch(function () { delete d.dataset.marked; });
+    });
+  });
+})();
+</script>
+
 
       <details class="relative">
         <summary class="px-3 py-2 rounded-lg bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/20 flex items-center gap-2 cursor-pointer list-none whitespace-nowrap">
