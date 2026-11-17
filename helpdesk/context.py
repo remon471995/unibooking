@@ -14,7 +14,10 @@ def dept_context(request):
     badges = {s: 0 for s in inbox}
     for row in open_qs.filter(awaiting_staff=True, department__slug__in=inbox).values("department__slug"):
         badges[row["department__slug"]] += 1
-    unread_qs = Notification.objects.filter(Q(to_user=user) | Q(to_superusers=True), is_read=False)
+    notif_cond = Q(to_user=user)
+    if user.is_superuser:          # تنبيهات السوبر يوزر للسوبر يوزر بس
+        notif_cond |= Q(to_superusers=True)
+    unread_qs = Notification.objects.filter(notif_cond, is_read=False)
     return {
         "hd_write_slugs": allowed_department_slugs(user),
         "hd_inbox_slugs": inbox,
