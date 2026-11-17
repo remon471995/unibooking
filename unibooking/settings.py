@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'helpdesk',
     "accounts.apps.AccountsConfig",
     "audit.apps.AuditConfig",
+    "customers.apps.CustomersConfig",
     "widget_tweaks",
     "storages",   # S3-compatible file storage
 ]
