@@ -15,6 +15,7 @@ urlpatterns = [
     
     # Audit (سجل التعديلات)
     path("audit/", include("audit.urls")),
+    path("customers/", include("customers.urls")),
     
     # Accounts (namespace = accounts)
     path("account/", include(("accounts.urls", "accounts"), namespace="accounts")),
