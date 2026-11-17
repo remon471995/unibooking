@@ -35,7 +35,14 @@
             {% endif %}
           {% endif %}
         {% endif %}
-
+        
+        {% if sees_performance %}
+        <a href="{% url 'customers:list' %}"
+           class="px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 whitespace-nowrap">
+          العملاء
+        </a>
+        {% endif %}
+        
         {# الأداء: ليدر / سوبرفايزر / مانجر #}
         {% if sees_performance %}
           {% url 'performance_dashboard' as perf_url %}
