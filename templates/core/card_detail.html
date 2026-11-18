@@ -109,6 +109,8 @@
       <div class="flex flex-wrap gap-2">
         <a href="{% url 'flight_payment' f.pk %}" class="px-3 py-1.5 text-sm bg-blue-500 text-white rounded-md">إدارة الدفع</a>
         <a href="{% url 'flight_payment_modify' f.pk %}" class="px-3 py-1.5 text-sm bg-amber-600 text-white rounded-md">طلب تعديل</a>
+        <a href="{% url 'flightdocs:voucher' f.pk %}" target="_blank" class="px-3 py-1.5 text-sm bg-gray-200 rounded-md">فاوتشر الطيران</a>
+        <a href="{% url 'flightdocs:upload' f.pk %}" class="px-3 py-1.5 text-sm bg-gray-200 rounded-md">رفع تذكرة</a>
       </div>
     </div>
     <div class="grid grid-cols-2 md:grid-cols-5 gap-4 p-4 text-center">
