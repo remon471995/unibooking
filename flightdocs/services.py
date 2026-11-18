@@ -34,12 +34,56 @@ def _t(v):
     return dt.time.fromisoformat(v) if v else None
 
 
+def itinerary_block_reason(booking):
+    """سبب منع رفع/تغيير خط السير (أو None لو مسموح).
+
+    القاعدة:
+      - حجز معتمد = مقفول: ممنوع أي تغيير (لازم طلب فتح الأول).
+      - لو خط السير اتسجل قبل كده: مايتغيّرش إلا لو الحجز رجع للتصحيح.
+    """
+    if booking.is_locked:
+        return "الحجز معتمد ومقفول، مايتعدّلش فيه خط السير. اطلب فتح للتعديل الأول."
+    if FlightItinerary.objects.filter(booking=booking).exists() and booking.review_status != booking.REVIEW_RETURNED:
+        return "خط السير اتسجل قبل كده ومايتغيّرش، إلا لو الحجز رجع للتصحيح من الداتا انتري."
+    return None
+
+
+def _summary(data_or_it):
+    """سطر مختصر لخط السير (للسجل)."""
+    if isinstance(data_or_it, dict):
+        segs = data_or_it.get("segments", [])
+        pax = [p["name"] for p in data_or_it.get("passengers", [])]
+        parts = [f'{s.get("flight_no", "")} {s.get("dep_city", "")}→{s.get("arr_city", "")} {s.get("dep_date", "")} {s.get("dep_time", "")}'.strip() for s in segs]
+    else:
+        pax = [p.name for p in data_or_it.passengers.all()]
+        parts = [f"{s.flight_no} {s.dep_city}→{s.arr_city} {s.dep_date or ''} {s.dep_time.strftime('%H:%M') if s.dep_time else ''}".strip()
+                 for s in data_or_it.segments.all()]
+    return " | ".join(parts) + (" || " + ", ".join(pax) if pax else "")
+
+
+def _audit(it, action, old, new):
+    """بيسجّل في سجل التعديلات (لو تطبيق audit متركّب). مابيبوّظش الحفظ."""
+    try:
+        from django.apps import apps
+        if not apps.is_installed("audit"):
+            return
+        from audit.signals import _write
+        it.card_id = it.booking.card_id  # عشان السجل يتربط بالكارت
+        _write(it, action, {"خط السير": {"label": "خط السير", "old": old or None, "new": new}})
+    except Exception:
+        logger.exception("flightdocs: audit write failed")
+
+
 @transaction.atomic
 def save_itinerary(booking, data, user=None):
-    """بيحفظ/يستبدل خط سير الحجز من بيانات (dict) متنضّفة."""
+    """بيحفظ/يستبدل خط سير الحجز من بيانات (dict) متنضّفة. بيرفض لو الحجز مقفول أو خط السير متسجّل."""
+    if itinerary_block_reason(booking):
+        return None
     data = clean_payload(data)
     if not data or not data["segments"]:
         return None
+    existing = FlightItinerary.objects.filter(booking=booking).first()
+    old_summary = _summary(existing) if existing else ""
     it, _ = FlightItinerary.objects.update_or_create(
         booking=booking,
         defaults={
@@ -62,6 +106,7 @@ def save_itinerary(booking, data, user=None):
         )
         for i, s in enumerate(data["segments"][:MAX_SEGMENTS])
     ])
+    _audit(it, "update" if existing else "create", old_summary, _summary(data))
     return it
 
 
