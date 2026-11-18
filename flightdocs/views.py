@@ -12,7 +12,7 @@ from core.models import FlightBooking
 from core.permissions import can_edit_card
 
 from .parser import parse_ticket_pdf
-from .services import save_itinerary_from_post, voucher_context
+from .services import itinerary_block_reason, save_itinerary_from_post, voucher_context
 
 MAX_UPLOAD = 8 * 1024 * 1024  # 8MB
 
@@ -39,6 +39,12 @@ def itinerary_upload(request, booking_pk):
     booking = get_object_or_404(FlightBooking.objects.select_related("card"), pk=booking_pk)
     if not can_edit_card(request.user, booking.card):
         raise PermissionDenied
+    reason = itinerary_block_reason(booking)
+    if reason:  # الحجز مقفول أو خط السير متسجّل: ممنوع التغيير
+        messages.error(request, reason)
+        if hasattr(booking, "itinerary"):
+            return redirect("flightdocs:voucher", booking_pk=booking.pk)
+        return redirect("card_detail", pk=booking.card_id)
     if request.method == "POST":
         if save_itinerary_from_post(booking, request.POST.get("itinerary_json"), request.user):
             messages.success(request, "تم حفظ خط سير الرحلة.")
@@ -52,9 +58,13 @@ def voucher(request, booking_pk):
     booking = get_object_or_404(FlightBooking.objects.select_related("card"), pk=booking_pk)
     ctx = voucher_context(booking)
     if ctx is None:
-        messages.info(request, "مفيش خط سير للحجز ده لسه. ارفع التذكرة الأول.")
-        return redirect("flightdocs:upload", booking_pk=booking.pk)
+        if itinerary_block_reason(booking) is None and can_edit_card(request.user, booking.card):
+            messages.info(request, "مفيش خط سير للحجز ده لسه. ارفع التذكرة الأول.")
+            return redirect("flightdocs:upload", booking_pk=booking.pk)
+        messages.info(request, "مفيش خط سير للحجز ده.")
+        return redirect("card_detail", pk=booking.card_id)
     ctx["pdf"] = False
+    ctx["can_replace"] = itinerary_block_reason(booking) is None and can_edit_card(request.user, booking.card)
     return render(request, "flightdocs/voucher.html", ctx)
 
 
@@ -65,7 +75,7 @@ def voucher_pdf(request, booking_pk):
     booking = get_object_or_404(FlightBooking.objects.select_related("card"), pk=booking_pk)
     ctx = voucher_context(booking)
     if ctx is None:
-        return redirect("flightdocs:upload", booking_pk=booking.pk)
+        return redirect("card_detail", pk=booking.card_id)
     ctx["pdf"] = True
     html = get_template("flightdocs/voucher.html").render(ctx, request)
     pdf = HTML(string=html, base_url=request.build_absolute_uri("/")).write_pdf()
