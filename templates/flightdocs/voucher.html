@@ -1,0 +1,155 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Flight Itinerary {{ itinerary.booking_ref }}</title>
+<style>
+  @page { size: A4 portrait; margin: 1.2cm; }
+  * { box-sizing: border-box; }
+  body { font-family: "DejaVu Sans", Arial, sans-serif; font-size: 9.5pt; color: #222; margin: 0; }
+  .wrap { max-width: 190mm; margin: 0 auto; padding: 10px; }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { vertical-align: top; }
+  .red { color: #c4161c; }
+  .navy { color: #2b3a67; }
+  .hdr td { padding: 0; }
+  .hdr .co { text-align: right; font-size: 8.5pt; color: #444; line-height: 1.5; }
+  .hdr .co b { font-size: 11pt; color: #2b3a67; }
+  .title { background: #2b3a67; color: #fff; padding: 10px 14px; margin: 14px 0 10px; border-radius: 4px; }
+  .title td { color: #fff; }
+  .title .t1 { font-size: 14pt; font-weight: bold; }
+  .title .t2 { font-size: 9pt; opacity: .85; }
+  .info { margin-bottom: 10px; }
+  .info td { padding: 6px 8px; border: 1px solid #dcdfe6; background: #f7f8fb; }
+  .lbl { font-size: 7.5pt; color: #6b7280; display: block; text-transform: uppercase; letter-spacing: .3px; }
+  .val { font-size: 10.5pt; font-weight: bold; }
+  h3 { font-size: 11pt; margin: 14px 0 6px; padding-bottom: 3px; border-bottom: 2px solid #c4161c; color: #2b3a67; }
+  .pax th { background: #2b3a67; color: #fff; font-size: 8.5pt; padding: 5px 8px; text-align: left; }
+  .pax td { padding: 5px 8px; border-bottom: 1px solid #e5e7eb; }
+  .jlabel { font-weight: bold; color: #c4161c; margin: 12px 0 4px; font-size: 10pt; }
+  .seg { border: 1px solid #cfd4e2; border-radius: 6px; margin-bottom: 8px; page-break-inside: avoid; }
+  .seg .top { background: #eef0f7; padding: 6px 10px; border-radius: 6px 6px 0 0; font-weight: bold; }
+  .seg .top .fn { color: #c4161c; }
+  .seg .body { padding: 8px 10px; }
+  .time { font-size: 17pt; font-weight: bold; color: #2b3a67; }
+  .city { font-size: 11pt; font-weight: bold; }
+  .small { font-size: 8.5pt; color: #555; }
+  .mid { text-align: center; color: #6b7280; font-size: 8.5pt; width: 22%; }
+  .arrow { font-size: 16pt; color: #c4161c; line-height: 1; }
+  .chips td { padding: 3px 10px 0 0; font-size: 8.5pt; color: #555; }
+  .chips b { color: #222; }
+  .paxrows { margin-top: 6px; font-size: 8.5pt; }
+  .paxrows td, .paxrows th { padding: 3px 6px; border-top: 1px solid #e5e7eb; text-align: left; }
+  .paxrows th { color: #6b7280; font-weight: normal; }
+  .transit { background: #fff7ed; border: 1px dashed #f59e0b; color: #92400e; text-align: center; padding: 4px; margin: 0 0 8px; font-size: 8.5pt; border-radius: 4px; }
+  .notes { margin-top: 12px; padding: 8px 10px; background: #f7f8fb; border-radius: 4px; font-size: 8.5pt; color: #444; line-height: 1.6; }
+  .foot { margin-top: 14px; padding-top: 8px; border-top: 1px solid #ddd; text-align: center; font-size: 8pt; color: #666; }
+  .btn { display: inline-block; margin: 10px 4px; padding: 8px 18px; background: #c4161c; color: #fff; border-radius: 6px; text-decoration: none; font-size: 10pt; }
+  @media print { .noprint { display: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+{% if not pdf %}
+<div class="noprint" style="text-align:center">
+  <a class="btn" href="{% url 'flightdocs:voucher_pdf' booking.pk %}">📄 تنزيل PDF</a>
+  <a class="btn" style="background:#2b3a67" href="javascript:window.print()">🖨️ طباعة</a>
+  <a class="btn" style="background:#6b7280" href="{% url 'flightdocs:upload' booking.pk %}">رفع تذكرة جديدة</a>
+  <a class="btn" style="background:#6b7280" href="{% url 'card_detail' booking.card_id %}">رجوع للكارت</a>
+</div>
+{% endif %}
+
+<table class="hdr"><tr>
+  <td style="width:45%"><img src="{% static company.logo %}" alt="{{ company.name }}" style="height:70px"></td>
+  <td class="co">
+    <b>{{ company.name }}</b><br>
+    {{ company.address }}<br>
+    Tel: {{ company.phone }} &nbsp;|&nbsp; {{ company.email }}
+  </td>
+</tr></table>
+
+<table class="title"><tr>
+  <td><div class="t1">E-TICKET ITINERARY</div><div class="t2">خط سير الرحلة</div></td>
+  <td style="text-align:right">
+    <div class="t2">Booking Ref / مرجع الحجز</div>
+    <div class="t1">{{ itinerary.booking_ref|default:booking.pnr }}</div>
+  </td>
+</tr></table>
+
+<table class="info"><tr>
+  <td><span class="lbl">Airline PNR</span><span class="val">{{ booking.pnr|default:"—" }}</span></td>
+  <td><span class="lbl">Route / المسار</span><span class="val">{{ route|default:"—" }}</span></td>
+  <td><span class="lbl">Trip type / نوع الرحلة</span><span class="val">{{ trip_label_en|default:"—" }}{% if trip_label_ar %} · {{ trip_label_ar }}{% endif %}</span></td>
+  <td><span class="lbl">Issue date / تاريخ الإصدار</span><span class="val">{{ itinerary.issue_date|date:"d M Y"|default:"—" }}</span></td>
+</tr></table>
+
+<h3>Passengers · المسافرون</h3>
+<table class="pax">
+  <tr><th style="width:6%">#</th><th>Passenger name</th><th style="width:34%">E-ticket number</th></tr>
+  {% for p in passengers %}
+  <tr><td>{{ forloop.counter }}</td><td><b>{{ p.name }}</b></td><td>{{ p.ticket_no|default:"—" }}</td></tr>
+  {% empty %}
+  <tr><td colspan="3" class="small">—</td></tr>
+  {% endfor %}
+</table>
+
+<h3>Flight details · تفاصيل الرحلة</h3>
+{% for j in journeys %}
+  {% if j.label %}<div class="jlabel">{{ j.label }}</div>{% endif %}
+  {% for s in j.segments %}
+    {% if s.layover %}<div class="transit">⏱ Transit / ترانزيت في {{ s.dep_city }} — {{ s.layover }}</div>{% endif %}
+    <div class="seg">
+      <div class="top"><span class="fn">{{ s.flight_no }}</span> · {{ s.airline }}{% if s.operated_by %} <span class="small">(Operated by {{ s.operated_by }})</span>{% endif %}
+        <span style="float:right" class="small">{{ s.dep_date }}</span></div>
+      <div class="body">
+        <table><tr>
+          <td style="width:39%">
+            <div class="time">{{ s.dep_time|default:"--:--" }}</div>
+            <div class="city">{{ s.dep_city }}{% if s.dep_code %} ({{ s.dep_code }}){% endif %}</div>
+            <div class="small">{{ s.dep_airport }}{% if s.dep_terminal %} · Terminal {{ s.dep_terminal }}{% endif %}</div>
+          </td>
+          <td class="mid">
+            <div class="arrow">✈</div>
+            {% if s.duration %}{{ s.duration }}{% endif %}{% if s.stops %}<br>{{ s.stops }}{% endif %}
+          </td>
+          <td style="width:39%;text-align:right">
+            <div class="time">{{ s.arr_time|default:"--:--" }}{% if s.arr_next_day %} <span class="small red">{{ s.arr_date }}</span>{% endif %}</div>
+            <div class="city">{{ s.arr_city }}{% if s.arr_code %} ({{ s.arr_code }}){% endif %}</div>
+            <div class="small">{{ s.arr_airport }}{% if s.arr_terminal %} · Terminal {{ s.arr_terminal }}{% endif %}</div>
+          </td>
+        </tr></table>
+        <table class="chips"><tr>
+          {% if s.cabin %}<td>Class: <b>{{ s.cabin }}</b></td>{% endif %}
+          {% if s.status %}<td>Status: <b>{{ s.status }}</b></td>{% endif %}
+          {% if s.aircraft %}<td>Aircraft: <b>{{ s.aircraft }}</b></td>{% endif %}
+          {% if s.meal %}<td>Meal: <b>{{ s.meal }}</b></td>{% endif %}
+        </tr></table>
+        {% if s.pax_rows %}
+        <table class="paxrows">
+          <tr><th>Passenger</th><th>Baggage</th><th>Seat</th>{% if s.pax_rows.0.extras or True %}<th>Extras</th>{% endif %}</tr>
+          {% for r in s.pax_rows %}
+          <tr><td>{{ r.name }}</td><td>{{ r.baggage|default:"—" }}</td><td>{{ r.seat|default:"—" }}</td><td>{{ r.extras|default:"—" }}</td></tr>
+          {% endfor %}
+        </table>
+        {% endif %}
+      </div>
+    </div>
+  {% endfor %}
+{% endfor %}
+
+<div class="notes">
+  • All times are local times at each airport / جميع الأوقات بالتوقيت المحلي لكل مطار.<br>
+  • Please verify your flight times with the airline before departure / يرجى التأكد من مواعيد الرحلة مع شركة الطيران قبل السفر.<br>
+  • Please carry valid travel documents for all passengers / يرجى حمل وثائق السفر سارية المفعول لجميع المسافرين.
+</div>
+
+<div class="foot">
+  {{ company.name }} · {{ company.address }}<br>
+  Tel: {{ company.phone }} · {{ company.email }}<br>
+  Generated {{ generated_at }}
+</div>
+
+</div>
+</body>
+</html>

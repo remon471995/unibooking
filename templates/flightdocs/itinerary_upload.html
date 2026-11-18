@@ -1,0 +1,19 @@
+{% extends "core/base.html" %}
+{% block title %}رفع تذكرة طيران{% endblock %}
+
+{% block content %}
+<div style="max-width:760px;margin:0 auto">
+  <h1 class="text-xl font-bold mb-2">✈️ رفع تذكرة وخط سير الرحلة</h1>
+  <p class="mb-3" style="color:#6b7280">
+    حجز الطيران: {{ booking.airline }} — PNR: {{ booking.pnr }}
+    · <a class="underline" href="{% url 'card_detail' booking.card_id %}">رجوع للكارت</a>
+    {% if booking.itinerary %}· <a class="underline" href="{% url 'flightdocs:voucher' booking.pk %}">عرض الفاوتشر الحالي</a>{% endif %}
+  </p>
+  <form method="post" class="bg-white rounded-lg shadow border p-4">
+    {% csrf_token %}
+    {% include "flightdocs/_ticket_upload.html" %}
+    <button class="px-4 py-2 rounded-md text-white bg-green-600 font-bold">حفظ خط السير</button>
+  </form>
+  <p class="mt-3" style="color:#6b7280;font-size:13px">رفع تذكرة جديدة بيستبدل خط السير القديم.</p>
+</div>
+{% endblock %}

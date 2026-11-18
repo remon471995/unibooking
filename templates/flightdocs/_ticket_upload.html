@@ -1,0 +1,101 @@
+{# رفع تذكرة PDF → استخراج تلقائي → معاينة. بيملا شركة الطيران وPNR (لو فاضيين) ويبعت خط السير مع الفورم. #}
+<div id="tkt-box" style="margin:6px 0 18px">
+  <label id="tkt-drop" for="tkt-file"
+         style="display:block;cursor:pointer;text-align:center;padding:26px 16px;border:2px dashed #2563eb;border-radius:14px;background:rgba(37,99,235,.05)">
+    <div style="font-size:34px;line-height:1">📎</div>
+    <div style="font-weight:700;font-size:16px;margin-top:6px">ارفع تذكرة الطيران (PDF)</div>
+    <div style="color:#6b7280;font-size:13px;margin-top:4px">اسحب الملف هنا أو اضغط للاختيار، والنظام يملا البيانات لوحده</div>
+  </label>
+  <input type="file" id="tkt-file" accept="application/pdf,.pdf" style="display:none">
+  <div id="tkt-status" style="margin-top:10px;font-size:14px;font-weight:700"></div>
+  <div id="tkt-preview" style="margin-top:8px;font-size:13px"></div>
+  <input type="hidden" name="itinerary_json" id="tkt-json">
+</div>
+
+<script>
+(function () {
+  var fileEl = document.getElementById('tkt-file');
+  if (!fileEl) return;
+  var statusEl = document.getElementById('tkt-status');
+  var prevEl = document.getElementById('tkt-preview');
+  var jsonEl = document.getElementById('tkt-json');
+  var url = "{% url 'flightdocs:parse' %}";
+  var csrf = "{{ csrf_token }}";
+  var TRIP = {one_way: 'ذهاب فقط', round_trip: 'ذهاب وعودة', multi_city: 'وجهات متعددة'};
+
+  function el(tag, text, css) {
+    var e = document.createElement(tag);
+    if (text != null) e.textContent = text;
+    if (css) e.style.cssText = css;
+    return e;
+  }
+  function say(msg, color) { statusEl.textContent = msg; statusEl.style.color = color || 'inherit'; }
+  function setIfEmpty(id, value) {
+    var f = document.getElementById(id);
+    if (f && value && !f.value.trim()) f.value = value;
+  }
+
+  function render(d) {
+    prevEl.textContent = '';
+    var head = el('div', null, 'font-weight:700;margin-bottom:4px');
+    head.textContent = [d.airline, d.pnr ? 'PNR ' + d.pnr : '', TRIP[d.trip_type] || '',
+                        d.has_transit ? 'فيها ترانزيت' : ''].filter(Boolean).join(' — ');
+    prevEl.appendChild(head);
+    var pax = el('div', 'المسافرين (' + (d.passengers || []).length + '): ' +
+      (d.passengers || []).map(function (p) { return p.name + (p.ticket_no ? ' [' + p.ticket_no + ']' : ''); }).join('، '));
+    prevEl.appendChild(pax);
+    (d.segments || []).forEach(function (s) {
+      var t = (s.flight_no || '') + '  ' + (s.dep_city || '?') + ' → ' + (s.arr_city || '?') + '  ' +
+              (s.dep_date || '') + ' ' + (s.dep_time || '') + ' ← ' + (s.arr_time || '');
+      var row = el('div', t, 'direction:ltr;text-align:left');
+      prevEl.appendChild(row);
+      if (s.layover_before != null) {
+        prevEl.insertBefore(el('div', '↳ ترانزيت ' + Math.floor(s.layover_before / 60) + ' س ' + (s.layover_before % 60) + ' د',
+          'color:#b45309;direction:rtl'), row);
+      }
+    });
+    (d.warnings || []).forEach(function (w) { prevEl.appendChild(el('div', '⚠ ' + w, 'color:#b45309')); });
+    prevEl.appendChild(el('div', 'راجع البيانات دي قبل الحفظ.', 'color:#6b7280;margin-top:4px'));
+  }
+
+  var drop = document.getElementById('tkt-drop');
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.style.background = 'rgba(37,99,235,.15)'; });
+  });
+  ['dragleave', 'drop'].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.style.background = 'rgba(37,99,235,.05)'; });
+  });
+  drop.addEventListener('drop', function (e) {
+    if (e.dataTransfer && e.dataTransfer.files.length) {
+      fileEl.files = e.dataTransfer.files;
+      fileEl.dispatchEvent(new Event('change'));
+    }
+  });
+
+  fileEl.addEventListener('change', function () {
+    jsonEl.value = ''; prevEl.textContent = '';
+    if (!fileEl.files.length) { say(''); return; }
+    var fd = new FormData();
+    fd.append('ticket', fileEl.files[0]);
+    say('⏳ بقرا التذكرة...');
+    fetch(url, {method: 'POST', body: fd, credentials: 'same-origin',
+                headers: {'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest'}})
+      .then(function (r) { return r.json().then(function (j) { return {ok: r.ok, j: j}; }); })
+      .then(function (res) {
+        var j = res.j;
+        if (!res.ok) { say('❌ ' + (j.error || 'حصل خطأ'), '#b91c1c'); return; }
+        var d = j.data || {};
+        if (!j.ok) {
+          say('⚠ ما قدرتش أستخرج رحلات من الملف. كمّل البيانات يدوي.', '#b45309');
+          render(d); jsonEl.value = ''; return;
+        }
+        jsonEl.value = JSON.stringify(d);
+        setIfEmpty('id_airline', d.airline);
+        setIfEmpty('id_pnr', d.pnr);
+        say('✅ تم استخراج خط السير. راجع البيانات تحت (والتاريخ) واضغط حفظ.', '#166534');
+        render(d);
+      })
+      .catch(function () { say('❌ تعذّر الاتصال بالسيرفر.', '#b91c1c'); });
+  });
+})();
+</script>
