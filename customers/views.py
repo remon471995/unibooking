@@ -11,8 +11,10 @@ from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
 from core.models import UniBookingCard
-from core.permissions import is_sales_side, role_of, sees_performance
+from core.permissions import can_edit_card, is_sales_side, role_of, sees_performance
+from core.views_review import can_review
 
+from .forms import CardEditForm
 from .models import CustomerProfile
 from .services import SEGMENT_LABELS, build_customers, card_ids_for_key, digits, phone_key
 
@@ -219,3 +221,25 @@ def customer_lookup(request):
         "last_employee": last.created_by.get_full_name() or last.created_by.get_username(),
         "url": reverse("customers:detail", args=[key]),
     })
+
+
+@login_required
+def card_edit(request, pk):
+    """تعديل اسم / موبايل / جنسية العميل على الكارت (صاحب الكارت ومن فوقه والداتا انتري). التعديل بيتسجل في سجل التعديلات."""
+    card = get_object_or_404(UniBookingCard, pk=pk)
+    if not (can_edit_card(request.user, card) or can_review(request.user)):
+        messages.error(request, "مش مسموح لك تعدّل بيانات العميل ده.")
+        return redirect("card_detail", pk=card.pk)
+
+    old_key = phone_key(card.country, card.mobile)
+    form = CardEditForm(request.POST or None, instance=card)
+    if request.method == "POST" and form.is_valid():
+        if not form.has_changed():
+            return redirect("card_detail", pk=card.pk)
+        card = form.save()
+        new_key = phone_key(card.country, card.mobile)
+        if new_key != old_key and len(card_ids_for_key(new_key)) > 1:
+            messages.info(request, "الرقم ده مسجّل لعميل سابق، والكارت اتربط بملفه.")
+        messages.success(request, "تم تعديل بيانات العميل.")
+        return redirect("card_detail", pk=card.pk)
+    return render(request, "customers/card_edit.html", {"form": form, "card": card})
