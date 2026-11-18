@@ -63,6 +63,7 @@
     <div><span class="text-gray-500">Mobile:</span><br>{{ card.mobile }}</div>
     <div><span class="text-gray-500">Created by:</span><br>{{ card.created_by.get_full_name|default:card.created_by.username }}</div>
     <div><span class="text-gray-500">Team:</span><br>{{ card.team.name|default:"—" }}</div>
+    <a href="{% url 'customers:card_edit' card.pk %}" class="px-3 py-1.5 text-sm bg-gray-200 rounded-md">✏️ تعديل بيانات العميل</a>
   </div>
 </div>
 
