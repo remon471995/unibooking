@@ -1,0 +1,42 @@
+{% extends "core/base.html" %}
+{% block title %}تعديل بيانات العميل{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto mt-6 bg-white dark:bg-gray-900 p-6 rounded-lg shadow border border-gray-200 dark:border-gray-800">
+  <h1 class="text-xl font-bold mb-1">✏️ تعديل بيانات العميل</h1>
+  <p class="text-sm text-gray-500 mb-4">الكارت: {{ card.ub_code }} · أي تعديل بيتسجل في سجل التعديلات.</p>
+
+  <form method="post" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+      <div class="md:col-span-2 text-red-600 text-sm">{% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}</div>
+    {% endif %}
+
+    <div class="md:col-span-2">
+      <label class="block text-sm mb-1">اسم العميل</label>
+      {{ form.customer_name }}
+      {% if form.customer_name.errors %}<div class="text-red-600 text-sm mt-1">{{ form.customer_name.errors.0 }}</div>{% endif %}
+    </div>
+    <div>
+      <label class="block text-sm mb-1">الجنسية</label>
+      {{ form.nationality }}
+      {% if form.nationality.errors %}<div class="text-red-600 text-sm mt-1">{{ form.nationality.errors.0 }}</div>{% endif %}
+    </div>
+    <div>
+      <label class="block text-sm mb-1">كود الدولة</label>
+      {{ form.country }}
+      {% if form.country.errors %}<div class="text-red-600 text-sm mt-1">{{ form.country.errors.0 }}</div>{% endif %}
+    </div>
+    <div class="md:col-span-2">
+      <label class="block text-sm mb-1">موبايل</label>
+      {{ form.mobile }}
+      {% if form.mobile.errors %}<div class="text-red-600 text-sm mt-1">{{ form.mobile.errors.0 }}</div>{% endif %}
+    </div>
+
+    <div class="md:col-span-2 flex justify-end gap-3 pt-3 border-t">
+      <a href="{% url 'card_detail' card.pk %}" class="px-5 py-2 rounded bg-gray-200 hover:bg-gray-300 dark:bg-gray-800">إلغاء</a>
+      <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">💾 حفظ</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
