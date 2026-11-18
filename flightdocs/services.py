@@ -76,6 +76,27 @@ def save_itinerary_from_post(booking, raw_json, user=None):
         return None
 
 
+def route_text(segs, trip_type):
+    """المسار المعروض: ذهاب وعودة = كويت ⇄ مانشستر، غير كده سلسلة المدن."""
+    if not segs:
+        return ""
+    journeys = []
+    for s in segs:
+        if not journeys or s.get("layover_before") is None:
+            journeys.append([s])
+        else:
+            journeys[-1].append(s)
+    origin = journeys[0][0].get("dep_city", "")
+    if trip_type == "round_trip" and len(journeys) == 2:
+        return f'{origin} ⇄ {journeys[0][-1].get("arr_city", "")}'
+    cities = [origin]
+    for j in journeys:
+        if j[0].get("dep_city", "") != cities[-1]:
+            cities.append(j[0].get("dep_city", ""))
+        cities.append(j[-1].get("arr_city", ""))
+    return " → ".join(c for c in cities if c)
+
+
 def voucher_context(booking):
     try:
         it = booking.itinerary
@@ -89,12 +110,11 @@ def voucher_context(booking):
         d = {f.name: getattr(s, f.name) for f in s._meta.concrete_fields}
         segs.append(d)
     journeys = build_voucher_view(segs, passengers, it.trip_type)
-    first, last = (segs[0], segs[-1]) if segs else ({}, {})
     ar, en = TRIP_LABELS.get(it.trip_type, ("", ""))
     return {
         "booking": booking, "itinerary": it, "passengers": passengers, "journeys": journeys,
         "trip_label_ar": ar, "trip_label_en": en, "has_transit": it.has_transit,
-        "route": f'{first.get("dep_city", "")} → {last.get("arr_city", "")}' if segs else "",
+        "route": route_text(segs, it.trip_type),
         "company": company_profile(),
         "generated_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
     }
