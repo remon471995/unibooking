@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     "accounts.apps.AccountsConfig",
     "audit.apps.AuditConfig",
     "customers.apps.CustomersConfig",
+    "flightdocs.apps.FlightdocsConfig",
     "widget_tweaks",
     "storages",   # S3-compatible file storage
 ]
