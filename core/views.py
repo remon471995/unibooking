@@ -567,6 +567,8 @@ def flight_create(request, card_pk):
             booking.card = card
             booking.employee_name = request.user.get_full_name() or request.user.username
             booking.save()
+            from flightdocs.services import save_itinerary_from_post
+            save_itinerary_from_post(booking, request.POST.get("itinerary_json"), request.user)
             return redirect("flight_payment", booking_pk=booking.pk)
     else:
         form = FlightBookingForm()
