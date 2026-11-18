@@ -55,7 +55,7 @@
 <div class="noprint" style="text-align:center">
   <a class="btn" href="{% url 'flightdocs:voucher_pdf' booking.pk %}">📄 تنزيل PDF</a>
   <a class="btn" style="background:#2b3a67" href="javascript:window.print()">🖨️ طباعة</a>
-  <a class="btn" style="background:#6b7280" href="{% url 'flightdocs:upload' booking.pk %}">رفع تذكرة جديدة</a>
+  {% if can_replace %}<a class="btn" style="background:#6b7280" href="{% url 'flightdocs:upload' booking.pk %}">تحديث التذكرة</a>{% endif %}
   <a class="btn" style="background:#6b7280" href="{% url 'card_detail' booking.card_id %}">رجوع للكارت</a>
 </div>
 {% endif %}
