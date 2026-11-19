@@ -97,6 +97,8 @@ def _payment_item(kind, cfg, p):
         "invoice": p.invoice_file, "voucher": p.voucher_original, "bank": p.bank_file, "link": p.payment_link,
         "created": p.created_at, "status": p.review_status, "note": p.review_note,
         "reviewer": _name(p.reviewed_by), "reviewed_at": p.reviewed_at,
+        # ✅ تفاصيل طلب التعديل: ملخص التغيير (في الملاحظة) + الأسعار الحالية بعد التعديل
+        "pnote": p.note, "sell_snap": p.sell_price, "net_snap": p.net_price,
     }
 
 
