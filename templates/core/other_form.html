@@ -2,6 +2,11 @@
 {% load widget_tweaks %}
 
 {% block content %}
+<!-- ✅ رجوع -->
+<div class="max-w-lg mx-auto mt-6 px-1 flex flex-wrap gap-2 text-sm">
+  <a href="{% if card.id %}{% url 'card_detail' card.id %}{% else %}{% url 'dashboard' %}{% endif %}" class="px-3 py-1.5 rounded bg-gray-200 hover:bg-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700">← رجوع للكارت</a>
+</div>
+
 <div class="max-w-lg mx-auto bg-white p-8 shadow rounded-lg">
   <h1 class="text-2xl font-bold mb-6 text-gray-800">إضافة خدمة أخرى 📦</h1>
 

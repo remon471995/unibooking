@@ -1,6 +1,12 @@
 {% extends "core/base.html" %}
 {% load humanize %}
 {% block content %}
+<!-- ✅ رجوع -->
+<div class="max-w-5xl mx-auto mt-6 px-1 flex flex-wrap gap-2 text-sm">
+  <a href="{% url 'flight_payment' booking.pk %}" class="px-3 py-1.5 rounded bg-gray-200 hover:bg-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700">← رجوع لإدارة الدفع</a>
+  <a href="{% url 'card_detail' booking.card_id %}" class="px-3 py-1.5 rounded bg-gray-200 hover:bg-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700">رجوع للكارت</a>
+</div>
+
 
 <div class="max-w-5xl mx-auto mt-8 bg-white shadow rounded-lg p-6">
   <!-- الهيدر -->
