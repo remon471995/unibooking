@@ -561,7 +561,7 @@ def flight_create(request, card_pk):
         messages.error(request, "غير مسموح بإنشاء حجز طيران في كارت ليس ملكك.")
         return redirect('dashboard')
 
-        if request.method == "POST":
+    if request.method == "POST":
         form = FlightBookingForm(request.POST, request.FILES)
         if form.is_valid():
             booking = form.save(commit=False)
