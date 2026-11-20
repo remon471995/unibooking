@@ -1,0 +1,15 @@
+{% if pending or returned %}
+<div class="max-w-7xl mx-auto mt-4 px-1">
+  {% if pending %}
+  <div style="padding:10px 14px;border-radius:10px;background:#fef3c7;color:#92400e;font-size:14px">
+    ⏳ <b>طلب تعديل بانتظار اعتماد الداتا انتري</b> (مطلوب بواسطة {{ pending.requested_by_name }}، {{ pending.created_at|date:"Y-m-d H:i" }}):
+    {{ pending_text }}. هيتنفّذ على الحجز بعد الاعتماد.
+  </div>
+  {% elif returned %}
+  <div style="padding:10px 14px;border-radius:10px;background:#fee2e2;color:#991b1b;font-size:14px">
+    ↩ <b>طلب التعديل الأخير اترجع</b>: {{ returned.review_note }}
+    <span style="opacity:.8">({{ returned_text }})</span> — تقدر تبعت طلب جديد.
+  </div>
+  {% endif %}
+</div>
+{% endif %}
