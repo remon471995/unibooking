@@ -17,6 +17,7 @@ urlpatterns = [
     path("audit/", include("audit.urls")),
     path("customers/", include("customers.urls")),
     path("flightdocs/", include("flightdocs.urls")),
+    path("modreq/", include("modreq.urls")),
     
     # Accounts (namespace = accounts)
     path("account/", include(("accounts.urls", "accounts"), namespace="accounts")),
