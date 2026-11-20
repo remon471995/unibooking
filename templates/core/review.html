@@ -104,6 +104,45 @@
 <div class="rv-box mu">مفيش حجوزات بانتظار المراجعة. 👌</div>
 {% endfor %}
 
+{# ----------- طلبات التعديل بانتظار الاعتماد ----------- #}
+<h2 class="text-lg font-bold mb-2 mt-6">طلبات تعديل بانتظار الاعتماد ({{ mod_requests|length }})</h2>
+{% for m in mod_requests %}
+<div class="rv-box">
+  <div class="rv-head">
+    <div><b>{{ m.label }} — {{ m.ref }}</b> · {{ m.customer }} · <a class="underline" href="{% url 'card_detail' m.card_id %}">الكارت</a></div>
+    <div class="mu">{{ m.agent }} · {{ m.created|date:"Y-m-d H:i" }}</div>
+  </div>
+  <div class="rv-nums">
+    <div><b>{{ m.cur_sell|floatformat:2|intcomma }} ← {{ m.new_sell|floatformat:2|intcomma }}</b><span>البيع: الحالي ← بعد التعديل ({{ m.dsell }})</span></div>
+    <div><b>{{ m.cur_net|floatformat:2|intcomma }} ← {{ m.new_net|floatformat:2|intcomma }}</b><span>النت: الحالي ← بعد التعديل ({{ m.dnet }})</span></div>
+    <div><b>{{ m.dpaid }}</b><span>المدفوع ({{ m.method|default:"—" }})</span></div>
+    <div>
+      {% if m.invoice %}<a class="underline" target="_blank" href="{{ m.invoice.url }}">فاتورة</a>{% endif %}
+      {% if m.voucher %}<a class="underline" target="_blank" href="{{ m.voucher.url }}">فاوتشر</a>{% endif %}
+      {% if m.bank %}<a class="underline" target="_blank" href="{{ m.bank.url }}">إثبات الدفع</a>{% endif %}
+      {% if m.link %}<a class="underline" target="_blank" href="{{ m.link }}">رابط الدفع</a>{% endif %}
+      {% if not m.invoice and not m.voucher and not m.bank and not m.link %}—{% endif %}
+      <br><span>الملفات</span>
+    </div>
+  </div>
+  {% if m.note %}<div style="margin:6px 0">ملاحظة الأجنت: <b>{{ m.note }}</b></div>{% endif %}
+  <div class="mu" style="margin-bottom:6px">⚠ التعديل ده <b>لسه ماتنفّذش</b> على الحجز، هيتنفّذ لما تعتمده.</div>
+  <div class="rv-actions">
+    <form method="post" action="{% url 'modreq:approve' m.id %}">
+      {% csrf_token %}
+      <button class="btn-ok">اعتماد وتنفيذ</button>
+    </form>
+    <form method="post" action="{% url 'modreq:return' m.id %}">
+      {% csrf_token %}
+      <input type="text" name="note" placeholder="سبب الإرجاع (مطلوب)" required>
+      <button class="btn-no">إرجاع للأجنت</button>
+    </form>
+  </div>
+</div>
+{% empty %}
+<div class="rv-box mu">مفيش طلبات تعديل بانتظار الاعتماد. 👌</div>
+{% endfor %}
+
 {# ----------- pending payments of approved bookings ----------- #}
 <h2 class="text-lg font-bold mb-2 mt-6">دفعات جديدة بانتظار المراجعة ({{ pending_p|length }})</h2>
 {% for it in pending_p %}
