@@ -127,6 +127,16 @@ def review_queue(request):
         pending_b.sort(key=lambda x: x["created"])
         pending_p.sort(key=lambda x: x["created"])
 
+    # طلبات التعديل بانتظار اعتماد الداتا انتري
+    mod_requests = []
+    if reviewer:
+        try:
+            from modreq.services import pending_for_review
+            mod_requests = pending_for_review()
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("modreq: failed to load pending modification requests")
+
     # latest approvals: shows WHO reviewed each booking / payment
     recent = []
     if reviewer:
@@ -172,7 +182,7 @@ def review_queue(request):
 
     return render(request, "core/review.html", {
         "reviewer": reviewer, "pending_b": pending_b, "pending_p": pending_p,
-        "returned": returned, "unlocks": unlocks, "recent": recent,
+        "returned": returned, "unlocks": unlocks, "recent": recent, "mod_requests": mod_requests,
     })
 
 
