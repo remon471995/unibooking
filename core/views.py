@@ -25,7 +25,7 @@ from .forms import PaymentAdjustmentForm  # فورم التسوية
 from django.db.models import (
     OuterRef, Subquery, Sum, Count, Q, DecimalField, F, Value as V, Max
 )
-from django.db.models.functions import Coalesce, TruncDate, ExtractMonth, TruncMonth
+from django.db.models.functions import Replace, Coalesce, TruncDate, ExtractMonth, TruncMonth
 
 # Django shortcuts & utils
 from django.views.decorators.http import require_POST, require_http_methods
@@ -214,16 +214,6 @@ def notification_mark_read(request, pk):
         messages.success(request, "تم تمييز التنبيه كمقروء.")
     return redirect(n.target_url or 'notifications_list')
 
-
-@login_required
-@require_POST
-def notifications_mark_all_read(request):
-    from django.db.models import Q
-    cond = Q(to_user=request.user)
-    if request.user.is_superuser:
-        cond |= Q(to_superusers=True)
-    updated = Notification.objects.filter(cond, is_read=False).update(is_read=True)
-    return JsonResponse({"ok": True, "updated": updated})
 
 # ===================== Dashboard / Cards =====================
 
@@ -567,8 +557,6 @@ def flight_create(request, card_pk):
             booking.card = card
             booking.employee_name = request.user.get_full_name() or request.user.username
             booking.save()
-            from flightdocs.services import save_itinerary_from_post
-            save_itinerary_from_post(booking, request.POST.get("itinerary_json"), request.user)
             return redirect("flight_payment", booking_pk=booking.pk)
     else:
         form = FlightBookingForm()
@@ -2339,6 +2327,12 @@ def _norm_phone(s: str) -> str:
     s = s.translate(trans)
     return "".join(ch for ch in s if ch.isdigit())
 
+def _looks_like_phone(q: str) -> bool:
+    """A phone search is only a query made of digits (and + - ( ) spaces), at least 5 of them.
+    Anything with letters (codes like 9CZZZI, names) must NOT be reduced to its digits."""
+    return len(_norm_phone(q)) >= 5 and re.fullmatch(r"[0-9٠-٩\s+\-().]+", q) is not None
+
+
 @login_required
 def global_search(request):
     q = (request.GET.get("q") or "").strip()
@@ -2346,7 +2340,7 @@ def global_search(request):
         return redirect("dashboard")
 
     q_lower = q.lower()
-    phone = _norm_phone(q)
+    phone = _norm_phone(q) if _looks_like_phone(q) else ""
 
     results = {"cards": [], "customers": [], "hotels": [], "flights": [], "others": []}
 
@@ -2370,11 +2364,15 @@ def global_search(request):
             )
             if q_lower.startswith("u"):
                 filters |= Q(**{f"{code_f}__istartswith": q})
+        base_qs = CardModel.objects.all()
         if phone and phone_f:
-            filters |= Q(**{f"{phone_f}__icontains": phone})
+            # compare digits only, so "2727 9669" / "2727-9669" are found by "27279669" too
+            base_qs = base_qs.annotate(_mob_digits=Replace(Replace(Replace(
+                F(phone_f), V(" "), V("")), V("-"), V("")), V("+"), V("")))
+            filters |= Q(_mob_digits__icontains=phone) | Q(**{f"{phone_f}__icontains": q})
 
         if filters:
-            cards_qs = list(CardModel.objects.filter(filters).order_by(f"-{id_f}")[:50])
+            cards_qs = list(base_qs.filter(filters).order_by(f"-{id_f}")[:50])
 
         for c in cards_qs:
             try:
