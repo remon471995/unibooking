@@ -561,20 +561,15 @@ def flight_create(request, card_pk):
         messages.error(request, "غير مسموح بإنشاء حجز طيران في كارت ليس ملكك.")
         return redirect('dashboard')
 
-    if request.method == "POST":
+        if request.method == "POST":
         form = FlightBookingForm(request.POST, request.FILES)
         if form.is_valid():
             booking = form.save(commit=False)
             booking.card = card
             booking.employee_name = request.user.get_full_name() or request.user.username
             booking.save()
-
-
-            booking.employee_name = request.user.get_full_name() or request.user.username
-            booking.save()
             from flightdocs.services import save_itinerary_from_post
             save_itinerary_from_post(booking, request.POST.get("itinerary_json"), request.user)
-            return redirect("flight_payment", booking_pk=booking.pk)
             return redirect("flight_payment", booking_pk=booking.pk)
     else:
         form = FlightBookingForm()
