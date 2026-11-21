@@ -172,7 +172,7 @@ if env_bool("USE_S3", False):
     AWS_S3_FILE_OVERWRITE = False     # never overwrite a file with the same name
     AWS_S3_SIGNATURE_VERSION = "s3v4"
     AWS_S3_ADDRESSING_STYLE = "path"  # required by Supabase Storage and most S3-compatible services
-    STORAGES["default"] = {"BACKEND": "storages.backends.s3.S3Storage"}
+    STORAGES["default"] = {"BACKEND": "core.storage.SafeS3Storage"}
 
 # === Production security (active only when DEBUG is off) ===
 if not DEBUG:
