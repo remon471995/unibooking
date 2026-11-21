@@ -1,4 +1,5 @@
 """طلبات التعديل: الأجنت بيبعت، والداتا انتري بيعتمد، وبعدين بس بيتنفّذ على الحجز."""
+import logging
 from decimal import Decimal
 
 from django.db import transaction
@@ -10,6 +11,7 @@ from core.views_review import KINDS, METHOD_LABELS
 from .models import ModificationRequest as MR
 
 ZERO = Decimal("0")
+logger = logging.getLogger(__name__)
 
 
 def _m(x):
@@ -65,14 +67,20 @@ def submit_modification(kind, booking, user, data):
     if cur_sell + dsell < 0 or cur_net + dnet < 0:
         return False, "التعديل هيخلّي السعر أقل من صفر."
 
-    MR.objects.create(
-        kind=kind, booking_id=booking.pk, card_id=booking.card_id, ref=_ref(booking)[:60],
-        customer=booking.card.customer_name[:150],
-        delta_sell=dsell, delta_net=dnet, delta_paid=dpaid,
-        method=(data.get("method") or "cash")[:10], payment_link=link[:500],
-        bank_file=files["bank_file"], invoice_file=files["invoice_file"], voucher_original=files["voucher_original"],
-        note=note, requested_by=user, requested_by_name=(user.get_full_name() or user.get_username())[:150],
-    )
+    try:
+        with transaction.atomic():
+            MR.objects.create(
+                kind=kind, booking_id=booking.pk, card_id=booking.card_id, ref=_ref(booking)[:60],
+                customer=booking.card.customer_name[:150],
+                delta_sell=dsell, delta_net=dnet, delta_paid=dpaid,
+                method=(data.get("method") or "cash")[:10], payment_link=link[:500],
+                bank_file=files["bank_file"], invoice_file=files["invoice_file"],
+                voucher_original=files["voucher_original"],
+                note=note, requested_by=user, requested_by_name=(user.get_full_name() or user.get_username())[:150],
+            )
+    except Exception as e:  # مثلاً مشكلة في تخزين الملفات: نعرض السبب بدل صفحة 500
+        logger.exception("modreq: failed to save modification request (kind=%s booking=%s)", kind, booking.pk)
+        return False, f"تعذّر حفظ الطلب ({type(e).__name__}): {str(e)[:250]}"
     return True, "تم إرسال طلب التعديل للداتا انتري. هيتنفّذ على الحجز بعد الاعتماد."
 
 

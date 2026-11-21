@@ -27,6 +27,7 @@ def _make_view(kind):
     cfg = KINDS[kind]
     template = f"core/{kind}_payment_modify.html"
     done_url = f"{kind}_payment"
+    done_kwarg = "pk" if kind == "other" else "booking_pk"   # رابط دفع "أخرى" بيستخدم pk
 
     @login_required
     def view(request, booking_pk):
@@ -60,7 +61,7 @@ def _make_view(kind):
             if not form.errors:
                 ok, msg = submit_modification(kind, booking, request.user, form.cleaned_data)
                 (messages.success if ok else messages.error)(request, msg)
-                return redirect(done_url, booking_pk=booking.pk)
+                return redirect(done_url, **{done_kwarg: booking.pk})
         return page(form)
 
     view.__name__ = f"{kind}_payment_modify"
