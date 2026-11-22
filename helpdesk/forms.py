@@ -69,7 +69,7 @@ class TicketForm(forms.ModelForm):
 
         # فلترة ContentTypes المسموحة (اختياري)
         allowed_ids = []
-        for app_model in [("core", "unibookingcard"), ("core", "hotelbooking"), ("core", "flightbooking")]:
+        for app_model in [("core", "unibookingcard"), ("core", "hotelbooking"), ("core", "flightbooking"), ("core", "otherbooking")]:
             ct = ContentType.objects.filter(app_label=app_model[0], model=app_model[1]).first()
             if ct:
                 allowed_ids.append(ct.pk)
