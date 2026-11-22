@@ -326,6 +326,12 @@ def ticket_create(request):
                 ct = ContentType.objects.get(app_label=r_app, model=r_model)
                 form.fields["related_model"].initial = ct
                 form.fields["related_id"].initial = int(r_id)
+                from .related import related_summary
+                _text, _card_url = related_summary(r_app, r_model, int(r_id))
+                if _text and not form.fields["body"].initial:
+                    form.fields["body"].initial = _text
+                if _card_url and not request.GET.get("related_url"):
+                    form.fields["related_url"].initial = _card_url                
             except Exception:
                 pass
 
