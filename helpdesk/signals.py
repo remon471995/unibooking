@@ -82,6 +82,13 @@ def notify_new_message(sender, instance: TicketMessage, created, **kwargs):
         if getattr(ticket.requester, "email", None) in emails:
             emails.discard(ticket.requester.email)
 
+        if instance.is_internal_note:
+        # الملاحظة الداخلية تتبعت بس لمن يقدر يشوفها (كاتبها وفريقه)
+        from .note_visibility import can_see_note
+        allowed = {u.email for u in [ticket.assigned_to, ticket.department.manager, *ticket.watchers.all()]
+                   if u and getattr(u, "email", None) and can_see_note(u, instance)}
+        emails &= allowed
+
     if emails:
         try:
             send_mail(subject, body, DEFAULT_FROM, list(emails), fail_silently=True)
@@ -166,6 +173,8 @@ def bell_new_message(sender, instance: TicketMessage, created, **kwargs):
     if instance.is_internal_note:
         people = [t.assigned_to, t.department.manager]
         text = f"ملاحظة داخلية على الطلب #{t.pk}: {t.subject}"
+    from .note_visibility import can_see_note
+        people = [p for p in people if p and can_see_note(p, instance)]    
     elif instance.sender_id == t.requester_id:
         # the person who opened the request wrote: the owner is told; with no owner the whole department is
         staff = [t.assigned_to] if t.assigned_to_id else _department_staff(t.department)
