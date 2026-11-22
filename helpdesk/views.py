@@ -390,8 +390,7 @@ def ticket_detail(request, pk: int):
 
     staff_view = can_see_internal(request.user, ticket)
     msgs = ticket.messages.select_related("sender").prefetch_related("attachments")
-    if not staff_view:
-        msgs = msgs.filter(is_internal_note=False)
+    msgs = filter_visible_messages(request.user, msgs)
 
     ctx = {
         "ticket": ticket,
@@ -470,8 +469,7 @@ def ticket_messages_partial(request, pk: int):
         return HttpResponse("", status=403)
 
     msgs = ticket.messages.select_related("sender").prefetch_related("attachments")
-    if not can_see_internal(request.user, ticket):
-        msgs = msgs.filter(is_internal_note=False)
+    msgs = filter_visible_messages(request.user, msgs)
     ctx = {"ticket": ticket, "thread": msgs}
     return render(request, "helpdesk/_messages_partial.html", ctx)
 
