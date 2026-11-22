@@ -23,6 +23,7 @@ from .permissions import (
     can_view_ticket, can_reply_ticket, is_dept_member, can_forward, can_see_internal,
     allowed_department_slugs, visible_tickets,
 )
+from .note_visibility import filter_visible_messages
 
 # Mentions: @username
 MENTION_RE = re.compile(r"@(\w[\w\.+-]{1,30})")
