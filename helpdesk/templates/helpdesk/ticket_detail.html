@@ -19,11 +19,16 @@
               <i class="fa-regular fa-clock ml-1"></i> {{ ticket.created_at|date:"Y-m-d H:i" }}
             </span>
             {% if ticket.related_ref %}
-            <span class="px-2 py-1 rounded-md bg-purple-50 text-purple-700 border border-purple-100">
-               مرجع: {{ ticket.related_ref }}
-            </span>
+              {% if ticket.related_url %}
+              <a href="{{ ticket.related_url }}" class="px-2 py-1 rounded-md bg-purple-50 text-purple-700 border border-purple-100 hover:underline">
+                 مرجع: {{ ticket.related_ref }}
+              </a>
+              {% else %}
+              <span class="px-2 py-1 rounded-md bg-purple-50 text-purple-700 border border-purple-100">
+                 مرجع: {{ ticket.related_ref }}
+              </span>
+              {% endif %}
             {% endif %}
-          </div>
         </div>
         
         {% if not ticket.assigned_to %}
