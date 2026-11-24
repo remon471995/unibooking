@@ -66,7 +66,7 @@ class CorrectionTests(TestCase):
     def _approve(self):
         return self.client.post(reverse("review_action"), {
             "what": "b", "kind": "flight", "pk": self.f.pk, "action": "approve",
-            "chk_sell": "1", "chk_net": "1", "chk_docs": "1", "chk_pay": "1"})
+            "chk_sell": "1", "chk_net": "1", "chk_docs": "1", "chk_pay": "1", "chk_ref": "1"})
 
     def test_cannot_approve_a_booking_without_payments(self):
         self.client.force_login(self.de)
@@ -116,7 +116,7 @@ class OnlyDataEntryApprovesTests(TestCase):
     def _approve(self):
         return self.client.post(reverse("review_action"), {
             "what": "b", "kind": "flight", "pk": self.f.pk, "action": "approve",
-            "chk_sell": "1", "chk_net": "1", "chk_docs": "1", "chk_pay": "1"})
+            "chk_sell": "1", "chk_net": "1", "chk_docs": "1", "chk_pay": "1", "chk_ref": "1"})
 
     def test_nobody_else_can_approve_or_open_the_queue(self):
         others = [make_user("mgr", "sales_manager"), make_user("adm", "admin"), make_user("lead", "leader"),

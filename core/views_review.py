@@ -217,7 +217,7 @@ def review_action(request):
     desc = _desc(what, kind, obj, booking, cfg)
 
     if action == "approve":
-        needed = ("chk_sell", "chk_net", "chk_docs", "chk_pay") if what == "b" else ("chk_amount", "chk_method", "chk_docs")
+        needed = ("chk_sell", "chk_net", "chk_pay", "chk_docs", "chk_ref") if what == "b" else ("chk_amount", "chk_method", "chk_docs")
         if not all(request.POST.get(k) for k in needed):
             messages.error(request, "علّم على كل بنود المطابقة قبل الاعتماد.")
             return redirect("review_queue")
