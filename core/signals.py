@@ -22,62 +22,27 @@ User = get_user_model()
 # ---------------- قسط/تذكير الدفعات ----------------
 
 
-def _should_remind(d):
-    if not d:
-        return False
-    today = timezone.localdate()
-    return today <= d <= (today + timedelta(days=REMIND_DAYS))
-
-
-def _create_notif(message, due_date, url, owner_user):
-    """
-    تنبيه الأقساط (زي ما هو كان شغال قبل كده)
-    """
-    if Notification.objects.filter(
-        message=message,
-        due_date=due_date,
-        target_url=url,
-        to_user=owner_user,
-        to_superusers=True,
-    ).exists():
-        return
-    Notification.objects.create(
-        to_user=owner_user,
-        to_superusers=True,
-        message=message,
-        due_date=due_date,
-        target_url=url,
-    )
+def _notify_installment(instance):
+    """أي دفعة ليها تاريخ قسط قريب: تنبيه للأجنت ولكل من فوقه والداتا انتري والحسابات والسوبر
+    (المستلمين والقاعدة في core/installments.py). الأمر installment_reminders بيكمّل لما الميعاد يقرّب."""
+    from .installments import notify_installment
+    if instance.installment_date:
+        notify_installment(instance)
 
 
 @receiver(post_save, sender=Payment)
 def notify_installment_hotel(sender, instance, created, **kwargs):
-    if instance.method != "installment" or not _should_remind(instance.installment_date):
-        return
-    card = instance.booking_hotel.card
-    msg = f"قسط فندق مستحق بتاريخ {instance.installment_date} — العميل: {card.customer_name}"
-    url = f"/hotel/{instance.booking_hotel_id}/payment/"
-    _create_notif(msg, instance.installment_date, url, card.created_by)
+    _notify_installment(instance)
 
 
 @receiver(post_save, sender=FlightPayment)
 def notify_installment_flight(sender, instance, created, **kwargs):
-    if instance.method != "installment" or not _should_remind(instance.installment_date):
-        return
-    card = instance.booking_flight.card
-    msg = f"قسط طيران مستحق بتاريخ {instance.installment_date} — العميل: {card.customer_name}"
-    url = f"/flight/{instance.booking_flight_id}/payment/"
-    _create_notif(msg, instance.installment_date, url, card.created_by)
+    _notify_installment(instance)
 
 
 @receiver(post_save, sender=OtherPayment)
 def notify_installment_other(sender, instance, created, **kwargs):
-    if instance.method != "installment" or not _should_remind(instance.installment_date):
-        return
-    card = instance.booking_other.card
-    msg = f"قسط (أخرى) مستحق بتاريخ {instance.installment_date} — العميل: {card.customer_name}"
-    url = f"/other/{instance.booking_other_id}/payment/"
-    _create_notif(msg, instance.installment_date, url, card.created_by)
+    _notify_installment(instance)
 
 
 # ------------- بروفايل الموظف تلقائيًا -------------

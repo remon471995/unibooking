@@ -867,77 +867,28 @@ def installments_board(request):
     date_to   = parse_date(q_to) if q_to else None
     today     = timezone.localdate()
 
-    # صلاحيات
-    if request.user.is_superuser:
-        base_b = {}
-        base_p = {}
-    else:
-        emp = (request.user.get_full_name() or request.user.username or "").strip()
-        base_b = {"employee_name__iexact": emp}
-        base_p = {"employee_name__iexact": emp}
+    # صلاحيات: الأجنت يشوف أقساطه بس، ومن فوقه (ليدر / سوبر / مانجر / أدمن) + الداتا انتري + الحسابات يشوفوا الكل
+    # (القاعدة كلها في core/installments.py)
+    from .installments import scope_q, due_installments
+    from .permissions import sees_installments
+    if not sees_installments(request.user):
+        return HttpResponseForbidden("🚫 الأقساط متاحة لفريق المبيعات والداتا انتري والحسابات.")
+    scope_b = scope_q(request.user)  # None = يشوف الكل
 
     # تذكير الأقساط القريبة (خلال n أيام) — من دفعات لها تاريخ قسط
     remind_days = int(getattr(settings, "INSTALLMENT_REMINDER_DAYS", 5))
     # ✅ إصلاح: استخدم timedelta من datetime بدل timezone.timedelta
     soon = today + timedelta(days=remind_days)
 
-    def _installments_qs(PModel, rel, kind, urlname):
-        """
-        يرجّع أقساط مستحقة قريبًا *فقط* للحجوزات التي مازال عليها متبقي فعليًا.
-        rel: اسم العلاقة على نموذج الدفعة (booking_hotel | booking_flight | booking_other)
-        """
-        qs = (
-            PModel.objects
-            .filter(**base_p, installment_date__range=(today, soon))
-            .select_related(rel)
-            .order_by("installment_date")
-        )
-
-        rows_ = []
-        for p in qs[:50]:
-            b = getattr(p, rel, None)
-            if not b or not getattr(b, "pk", None):
-                continue
-
-            # إجمالي البيع للحجز (sell أو sell_price حسب النوع)
-            sell = getattr(b, "sell_price", None) or getattr(b, "sell", None) or Decimal("0")
-
-            # إجمالي المدفوع لهذا الحجز من نفس جدول الدفعات
-            rel_field = f"{rel}_id"
-            paid_total = (
-                PModel.objects
-                .filter(**{rel_field: b.pk})
-                .aggregate(total=Sum("paid_amount"))
-                .get("total") or Decimal("0")
-            )
-
-            remaining = (sell or Decimal("0")) - (paid_total or Decimal("0"))
-
-            # ✅ استبعد الحجوزات المسددة بالكامل (بسماحية 0.01)
-            if remaining <= Decimal("0.01"):
-                continue
-
-            cust = b.card.customer_name if b.card_id else "-"
-            rows_.append({
-                "kind": kind,
-                "customer": cust,
-                "due": p.installment_date,
-                "amount": p.paid_amount or Decimal("0"),
-                "url": reverse(urlname, args=[b.pk]),
-                "days": (p.installment_date - today).days if p.installment_date else None,
-            })
-        return rows_
-
-    reminders = []
-    reminders += _installments_qs(Payment,       "booking_hotel",  "فندق",  "hotel_payment")
-    reminders += _installments_qs(FlightPayment, "booking_flight", "طيران", "flight_payment")
-    reminders += _installments_qs(OtherPayment,  "booking_other",  "أخرى",  "other_payment")
-    reminders.sort(key=lambda r: (r["due"], r["customer"]))
+    # أقساط قريبة: نفس قاعدة الصلاحيات، والحجوزات المسددة بالكامل مش بتظهر
+    reminders = due_installments(request.user, remind_days, today=today)
 
     # مصدر الحجوزات (فلترة بتاريخ الحجز)
-    h_b = HotelBooking.objects.filter(**base_b).select_related("card")
-    f_b = FlightBooking.objects.filter(**base_b).select_related("card")
-    o_b = OtherBooking.objects.filter(**base_b).select_related("card")
+    h_b = HotelBooking.objects.select_related("card")
+    f_b = FlightBooking.objects.select_related("card")
+    o_b = OtherBooking.objects.select_related("card")
+    if scope_b is not None:
+        h_b, f_b, o_b = h_b.filter(scope_b), f_b.filter(scope_b), o_b.filter(scope_b)
 
     if date_from:
         h_b = h_b.filter(booking_date__gte=date_from)
@@ -1031,12 +982,11 @@ def installments_board(request):
 
 
 # ===================== Agent Board (ملخّص الموظف) =====================
+
 @login_required
 def agent_board(request):
-    # نطاق اللوحة: الأجنت = كروته هو، الليدر/السوبرفايزر = كل فريقه، سيلز مانجر/أدمن = الكل
-    scope_ids = manageable_user_ids(request.user)          # None = الكل
-    owned = Q() if scope_ids is None else Q(card__created_by_id__in=scope_ids)
-    show_employee = scope_ids is None or len(scope_ids) > 1
+    me = (request.user.get_full_name() or request.user.username).strip()
+    owned = Q(employee_name__iexact=me) if not request.user.is_superuser else Q()
 
     d_from = request.GET.get("from") or ""
     d_to   = request.GET.get("to") or ""
@@ -1068,35 +1018,12 @@ def agent_board(request):
     total_profit    = total_sell - total_net
     total_remaining = total_sell - total_paid
 
-    # أقساط قريبة (5 أيام) — بنفس النطاق
-    today = timezone.localdate()
-    soon  = today + timedelta(days=5)
-    due_installments = []
-
-    def _scoped(model, rel):
-        if scope_ids is None:
-            return model.objects.all()
-        return model.objects.filter(**{f"{rel}__card__created_by_id__in": scope_ids})
-
-    def add_dues(qs, title, url_name, id_field):
-        for p in qs.filter(method="installment", installment_date__range=(today, soon)).select_related():
-            b = getattr(p, f"booking_{title}") if title != "hotel" else p.booking_hotel
-            due_installments.append({
-                "date": p.installment_date,
-                "amount": p.paid_amount,
-                "customer": b.card.customer_name if getattr(b, "card_id", None) else "-",
-                "ref": getattr(b, "voucher_code", None) or getattr(b, "booking_ref", None) or getattr(b, "pnr", "") or "",
-                "url": reverse(url_name, args=[getattr(p, id_field)]),
-                "kind": title,
-            })
-
-    add_dues(_scoped(Payment, "booking_hotel"),        "hotel",  "hotel_payment",  "booking_hotel_id")
-    add_dues(_scoped(FlightPayment, "booking_flight"), "flight", "flight_payment", "booking_flight_id")
-    add_dues(_scoped(OtherPayment, "booking_other"),   "other",  "other_payment",  "booking_other_id")
-    due_installments.sort(key=lambda x: (x["date"], x["kind"]))
+    # أقساط قريبة (5 أيام): نفس قاعدة الصلاحيات (الأجنت لنفسه، ومن فوقه والداتا انتري والحسابات للكل)
+    from .installments import due_installments as _due_rows
+    due_installments = [{**r, "kind": r["kind_key"]} for r in _due_rows(request.user, 5)]
 
     rows = []
-    for b in h.only("id","booking_date","created_at","sell","net","card_id","voucher_code","booking_ref","employee_name"):
+    for b in h.only("id","booking_date","created_at","sell","net","card_id","voucher_code","booking_ref"):
         sell = b.sell or Decimal("0"); net = b.net or Decimal("0")
         rows.append(("hotel", {
             "id": b.id,
@@ -1106,11 +1033,10 @@ def agent_board(request):
             "net": net,
             "profit": sell - net,
             "card_id": b.card_id,
-            "employee": b.employee_name or "-",
             "ref_full": (b.voucher_code or b.booking_ref or ""),
         }))
 
-    for b in f.only("id","booking_date","created_at","sell_price","net_price","card_id","voucher_code","pnr","employee_name"):
+    for b in f.only("id","booking_date","created_at","sell_price","net_price","card_id","voucher_code","pnr"):
         sell = b.sell_price or Decimal("0"); net = b.net_price or Decimal("0")
         rows.append(("flight", {
             "id": b.id,
@@ -1120,11 +1046,10 @@ def agent_board(request):
             "net_price": net,
             "profit": sell - net,
             "card_id": b.card_id,
-            "employee": b.employee_name or "-",
             "ref_full": (b.voucher_code or b.pnr or ""),
         }))
 
-    for b in o.only("id","booking_date","created_at","sell_price","net_price","card_id","voucher_code","booking_ref","employee_name"):
+    for b in o.only("id","booking_date","created_at","sell_price","net_price","card_id","voucher_code","booking_ref"):
         sell = b.sell_price or Decimal("0"); net = b.net_price or Decimal("0")
         rows.append(("other", {
             "id": b.id,
@@ -1134,7 +1059,6 @@ def agent_board(request):
             "net_price": net,
             "profit": sell - net,
             "card_id": b.card_id,
-            "employee": b.employee_name or "-",
             "ref_full": (b.voucher_code or b.booking_ref or ""),
         }))
 
@@ -1152,7 +1076,6 @@ def agent_board(request):
         "rows": rows,
         "d_from": d_from,
         "d_to": d_to,
-        "show_employee": show_employee,
     })
 
 

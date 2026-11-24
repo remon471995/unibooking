@@ -93,7 +93,8 @@ def is_sales_side(user):
 
 def sees_installments(user):
     """The installments board is about money owed by customers: sales, data entry and the accounts department."""
-    return is_sales_side(user) or role_of(user) == "data_entry" or _department(user) == "accounts"
+    return (is_sales_side(user) or role_of(user) in ("data_entry", "leader", "supervisor")
+            or _department(user) == "accounts")
 
 
 def sees_review(user):
