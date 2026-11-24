@@ -1031,7 +1031,129 @@ def installments_board(request):
 
 
 # ===================== Agent Board (ملخّص الموظف) =====================
+@login_required
+def agent_board(request):
+    # نطاق اللوحة: الأجنت = كروته هو، الليدر/السوبرفايزر = كل فريقه، سيلز مانجر/أدمن = الكل
+    scope_ids = manageable_user_ids(request.user)          # None = الكل
+    owned = Q() if scope_ids is None else Q(card__created_by_id__in=scope_ids)
+    show_employee = scope_ids is None or len(scope_ids) > 1
 
+    d_from = request.GET.get("from") or ""
+    d_to   = request.GET.get("to") or ""
+    date_h, date_flt, date_o = {}, {}, {}
+    if d_from:
+        date_h["booking_date__gte"]   = d_from
+        date_flt["booking_date__gte"] = d_from
+        date_o["booking_date__gte"]   = d_from
+    if d_to:
+        date_h["booking_date__lte"]   = d_to
+        date_flt["booking_date__lte"] = d_to
+        date_o["booking_date__lte"]   = d_to
+
+    h = HotelBooking.objects.filter(owned, **date_h).select_related("card")
+    f = FlightBooking.objects.filter(owned, **date_flt).select_related("card")
+    o = OtherBooking.objects.filter(owned, **date_o).select_related("card")
+
+    def sum_or0(qs, field):
+        v = qs.aggregate(s=Sum(field))["s"]
+        return Decimal(v or 0)
+
+    pays_h = Payment.objects.filter(booking_hotel__in=h)
+    pays_f = FlightPayment.objects.filter(booking_flight__in=f)
+    pays_o = OtherPayment.objects.filter(booking_other__in=o)
+
+    total_sell = sum_or0(h, "sell") + sum_or0(f, "sell_price") + sum_or0(o, "sell_price")
+    total_net  = sum_or0(h, "net")  + sum_or0(f, "net_price")  + sum_or0(o, "net_price")
+    total_paid = sum_or0(pays_h, "paid_amount") + sum_or0(pays_f, "paid_amount") + sum_or0(pays_o, "paid_amount")
+    total_profit    = total_sell - total_net
+    total_remaining = total_sell - total_paid
+
+    # أقساط قريبة (5 أيام) — بنفس النطاق
+    today = timezone.localdate()
+    soon  = today + timedelta(days=5)
+    due_installments = []
+
+    def _scoped(model, rel):
+        if scope_ids is None:
+            return model.objects.all()
+        return model.objects.filter(**{f"{rel}__card__created_by_id__in": scope_ids})
+
+    def add_dues(qs, title, url_name, id_field):
+        for p in qs.filter(method="installment", installment_date__range=(today, soon)).select_related():
+            b = getattr(p, f"booking_{title}") if title != "hotel" else p.booking_hotel
+            due_installments.append({
+                "date": p.installment_date,
+                "amount": p.paid_amount,
+                "customer": b.card.customer_name if getattr(b, "card_id", None) else "-",
+                "ref": getattr(b, "voucher_code", None) or getattr(b, "booking_ref", None) or getattr(b, "pnr", "") or "",
+                "url": reverse(url_name, args=[getattr(p, id_field)]),
+                "kind": title,
+            })
+
+    add_dues(_scoped(Payment, "booking_hotel"),        "hotel",  "hotel_payment",  "booking_hotel_id")
+    add_dues(_scoped(FlightPayment, "booking_flight"), "flight", "flight_payment", "booking_flight_id")
+    add_dues(_scoped(OtherPayment, "booking_other"),   "other",  "other_payment",  "booking_other_id")
+    due_installments.sort(key=lambda x: (x["date"], x["kind"]))
+
+    rows = []
+    for b in h.only("id","booking_date","created_at","sell","net","card_id","voucher_code","booking_ref","employee_name"):
+        sell = b.sell or Decimal("0"); net = b.net or Decimal("0")
+        rows.append(("hotel", {
+            "id": b.id,
+            "book_date": b.booking_date,
+            "created_at": b.created_at,
+            "sell": sell,
+            "net": net,
+            "profit": sell - net,
+            "card_id": b.card_id,
+            "employee": b.employee_name or "-",
+            "ref_full": (b.voucher_code or b.booking_ref or ""),
+        }))
+
+    for b in f.only("id","booking_date","created_at","sell_price","net_price","card_id","voucher_code","pnr","employee_name"):
+        sell = b.sell_price or Decimal("0"); net = b.net_price or Decimal("0")
+        rows.append(("flight", {
+            "id": b.id,
+            "book_date": b.booking_date,
+            "created_at": b.created_at,
+            "sell_price": sell,
+            "net_price": net,
+            "profit": sell - net,
+            "card_id": b.card_id,
+            "employee": b.employee_name or "-",
+            "ref_full": (b.voucher_code or b.pnr or ""),
+        }))
+
+    for b in o.only("id","booking_date","created_at","sell_price","net_price","card_id","voucher_code","booking_ref","employee_name"):
+        sell = b.sell_price or Decimal("0"); net = b.net_price or Decimal("0")
+        rows.append(("other", {
+            "id": b.id,
+            "book_date": b.booking_date,
+            "created_at": b.created_at,
+            "sell_price": sell,
+            "net_price": net,
+            "profit": sell - net,
+            "card_id": b.card_id,
+            "employee": b.employee_name or "-",
+            "ref_full": (b.voucher_code or b.booking_ref or ""),
+        }))
+
+    rows.sort(key=lambda x: x[1]["book_date"], reverse=True)
+    rows = rows[:100]
+
+    return render(request, "core/agent_board.html", {
+        "kpis": {
+            "total_remaining": total_remaining,
+            "total_paid": total_paid,
+            "total_sell": total_sell,
+            "total_profit": total_profit,
+        },
+        "due_installments": due_installments,
+        "rows": rows,
+        "d_from": d_from,
+        "d_to": d_to,
+        "show_employee": show_employee,
+    })
 
 
 # ===================== Reports + Exports =====================
