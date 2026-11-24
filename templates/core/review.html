@@ -84,8 +84,9 @@
       <label class="rv-all"><input type="checkbox" class="rv-all-box"> تحديد الكل</label>
       <label><input type="checkbox" name="chk_sell"> البيع مطابق للفاتورة</label>
       <label><input type="checkbox" name="chk_net"> النت مطابق للفاتورة</label>
-      <label><input type="checkbox" name="chk_docs"> المستندات صحيحة (الفاتورة والفاوتشر)</label>
-      <label><input type="checkbox" name="chk_pay"> الدفع مطابق لإثبات الدفع</label>
+      <label><input type="checkbox" name="chk_pay"> المدفوع مطابق للدفع وإثبات الدفع</label>
+      <label><input type="checkbox" name="chk_docs"> الفاوتشر صحيح</label>
+      <label><input type="checkbox" name="chk_ref"> رقم الحجز مطابق</label>
       <button name="action" value="approve" class="btn-ok">اعتماد وقفل</button>
     </form>
     <form method="post" action="{% url 'review_action' %}">
