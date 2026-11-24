@@ -1,7 +1,7 @@
 # core/urls.py
 from django.urls import path
 from django.views.generic import RedirectView
-from . import views, views_review
+from . import views, views_edit, views_review
 from . import views_accounts
 
 
@@ -83,6 +83,10 @@ urlpatterns = [
     path("review/resubmit/", views_review.resubmit, name="resubmit"),
     path("review/unlock/", views_review.unlock_request, name="unlock_request"),
     path("review/unlock/decide/", views_review.unlock_decide, name="unlock_decide"),
+    # edit booking details before approval
+    path("hotel/<int:booking_pk>/edit/", views_edit.hotel_edit, name="hotel_edit"),
+    path("flight/<int:booking_pk>/edit/", views_edit.flight_edit, name="flight_edit"),
+    path("other/<int:booking_pk>/edit/", views_edit.other_edit, name="other_edit"),
 
     # Accounts
     path(

@@ -463,6 +463,13 @@ def hotel_payment(request, booking_pk):
     booking = get_object_or_404(HotelBooking, pk=booking_pk)
     payments = booking.payments.order_by("-created_at")
     has_existing = payments.exists()
+    if request.method == "POST":
+        if not can_edit_card(request.user, booking.card):
+            messages.error(request, "غير مسموح.")
+            return redirect("card_detail", pk=booking.card_id)
+        if not has_existing and booking.is_locked:
+            messages.error(request, "الحجز معتمد ومقفول. اطلب تعديل بدل ما تسجّل أول دفعة.")
+            return redirect("card_detail", pk=booking.card_id)
 
     total_paid = payments.aggregate(
         total=Coalesce(
@@ -633,6 +640,13 @@ def other_payment(request, pk):
     booking = get_object_or_404(OtherBooking, pk=pk)
     payments = booking.payments.order_by("-created_at")
     has_existing = payments.exists()
+    if request.method == "POST":
+        if not can_edit_card(request.user, booking.card):
+            messages.error(request, "غير مسموح.")
+            return redirect("card_detail", pk=booking.card_id)
+        if not has_existing and booking.is_locked:
+            messages.error(request, "الحجز معتمد ومقفول. اطلب تعديل بدل ما تسجّل أول دفعة.")
+            return redirect("card_detail", pk=booking.card_id)
 
     total_paid = payments.aggregate(total=Sum("paid_amount"))["total"] or Decimal("0.00")
     total_net  = booking.net_price  or Decimal("0.00")
@@ -746,6 +760,13 @@ def flight_payment(request, booking_pk):
     booking = get_object_or_404(FlightBooking, pk=booking_pk)
     payments = booking.payments.order_by("-created_at")
     has_existing = payments.exists()
+    if request.method == "POST":
+        if not can_edit_card(request.user, booking.card):
+            messages.error(request, "غير مسموح.")
+            return redirect("card_detail", pk=booking.card_id)
+        if not has_existing and booking.is_locked:
+            messages.error(request, "الحجز معتمد ومقفول. اطلب تعديل بدل ما تسجّل أول دفعة.")
+            return redirect("card_detail", pk=booking.card_id)
 
     total_paid = payments.aggregate(total=Sum("paid_amount"))["total"] or Decimal("0.00")
     total_net  = booking.net_price  or Decimal("0.00")

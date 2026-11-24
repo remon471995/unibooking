@@ -10,6 +10,7 @@ from django import forms
 from django.contrib import messages
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.auth.decorators import login_required
+from django.db.models import Count
 from django.forms import modelform_factory
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
@@ -114,7 +115,9 @@ def review_queue(request):
     if reviewer:
         for kind, cfg in KINDS.items():
             qs = cfg["booking"].objects.select_related("card__created_by", "card__team", "reviewed_by")
-            for b in qs.filter(review_status=PENDING).order_by("created_at"):
+            # a booking reaches the reviewer only after its first payment (before that sell / net are still 0)
+            for b in (qs.filter(review_status=PENDING).annotate(npay=Count("payments"))
+                      .filter(npay__gt=0).order_by("created_at")):
                 pending_b.append(_booking_item(kind, cfg, b))
             for b in qs.filter(review_status=RETURNED).order_by("-reviewed_at"):
                 returned.append(_booking_item(kind, cfg, b))
@@ -211,6 +214,14 @@ def review_action(request):
         if not all(request.POST.get(k) for k in needed):
             messages.error(request, "علّم على كل بنود المطابقة قبل الاعتماد.")
             return redirect("review_queue")
+        if what == "b":
+            pays = getattr(booking, "payments")
+            if not pays.exists():
+                messages.error(request, "الحجز ده مفيهوش دفعات مسجّلة، مينفعش يتعتمد.")
+                return redirect("review_queue")
+            if pays.filter(review_status=RETURNED).exists():
+                messages.error(request, "في دفعات لسه مرجوعة للأجنت، مينفعش تعتمد الحجز قبل ما تتصلّح.")
+                return redirect("review_queue")
         obj.review_status, obj.review_note, obj.reviewed_by, obj.reviewed_at = APPROVED, "", request.user, now
         obj.save(update_fields=["review_status", "review_note", "reviewed_by", "reviewed_at"])
         _log(obj, "approved", note, request.user)
@@ -269,16 +280,31 @@ def booking_fix(request, kind, pk):
     form = _NumbersForm(request.POST or None, initial={"sell": old_sell, "net": old_net})
     if request.method == "POST" and form.is_valid():
         new_sell, new_net = form.cleaned_data["sell"], form.cleaned_data["net"]
-        setattr(obj, cfg["sell"], new_sell)
-        setattr(obj, cfg["net"], new_net)
-        was_returned = obj.review_status == RETURNED
-        obj.review_status = PENDING
-        obj.save()
-        # keep the payments' sell / net snapshots equal to the booking numbers (the app assumes that)
-        getattr(obj, "payments").update(sell_price=new_sell, net_price=new_net)
-        _log(obj, "fixed", f"بيع {old_sell} → {new_sell} | نت {old_net} → {new_net}", request.user)
-        messages.success(request, "تم حفظ التصحيح وإرسال الحجز للمراجعة." if was_returned else "تم حفظ الأرقام.")
-        return redirect("card_detail", pk=card.pk)
+        pays = getattr(obj, "payments")
+        paid_total = sum((p.paid_amount or Decimal("0")) for p in pays.all())
+        first = pays.order_by("pk").first()
+        if new_sell < new_net:
+            form.add_error("sell", "سعر البيع لازم يكون أكبر من أو يساوي سعر النت.")
+        if paid_total > new_sell:
+            form.add_error("sell", f"المدفوع ({paid_total}) أكبر من سعر البيع الجديد. صحّح الدفعات الأول.")
+        if first and paid_total < new_sell and not first.installment_date:
+            form.add_error("sell", "المدفوع أقل من البيع ومفيش آخر ميعاد للسداد على أول دفعة. حدّده من تعديل الدفعة الأول.")
+        if not form.errors:
+            setattr(obj, cfg["sell"], new_sell)
+            setattr(obj, cfg["net"], new_net)
+            was_returned = obj.review_status == RETURNED
+            still = pays.filter(review_status=RETURNED).count()
+            if not (was_returned and still):
+                obj.review_status = PENDING
+            obj.save()
+            # keep the payments' sell / net snapshots equal to the booking numbers (the app assumes that)
+            pays.update(sell_price=new_sell, net_price=new_net)
+            _log(obj, "fixed", f"بيع {old_sell} → {new_sell} | نت {old_net} → {new_net}", request.user)
+            if was_returned and still:
+                messages.warning(request, f"تم حفظ الأرقام. لسه فيه {still} دفعة مرجوعة صلّحها، وبعدين اضغط «إعادة إرسال للمراجعة».")
+            else:
+                messages.success(request, "تم حفظ التصحيح وإرسال الحجز للمراجعة." if was_returned else "تم حفظ الأرقام.")
+            return redirect("card_detail", pk=card.pk)
     docs = [{
         "id": p.pk, "method": METHOD_LABELS.get(p.method, p.method), "paid": p.paid_amount, "status": p.review_status,
         "invoice": p.invoice_file, "voucher": p.voucher_original, "bank": p.bank_file,
