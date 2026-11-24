@@ -1,0 +1,63 @@
+{% extends "core/base.html" %}
+{% block content %}
+<style>
+  .edit-form input:not([type=checkbox]):not([type=hidden]), .edit-form select, .edit-form textarea {
+    width: 100%; border: 1px solid #94a3b8; border-radius: 8px; padding: 8px 10px; background: transparent; color: inherit;
+  }
+  .edit-form label { display: block; font-size: 13px; margin-bottom: 4px; opacity: .85; }
+  .edit-form .err { color: #dc2626; font-size: 12px; margin-top: 3px; }
+</style>
+<div class="max-w-4xl mx-auto mt-6 px-1 text-sm">
+  <a href="{% url 'card_detail' card.pk %}" class="px-3 py-1.5 rounded bg-gray-200 hover:bg-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700">← رجوع للكارت</a>
+</div>
+
+<div class="max-w-4xl mx-auto px-4 py-6 edit-form">
+  <h1 class="text-2xl font-extrabold mb-1">تعديل بيانات حجز {{ label }}</h1>
+  <p class="text-sm opacity-70 mb-4">{{ card.customer_name }} — {{ booking.booking_ref|default:booking.pnr|default:"" }}</p>
+
+  {% if note %}<div class="mb-4 p-3 rounded-lg" style="background:#fee2e2;color:#991b1b">↩ سبب الإرجاع: <b>{{ note }}</b></div>{% endif %}
+  {% if form.non_field_errors %}<div class="mb-4 p-3 rounded-lg" style="background:#fee2e2;color:#991b1b">{{ form.non_field_errors }}</div>{% endif %}
+
+  <form method="post" class="space-y-4">
+    {% csrf_token %}
+    <div class="grid md:grid-cols-2 gap-4">
+      {% for field in form %}
+        <div>
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% for e in field.errors %}<div class="err">{{ e }}</div>{% endfor %}
+        </div>
+      {% endfor %}
+    </div>
+
+    {% if room_formset %}
+      <h2 class="text-lg font-bold mt-6">أسماء النزلاء</h2>
+      {{ room_formset.management_form }}
+      {{ room_formset.non_form_errors }}
+      {% for rf in room_formset %}
+        {% for h in rf.hidden_fields %}{{ h }}{% endfor %}
+        <div>
+          <label for="{{ rf.guest_names.id_for_label }}">غرفة {{ forloop.counter }} — {{ rf.guest_names.label }}</label>
+          {{ rf.guest_names }}
+          {% for e in rf.guest_names.errors %}<div class="err">{{ e }}</div>{% endfor %}
+        </div>
+      {% endfor %}
+    {% endif %}
+
+    <button class="px-5 py-2 rounded-lg bg-blue-600 text-white font-bold">حفظ التعديل</button>
+  </form>
+
+  <div class="mt-8 p-4 rounded-lg border border-gray-300 text-sm space-y-2">
+    <div class="font-bold">تعديلات تانية على نفس الحجز</div>
+    <div><a class="underline" href="{% url 'booking_fix' kind booking.pk %}">تعديل سعر البيع والنت</a></div>
+    {% if itinerary_url %}<div><a class="underline" href="{% url 'flightdocs:upload' booking.pk %}">تعديل / استبدال خط سير الرحلة</a></div>{% endif %}
+    {% for p in payments %}
+      <div>
+        دفعة {{ p.paid }} ({{ p.method }}) —
+        {% if p.editable %}<a class="underline" href="{% url 'payment_fix' kind p.pk %}">تعديل المبلغ والفاتورة والفاوتشر والرابط والإثبات</a>
+        {% else %}<span class="opacity-60">معتمدة ومقفولة</span>{% endif %}
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

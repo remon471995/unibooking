@@ -2,14 +2,18 @@
 <div class="px-4 pb-4" style="font-size:14px">
   {% if obj.review_status == 'pending' %}
     <div style="background:#fef3c7;color:#92400e;padding:8px 12px;border-radius:8px">
-      ⏳ بانتظار مراجعة الداتا انتري (البيع والنت والدفعات).
-      {% if can_fix %}<a href="{% url 'booking_fix' kind obj.pk %}" style="text-decoration:underline;margin-right:8px">تعديل الأرقام</a>{% endif %}
+      {% if obj.payments.exists %}⏳ بانتظار مراجعة الداتا انتري (البيع والنت والدفعات).{% else %}⚠ لسه ماتسجّلتش دفعة: الحجز مش هيظهر للداتا انتري إلا بعد أول دفعة.{% endif %}
+      {% if can_fix %}
+        {% with edit_name=kind|add:"_edit" %}<a href="{% url edit_name obj.pk %}" style="text-decoration:underline;margin-right:8px">تعديل بيانات الحجز</a>{% endwith %}
+        <a href="{% url 'booking_fix' kind obj.pk %}" style="text-decoration:underline;margin-right:8px">تعديل الأرقام</a>
+      {% endif %}
     </div>
   {% elif obj.review_status == 'returned' %}
     <div style="background:#fee2e2;color:#991b1b;padding:8px 12px;border-radius:8px">
       ↩ مرجوع للتصحيح: <b>{{ obj.review_note }}</b>
       {% if obj.reviewed_by %}<span style="font-size:12px">(بواسطة {{ obj.reviewed_by.get_full_name|default:obj.reviewed_by.username }})</span>{% endif %}
       {% if can_fix %}
+        {% with edit_name=kind|add:"_edit" %}<a href="{% url edit_name obj.pk %}" style="text-decoration:underline;margin-right:8px">تعديل بيانات الحجز</a>{% endwith %}
         <a href="{% url 'booking_fix' kind obj.pk %}" style="text-decoration:underline;margin-right:8px">تصحيح الأرقام والمستندات</a>
         <form method="post" action="{% url 'resubmit' %}" style="display:inline-block;margin-right:8px">
           {% csrf_token %}
