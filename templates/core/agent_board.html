@@ -8,7 +8,7 @@
   <div class="flex flex-col md:flex-row items-start md:items-end justify-between gap-4 mb-6">
     <div>
       <h1 class="text-2xl font-extrabold text-gray-800">ملخّص الموظف</h1>
-      <p class="text-sm text-gray-500 mt-1">عرض سريع لحجوزاتك ومدفوعاتك.</p>
+      <p class="text-sm text-gray-500 mt-1">عرض سريع للحجوزات والمدفوعات (للأجنت: حجوزاته، وللّيدر والسوبرفايزر: حجوزات فريقه).</p>
     </div>
 
     <form method="get" class="bg-white border rounded-xl p-3 flex items-end gap-3">
@@ -99,6 +99,7 @@
             <th class="text-right py-2 px-3">تاريخ الحجز</th>
             <th class="text-right py-2 px-3">تاريخ الإنشاء</th>
             <th class="text-right py-2 px-3">رقم الحجز</th>
+            {% if show_employee %}<th class="text-right py-2 px-3">الموظف</th>{% endif %}
             <th class="text-right py-2 px-3">البيع</th>
             <th class="text-right py-2 px-3">النت</th>
             <th class="text-right py-2 px-3">الربح</th>
@@ -115,6 +116,7 @@
             <td class="py-2 px-3 whitespace-nowrap">
               {% if r.ref_full %}{{ r.ref_full }}{% else %}-{% endif %}
             </td>
+            {% if show_employee %}<td class="py-2 px-3 whitespace-nowrap">{{ r.employee }}</td>{% endif %}
 
             <td class="py-2 px-3">
               {% if kind == 'hotel' %}
@@ -148,7 +150,7 @@
           </tr>
           {% empty %}
           <tr>
-            <td colspan="7" class="py-6 text-center text-gray-500">لا توجد بيانات ضمن النطاق المحدد.</td>
+            <td colspan="8" class="py-6 text-center text-gray-500">لا توجد بيانات ضمن النطاق المحدد.</td>
           </tr>
           {% endfor %}
         </tbody>
