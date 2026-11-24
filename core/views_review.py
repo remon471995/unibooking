@@ -2,7 +2,8 @@
 
 Agent creates a booking / payment  ->  Data Entry checks sell, net and payments against the invoice
 and the payment proof  ->  approved (numbers and payments are locked)  or  returned to the agent with a reason.
-A locked item can be reopened only through an unlock request approved by the leader, data entry or a manager.
+A locked item can be reopened only through an unlock request approved by the data entry.
+Only the data entry approves or returns anything (see can_approve).
 """
 from decimal import Decimal
 
@@ -35,7 +36,14 @@ METHOD_LABELS = {"cash": "كاش", "bank": "تحويل بنكي", "link": "را�
 
 # ---------------------------------------------------------------- helpers
 def can_review(user):
+    """Who may SEE review material (audit log, customer files). Not the same as approving."""
     return user.is_superuser or role_of(user) in ("admin", "sales_manager", "data_entry")
+
+
+def can_approve(user):
+    """Approve / return / decide on unlock and modification requests: the data entry ONLY.
+    Not the leader, supervisor, sales manager or admin (superuser included)."""
+    return getattr(user, "is_authenticated", False) and role_of(user) == "data_entry" and not user.is_superuser
 
 
 def _name(u):
@@ -105,11 +113,10 @@ def _payment_item(kind, cfg, p):
 
 @login_required
 def review_queue(request):
-    reviewer = can_review(request.user)
+    reviewer = can_approve(request.user)
     ids = manageable_user_ids(request.user)
-    leader = (not reviewer) and ids is not None and len(ids) > 1
-    if not (reviewer or leader):
-        return HttpResponseForbidden("🚫 المراجعة متاحة للداتا انتري والمدراء والليدرز.")
+    if not reviewer:
+        return HttpResponseForbidden("🚫 المراجعة والاعتماد للداتا انتري فقط.")
 
     pending_b, pending_p, returned = [], [], []
     if reviewer:
@@ -193,7 +200,7 @@ def review_queue(request):
 @login_required
 @require_POST
 def review_action(request):
-    if not can_review(request.user):
+    if not can_approve(request.user):
         return HttpResponseForbidden("غير مسموح")
     what, kind = request.POST.get("what"), request.POST.get("kind")
     obj, booking, card, cfg = _get(what, kind, request.POST.get("pk"))
@@ -423,7 +430,7 @@ def unlock_request(request):
         return redirect("card_detail", pk=card.pk)
     UnlockRequest.objects.create(content_type=ct, object_id=obj.pk, reason=reason, requested_by=request.user)
     _log(obj, "unlock_requested", reason, request.user)
-    messages.success(request, "تم إرسال طلب التعديل للموافقة (الليدر أو الداتا انتري أو المدير).")
+    messages.success(request, "تم إرسال طلب التعديل للداتا انتري للموافقة.")
     return redirect("card_detail", pk=card.pk)
 
 
@@ -444,9 +451,7 @@ def unlock_decide(request):
             if isinstance(obj, c["booking"]):
                 cfg, kind = c, k
     card = booking.card
-    ids = manageable_user_ids(request.user)
-    allowed = can_review(request.user) or (ids is not None and card.created_by_id in ids)
-    if not allowed or req.requested_by_id == request.user.id:
+    if not can_approve(request.user) or req.requested_by_id == request.user.id:
         return HttpResponseForbidden("غير مسموح")
 
     desc = _desc(what, kind, obj, booking, cfg)

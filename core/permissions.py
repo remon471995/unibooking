@@ -98,9 +98,8 @@ def sees_installments(user):
 
 
 def sees_review(user):
-    if user.is_superuser or role_of(user) in ("data_entry", "sales_manager", "admin"):
-        return True
-    return is_sales_side(user) and role_of(user) in ("leader", "supervisor")
+    """The review queue is for the data entry only (the only role that approves / returns)."""
+    return bool(getattr(user, "is_authenticated", False) and role_of(user) == "data_entry" and not user.is_superuser)
 
 
 def sees_performance(user):
