@@ -100,6 +100,7 @@
           <tr class="text-gray-700">
             <th class="text-right py-2 px-3">تاريخ الحجز</th>
             <th class="text-right py-2 px-3">تاريخ الإنشاء</th>
+            {% if sees_all %}<th class="text-right py-2 px-3">الموظف</th>{% endif %}
             <th class="text-right py-2 px-3">رقم الحجز</th>
             <th class="text-right py-2 px-3">البيع</th>
             <th class="text-right py-2 px-3">النت</th>
@@ -112,6 +113,8 @@
           <tr class="border-t hover:bg-gray-50">
             <td class="py-2 px-3 whitespace-nowrap">{{ r.book_date|date:"Y-m-d" }}</td>
             <td class="py-2 px-3 whitespace-nowrap">{{ r.created_at|date:"Y-m-d H:i" }}</td>
+
+            {% if sees_all %}<td class="py-2 px-3 whitespace-nowrap">{{ r.employee|default:"—" }}</td>{% endif %}
 
             <!-- رقم الحجز الكامل -->
             <td class="py-2 px-3 whitespace-nowrap">
@@ -150,7 +153,7 @@
           </tr>
           {% empty %}
           <tr>
-            <td colspan="7" class="py-6 text-center text-gray-500">لا توجد بيانات ضمن النطاق المحدد.</td>
+            <td colspan="8" class="py-6 text-center text-gray-500">لا توجد بيانات ضمن النطاق المحدد.</td>
           </tr>
           {% endfor %}
         </tbody>
