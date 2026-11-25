@@ -11,7 +11,7 @@ from django.contrib.auth.decorators import permission_required
 from django.contrib.contenttypes.models import ContentType
 
 from .forms import BookingAmendmentForm
-from .permissions import can_edit_card, is_manager, team_of, current_memberships, role_of, manageable_user_ids, is_sales_side
+from .permissions import can_edit_card, is_manager, team_of, current_memberships, role_of, manageable_user_ids, is_sales_side, sees_all_bookings
 from core.services.teams import team_totals, month_progress, current_cycle, month_matrix, month_bounds, profit_of, pct as _pct
 from .models import BookingAmendment
 from django.contrib.contenttypes.models import ContentType
@@ -1113,7 +1113,7 @@ def installments_board(request):
 @login_required
 def agent_board(request):
     me = (request.user.get_full_name() or request.user.username).strip()
-    owned = Q(employee_name__iexact=me) if not request.user.is_superuser else Q()
+    owned = Q(employee_name__iexact=me) if not sees_all_bookings(request.user) else Q()
 
     d_from = request.GET.get("from") or ""
     d_to   = request.GET.get("to") or ""
@@ -1150,7 +1150,7 @@ def agent_board(request):
     due_installments = [{**r, "kind": r["kind_key"]} for r in _due_rows(request.user, 5)]
 
     rows = []
-    for b in h.only("id","booking_date","created_at","sell","net","card_id","voucher_code","booking_ref"):
+    for b in h.only("id","booking_date","created_at","sell","net","card_id","voucher_code","booking_ref","employee_name"):
         sell = b.sell or Decimal("0"); net = b.net or Decimal("0")
         rows.append(("hotel", {
             "id": b.id,
@@ -1160,10 +1160,11 @@ def agent_board(request):
             "net": net,
             "profit": sell - net,
             "card_id": b.card_id,
+            "employee": b.employee_name,
             "ref_full": (b.voucher_code or b.booking_ref or ""),
         }))
 
-    for b in f.only("id","booking_date","created_at","sell_price","net_price","card_id","voucher_code","pnr"):
+    for b in f.only("id","booking_date","created_at","sell_price","net_price","card_id","voucher_code","pnr","employee_name"):
         sell = b.sell_price or Decimal("0"); net = b.net_price or Decimal("0")
         rows.append(("flight", {
             "id": b.id,
@@ -1173,10 +1174,11 @@ def agent_board(request):
             "net_price": net,
             "profit": sell - net,
             "card_id": b.card_id,
+            "employee": b.employee_name,
             "ref_full": (b.voucher_code or b.pnr or ""),
         }))
 
-    for b in o.only("id","booking_date","created_at","sell_price","net_price","card_id","voucher_code","booking_ref"):
+    for b in o.only("id","booking_date","created_at","sell_price","net_price","card_id","voucher_code","booking_ref","employee_name"):
         sell = b.sell_price or Decimal("0"); net = b.net_price or Decimal("0")
         rows.append(("other", {
             "id": b.id,
@@ -1186,6 +1188,7 @@ def agent_board(request):
             "net_price": net,
             "profit": sell - net,
             "card_id": b.card_id,
+            "employee": b.employee_name,
             "ref_full": (b.voucher_code or b.booking_ref or ""),
         }))
 
@@ -1201,6 +1204,7 @@ def agent_board(request):
         },
         "due_installments": due_installments,
         "rows": rows,
+        "sees_all": sees_all_bookings(request.user),
         "d_from": d_from,
         "d_to": d_to,
     })
@@ -1217,7 +1221,7 @@ def reports(request):
     q_emp     = (request.GET.get('employee') or '').strip()
     q_kind    = (request.GET.get('kind') or '').strip()
     q_group   = (request.GET.get('group') or '').strip()
-    q_scope   = (request.GET.get('scope') or ('all' if request.user.is_superuser else 'mine')).strip()
+    q_scope   = (request.GET.get('scope') or ('all' if sees_all_bookings(request.user) else 'mine')).strip()
     page_num  = int(request.GET.get('page') or 1)
 
     today = timezone.localdate()
@@ -1233,7 +1237,7 @@ def reports(request):
         q_from, q_to = today.replace(month=m, day=1), today
 
     # Permissions scope
-    if request.user.is_superuser:
+    if sees_all_bookings(request.user):
         base_filter = {}
         can_choose_scope = True
     else:
@@ -1453,9 +1457,9 @@ def reports_export_csv(request):
     date_to   = parse_date(request.GET.get('to') or '')
     employee  = (request.GET.get('employee') or '').strip()
     kind      = (request.GET.get('kind') or '').strip()
-    scope     = (request.GET.get('scope') or ('all' if request.user.is_superuser else 'mine')).strip()
+    scope     = (request.GET.get('scope') or ('all' if sees_all_bookings(request.user) else 'mine')).strip()
 
-    if request.user.is_superuser:
+    if sees_all_bookings(request.user):
         base_filter = {} if scope == 'all' else {'card__created_by': request.user}
     else:
         base_filter = {'card__created_by': request.user}
@@ -1508,9 +1512,9 @@ def reports_export_xlsx(request):
     date_to   = parse_date(request.GET.get('to') or '')
     employee  = (request.GET.get('employee') or '').strip()
     kind      = (request.GET.get('kind') or '').strip()
-    scope     = (request.GET.get('scope') or ('all' if request.user.is_superuser else 'mine')).strip()
+    scope     = (request.GET.get('scope') or ('all' if sees_all_bookings(request.user) else 'mine')).strip()
 
-    if request.user.is_superuser:
+    if sees_all_bookings(request.user):
         base_filter = {} if scope == 'all' else {'card__created_by': request.user}
     else:
         base_filter = {'card__created_by': request.user}
@@ -1565,9 +1569,9 @@ def reports_export_pdf(request):
     date_to   = parse_date(request.GET.get('to') or '')
     employee  = (request.GET.get('employee') or '').strip()
     kind      = (request.GET.get('kind') or '').strip()
-    scope     = (request.GET.get('scope') or ('all' if request.user.is_superuser else 'mine')).strip()
+    scope     = (request.GET.get('scope') or ('all' if sees_all_bookings(request.user) else 'mine')).strip()
 
-    if request.user.is_superuser:
+    if sees_all_bookings(request.user):
         base_filter = {} if scope == 'all' else {'card__created_by': request.user}
     else:
         base_filter = {'card__created_by': request.user}
@@ -1689,7 +1693,7 @@ def reports_analysis(request):
     date_to   = parse_date(q_to) if q_to else None
     today = timezone.localdate()
 
-    if request.user.is_superuser:
+    if sees_all_bookings(request.user):
         base_b = {}
         base_p = {}
         can_choose_scope = True
@@ -1699,8 +1703,8 @@ def reports_analysis(request):
         base_p = {"employee_name__iexact": emp}
         can_choose_scope = False
 
-    scope = request.GET.get("scope") or ("all" if request.user.is_superuser else "mine")
-    if request.user.is_superuser and scope == "mine":
+    scope = request.GET.get("scope") or ("all" if sees_all_bookings(request.user) else "mine")
+    if sees_all_bookings(request.user) and scope == "mine":
         emp = (request.user.get_full_name() or request.user.username or "").strip()
         base_b = {"employee_name__iexact": emp}
         base_p = {"employee_name__iexact": emp}
@@ -1850,7 +1854,7 @@ def _analysis_payload(request):
     today = timezone.localdate()
 
     # الصلاحيات/النطاق
-    if request.user.is_superuser:
+    if sees_all_bookings(request.user):
         base_b = {}
         base_p = {}
     else:
@@ -2242,7 +2246,7 @@ def suppliers_report(request):
     date_to   = parse_date(q_to) if q_to else None
 
     # الصلاحيات
-    if request.user.is_superuser:
+    if sees_all_bookings(request.user):
         base_b = {}
     else:
         emp = (request.user.get_full_name() or request.user.username or "").strip()
@@ -2320,7 +2324,7 @@ def suppliers_export_xlsx(request):
     date_to   = parse_date(q_to) if q_to else None
 
     # الصلاحيات
-    if request.user.is_superuser:
+    if sees_all_bookings(request.user):
         base_b = {}
     else:
         emp = (request.user.get_full_name() or request.user.username or "").strip()

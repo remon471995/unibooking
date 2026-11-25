@@ -21,11 +21,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .models import FlightPayment, Notification, OtherPayment, Payment, Team
-from .permissions import _department, role_of
-
-# roles that see every installment of the company
-FULL_VIEW_ROLES = {"admin", "sales_manager", "data_entry", "leader", "supervisor"}
-FULL_VIEW_DEPARTMENT = "accounts"
+from .permissions import FULL_VIEW_DEPARTMENT, FULL_VIEW_ROLES, sees_all_bookings as sees_all_installments  # noqa: F401
 
 # (payment model, relation to the booking, key, Arabic label, payment page url name, sell field)
 KINDS = (
@@ -33,17 +29,6 @@ KINDS = (
     (FlightPayment, "booking_flight", "flight", "طيران", "flight_payment", "sell_price"),
     (OtherPayment, "booking_other", "other", "أخرى", "other_payment", "sell_price"),
 )
-
-
-def sees_all_installments(user):
-    if not getattr(user, "is_authenticated", False):
-        return False
-    return bool(
-        user.is_superuser
-        or role_of(user) in FULL_VIEW_ROLES
-        or _department(user) == FULL_VIEW_DEPARTMENT
-        or Team.objects.filter(is_active=True).filter(Q(leader=user) | Q(supervisor=user)).exists()
-    )
 
 
 def scope_q(user, prefix=""):

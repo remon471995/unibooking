@@ -106,3 +106,25 @@ def sees_performance(user):
     if user.is_superuser or role_of(user) in ("sales_manager", "admin"):
         return True
     return is_sales_side(user) and role_of(user) in ("leader", "supervisor")
+
+
+
+# ---------------------------------------------------------------- who sees every booking
+# An agent sees only his own bookings.  Everyone above him sees all of them: leader, supervisor, sales manager, admin,
+# data entry, the accounts department and superusers.  (A user also counts as leader / supervisor when he leads or
+# supervises an active team, whatever his profile role says.)  Used by the installments, the employee summary and the reports.
+FULL_VIEW_ROLES = {"admin", "sales_manager", "data_entry", "leader", "supervisor"}
+FULL_VIEW_DEPARTMENT = "accounts"
+
+
+def sees_all_bookings(user):
+    if not getattr(user, "is_authenticated", False):
+        return False
+    from django.db.models import Q
+    from .models import Team
+    return bool(
+        user.is_superuser
+        or role_of(user) in FULL_VIEW_ROLES
+        or _department(user) == FULL_VIEW_DEPARTMENT
+        or Team.objects.filter(is_active=True).filter(Q(leader=user) | Q(supervisor=user)).exists()
+    )
