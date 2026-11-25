@@ -461,8 +461,14 @@ def hotel_voucher_pdf(request, booking_pk):
 @login_required
 def hotel_payment(request, booking_pk):
     booking = get_object_or_404(HotelBooking, pk=booking_pk)
+    redo = _redo_payments(booking)
     payments = booking.payments.order_by("-created_at")
+    if redo:
+        payments = payments.exclude(pk__in=redo)
     has_existing = payments.exists()
+    form_booking = _FreshBooking(booking, redo, reset_numbers=not has_existing) if redo else booking
+    if redo and request.method == "GET":
+        messages.warning(request, f"↩ الداتا انتري رجّع الحجز: {booking.review_note or '—'} — املا بيانات الدفع كلها من جديد (النت والبيع والمدفوع وطريقة الدفع والفاتورة والفاوتشر).")
     if request.method == "POST":
         if not can_edit_card(request.user, booking.card):
             messages.error(request, "غير مسموح.")
@@ -479,13 +485,15 @@ def hotel_payment(request, booking_pk):
     )["total"] or Decimal("0.00")
     total_sell = booking.sell or Decimal("0.00")
     total_net  = booking.net  or Decimal("0.00")
+    if redo and not has_existing:
+        total_net = total_sell = Decimal("0.00")
     remaining  = total_sell - total_paid
     profit     = total_sell - total_net
     is_fully_paid = remaining <= Decimal("0.01")
 
     if request.method == "POST":
         pay_form = PaymentForm(request.POST, request.FILES,
-                               booking=booking, has_existing_payments=has_existing)
+                               booking=form_booking, has_existing_payments=has_existing)
 
         if pay_form.is_valid():
             cd = pay_form.cleaned_data
@@ -539,6 +547,8 @@ def hotel_payment(request, booking_pk):
             p.net_price  = booking.net or Decimal("0")
             p.sell_price = booking.sell or Decimal("0")
             p.save()
+            if redo:
+                _finish_redo(booking, redo, request.user)
 
             messages.success(request, "✅ تم حفظ بيانات الدفع بنجاح.")
             return redirect("hotel_payment", booking_pk=booking.pk)
@@ -551,7 +561,7 @@ def hotel_payment(request, booking_pk):
             "is_fully_paid": is_fully_paid,
         })
 
-    pay_form = PaymentForm(booking=booking, has_existing_payments=has_existing)
+    pay_form = PaymentForm(booking=form_booking, has_existing_payments=has_existing)
     return render(request, "core/hotel_payment.html", {
         "booking": booking, "form": pay_form, "payments": payments,
         "remaining": remaining, "total_paid": total_paid,
@@ -638,8 +648,14 @@ def other_create(request, card_pk):
 @login_required
 def other_payment(request, pk):
     booking = get_object_or_404(OtherBooking, pk=pk)
+    redo = _redo_payments(booking)
     payments = booking.payments.order_by("-created_at")
+    if redo:
+        payments = payments.exclude(pk__in=redo)
     has_existing = payments.exists()
+    form_booking = _FreshBooking(booking, redo, reset_numbers=not has_existing) if redo else booking
+    if redo and request.method == "GET":
+        messages.warning(request, f"↩ الداتا انتري رجّع الحجز: {booking.review_note or '—'} — املا بيانات الدفع كلها من جديد (النت والبيع والمدفوع وطريقة الدفع والفاتورة والفاوتشر).")
     if request.method == "POST":
         if not can_edit_card(request.user, booking.card):
             messages.error(request, "غير مسموح.")
@@ -651,6 +667,8 @@ def other_payment(request, pk):
     total_paid = payments.aggregate(total=Sum("paid_amount"))["total"] or Decimal("0.00")
     total_net  = booking.net_price  or Decimal("0.00")
     total_sell = booking.sell_price or Decimal("0.00")
+    if redo and not has_existing:
+        total_net = total_sell = Decimal("0.00")
     remaining  = total_sell - total_paid
     profit     = total_sell - total_net
 
@@ -664,7 +682,7 @@ def other_payment(request, pk):
     adj_form = None
 
     if request.method == "POST":
-        form = OtherPaymentForm(request.POST, request.FILES, booking=booking, has_existing_payments=has_existing)
+        form = OtherPaymentForm(request.POST, request.FILES, booking=form_booking, has_existing_payments=has_existing)
         if form.is_valid():
             cd = form.cleaned_data
             paid_amount = cd.get("paid_amount") or Decimal("0")
@@ -735,12 +753,14 @@ def other_payment(request, pk):
                 p.sell_price = booking.sell_price or Decimal("0")
 
             p.save()
+            if redo:
+                _finish_redo(booking, redo, request.user)
             messages.success(request, "✅ تم حفظ الدفعة بنجاح.")
             return redirect("other_payment", pk=booking.pk)
         else:
             messages.error(request, "⚠️ يوجد خطأ في البيانات.")
     else:
-        form = OtherPaymentForm(booking=booking, has_existing_payments=has_existing)
+        form = OtherPaymentForm(booking=form_booking, has_existing_payments=has_existing)
 
     return render(request, "core/other_payment.html", {
         "booking": booking, "form": form, "payments": payments,
@@ -754,12 +774,69 @@ def other_payment(request, pk):
         "adj_form": adj_form,
     })
 
+
+# --------------- RETURNED BOOKING: the agent re-enters the payment page from scratch ---------------
+def _redo_payments(booking):
+    """Ids of the payments to replace when the data entry sent the booking back, else None.
+
+    The agent gets the same page as the first time (net, sell, paid, method, invoice, voucher...) EMPTY and fills it
+    all again; the old, not yet approved payments are replaced when the new one is saved.  The data entry's note
+    says what was wrong."""
+    from .models import ReviewFields
+    if booking.review_status != ReviewFields.REVIEW_RETURNED:
+        return None
+    ids = list(booking.payments.exclude(review_status=ReviewFields.REVIEW_APPROVED).values_list("pk", flat=True))
+    return ids or None
+
+
+class _FreshBooking:
+    """What the payment form sees while a returned booking is re-entered: the booking WITHOUT its old payments
+    (and, when no other payment is left, without its old sell / net), so the new data is validated exactly like
+    a first payment instead of against the old numbers."""
+
+    def __init__(self, booking, redo_ids, reset_numbers):
+        self._booking = booking
+        self.payments = booking.payments.exclude(pk__in=redo_ids)
+        if reset_numbers:
+            for name in ("sell", "net", "sell_price", "net_price"):
+                if hasattr(booking, name):
+                    setattr(self, name, None)
+
+    @property
+    def total_paid(self):
+        return self.payments.aggregate(t=Sum("paid_amount"))["t"] or Decimal("0.00")
+
+    def __getattr__(self, name):          # checkin, refundable_until, ... come from the real booking
+        return getattr(self._booking, name)
+
+
+def _finish_redo(booking, redo_ids, user):
+    """Called right after the new payment was saved: drop the replaced ones and send the booking back to review."""
+    from django.db import transaction
+    from .models import ReviewFields
+    from .views_review import _log
+    old = list(booking.payments.filter(pk__in=redo_ids))
+    summary = " ; ".join(f"{p.get_method_display()} {p.paid_amount}" for p in old)
+    with transaction.atomic():
+        for p in old:
+            p.delete()
+        booking.review_status = ReviewFields.REVIEW_PENDING
+        booking.save(update_fields=["review_status"])
+        _log(booking, "fixed", f"أعاد الأجنت إدخال بيانات الدفع كلها من جديد (استُبدلت: {summary})", user)
+
+
 # --------------- FLIGHT PAYMENTS ----------------
 @login_required
 def flight_payment(request, booking_pk):
     booking = get_object_or_404(FlightBooking, pk=booking_pk)
+    redo = _redo_payments(booking)
     payments = booking.payments.order_by("-created_at")
+    if redo:
+        payments = payments.exclude(pk__in=redo)
     has_existing = payments.exists()
+    form_booking = _FreshBooking(booking, redo, reset_numbers=not has_existing) if redo else booking
+    if redo and request.method == "GET":
+        messages.warning(request, f"↩ الداتا انتري رجّع الحجز: {booking.review_note or '—'} — املا بيانات الدفع كلها من جديد (النت والبيع والمدفوع وطريقة الدفع والفاتورة والفاوتشر).")
     if request.method == "POST":
         if not can_edit_card(request.user, booking.card):
             messages.error(request, "غير مسموح.")
@@ -771,6 +848,8 @@ def flight_payment(request, booking_pk):
     total_paid = payments.aggregate(total=Sum("paid_amount"))["total"] or Decimal("0.00")
     total_net  = booking.net_price  or Decimal("0.00")
     total_sell = booking.sell_price or Decimal("0.00")
+    if redo and not has_existing:
+        total_net = total_sell = Decimal("0.00")
     remaining  = total_sell - total_paid
     profit     = total_sell - total_net
 
@@ -784,7 +863,7 @@ def flight_payment(request, booking_pk):
     adj_form = None
 
     if request.method == "POST":
-        form = FlightPaymentForm(request.POST, request.FILES, booking=booking, has_existing_payments=has_existing)
+        form = FlightPaymentForm(request.POST, request.FILES, booking=form_booking, has_existing_payments=has_existing)
         if form.is_valid():
             cd = form.cleaned_data
             paid_amount = cd.get("paid_amount") or Decimal("0")
@@ -854,12 +933,14 @@ def flight_payment(request, booking_pk):
                 p.sell_price = booking.sell_price or Decimal("0")
 
             p.save()
+            if redo:
+                _finish_redo(booking, redo, request.user)
             messages.success(request, "✅ تم حفظ بيانات الدفع بنجاح.")
             return redirect("flight_payment", booking_pk=booking.pk)
         else:
             messages.error(request, "⚠️ يوجد خطأ في البيانات.")
     else:
-        form = FlightPaymentForm(booking=booking, has_existing_payments=has_existing)
+        form = FlightPaymentForm(booking=form_booking, has_existing_payments=has_existing)
 
     return render(request, "core/flight_payment.html", {
         "booking": booking, "form": form, "payments": payments,

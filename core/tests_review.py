@@ -1,8 +1,10 @@
 """Booking correction before approval, and the review queue rules."""
+import tempfile
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -81,17 +83,21 @@ class CorrectionTests(TestCase):
         self.f.refresh_from_db()
         self.assertEqual(self.f.review_status, "pending")
 
-    def test_booking_fix_rejects_sell_below_net(self):
-        self._pay("100", installment_date=timezone.localdate())
+    def _fix(self, pay, **over):
+        data = {"sell": "1000", "net": "800", f"p{pay.pk}-paid_amount": "1000", f"p{pay.pk}-method": "cash"}
+        data.update(over)
         self.client.force_login(self.agent)
-        self.client.post(reverse("booking_fix", args=["flight", self.f.pk]), {"sell": "100", "net": "200"})
+        return self.client.post(reverse("booking_fix", args=["flight", self.f.pk]), data)
+
+    def test_fix_rejects_sell_below_net(self):
+        pay = self._pay("100", installment_date=timezone.localdate())
+        self._fix(pay, sell="100", net="200", **{f"p{pay.pk}-paid_amount": "100"})
         self.f.refresh_from_db()
         self.assertEqual(self.f.sell_price, Decimal("1000"))
 
-    def test_booking_fix_rejects_sell_below_what_is_paid(self):
-        self._pay("600")
-        self.client.force_login(self.agent)
-        self.client.post(reverse("booking_fix", args=["flight", self.f.pk]), {"sell": "500", "net": "400"})
+    def test_fix_rejects_sell_below_what_is_paid(self):
+        pay = self._pay("600")
+        self._fix(pay, sell="500", net="400", **{f"p{pay.pk}-paid_amount": "600"})
         self.f.refresh_from_db()
         self.assertEqual(self.f.sell_price, Decimal("1000"))
 
@@ -141,3 +147,109 @@ class OnlyDataEntryApprovesTests(TestCase):
         self.assertTrue(sees_review(make_user("de", "data_entry")))
         for role in ("sales_manager", "admin", "leader", "supervisor", "agent"):
             self.assertFalse(sees_review(make_user(role + "_u", role)), role)
+
+
+class PendingFixScreenTests(TestCase):
+    """Before the review the agent corrects numbers and payment on one prefilled screen."""
+
+    def setUp(self):
+        self.agent = make_user("agent")
+        self.card = UniBookingCard.objects.create(
+            customer_name="Ali", mobile="1", nationality="EG", country="EG", created_by=self.agent)
+        self.f = FlightBooking.objects.create(
+            card=self.card, airline="MS", pnr="ABC123", sell_price=Decimal("1000"), net_price=Decimal("800"))
+        self.pay = FlightPayment.objects.create(
+            booking_flight=self.f, method="cash", paid_amount=Decimal("1000"),
+            sell_price=Decimal("1000"), net_price=Decimal("800"))
+        self.url = reverse("booking_fix", args=["flight", self.f.pk])
+
+    def test_one_save_fixes_numbers_and_payment(self):
+        self.client.force_login(self.agent)
+        data = {"sell": "1000", "net": "700", f"p{self.pay.pk}-paid_amount": "1000",
+                f"p{self.pay.pk}-method": "cash", f"p{self.pay.pk}-note": "تصحيح"}
+        self.assertEqual(self.client.post(self.url, data).status_code, 302)
+        self.f.refresh_from_db()
+        self.pay.refresh_from_db()
+        self.assertEqual((self.f.net_price, self.pay.net_price, self.pay.note), (Decimal("700"), Decimal("700"), "تصحيح"))
+        self.assertEqual((self.f.review_status, self.pay.review_status), ("pending", "pending"))
+
+    def test_booking_without_a_payment_goes_to_the_payment_page(self):
+        FlightPayment.objects.filter(pk=self.pay.pk).delete()
+        self.client.force_login(self.agent)
+        r = self.client.get(self.url)
+        self.assertEqual(r.url, reverse("flight_payment", args=[self.f.pk]))
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class ReturnedBookingRedoTests(TestCase):
+    """The data entry returns the booking: the agent gets the payment page EMPTY and enters everything again."""
+
+    def setUp(self):
+        self.agent = make_user("agent")
+        self.de = make_user("de", "data_entry")
+        self.card = UniBookingCard.objects.create(
+            customer_name="Ali", mobile="1", nationality="EG", country="EG", created_by=self.agent)
+        self.f = FlightBooking.objects.create(
+            card=self.card, airline="MS", pnr="ABC123", sell_price=Decimal("1000"), net_price=Decimal("800"))
+        self.old = FlightPayment.objects.create(
+            booking_flight=self.f, method="cash", paid_amount=Decimal("1000"),
+            sell_price=Decimal("1000"), net_price=Decimal("800"))
+        self.client.force_login(self.de)
+        self.client.post(reverse("review_action"), {
+            "what": "b", "kind": "flight", "pk": self.f.pk, "action": "return",
+            "reason": ["invoice"], "note": "الفاتورة غلط"})
+        self.f.refresh_from_db()
+        self.url = reverse("flight_payment", args=[self.f.pk])
+
+    def _pdf(self, name):
+        return SimpleUploadedFile(name, b"%PDF-1.4 test", content_type="application/pdf")
+
+    def test_the_booking_was_returned(self):
+        self.assertEqual(self.f.review_status, "returned")
+
+    def test_payment_page_comes_back_empty_like_the_first_time(self):
+        self.client.force_login(self.agent)
+        r = self.client.get(self.url)
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(r.context["has_existing"])                 # sell / net are asked again
+        self.assertEqual(list(r.context["payments"]), [])           # the old payment is not shown
+        self.assertEqual(r.context["total_sell"], Decimal("0.00"))
+        self.assertIn("الفاتورة غلط", " ".join(str(m) for m in r.context["messages"]))
+
+    def test_saving_replaces_the_old_payment_and_resubmits(self):
+        self.client.force_login(self.agent)
+        r = self.client.post(self.url, {
+            "paid_amount": "900", "method": "link", "payment_link": "http://pay.example.com/x",
+            "sell_price": "900", "net_price": "700",
+            "invoice_file": self._pdf("inv.pdf"), "voucher_original": self._pdf("v.pdf"),
+        })
+        self.assertEqual(r.status_code, 302, getattr(r, "context", None) and r.context["form"].errors)
+        self.f.refresh_from_db()
+        self.assertFalse(FlightPayment.objects.filter(pk=self.old.pk).exists())
+        pays = list(FlightPayment.objects.filter(booking_flight=self.f))
+        self.assertEqual(len(pays), 1)
+        self.assertEqual((pays[0].paid_amount, pays[0].review_status), (Decimal("900"), "pending"))
+        self.assertEqual((self.f.sell_price, self.f.net_price, self.f.review_status),
+                         (Decimal("900"), Decimal("700"), "pending"))
+        self.assertTrue(ReviewLog.objects.filter(action="fixed", note__contains="من جديد").exists())
+
+    def test_a_failed_save_keeps_the_old_payment(self):
+        self.client.force_login(self.agent)
+        self.client.post(self.url, {"paid_amount": "900", "method": "link", "sell_price": "900", "net_price": "700"})
+        self.assertTrue(FlightPayment.objects.filter(pk=self.old.pk).exists())     # no invoice / voucher / link
+        self.f.refresh_from_db()
+        self.assertEqual(self.f.review_status, "returned")
+
+    def test_sell_below_net_is_still_refused(self):
+        self.client.force_login(self.agent)
+        r = self.client.post(self.url, {
+            "paid_amount": "100", "method": "link", "payment_link": "http://pay.example.com/x",
+            "sell_price": "100", "net_price": "200", "installment_date": timezone.localdate().isoformat(),
+            "invoice_file": self._pdf("inv.pdf"), "voucher_original": self._pdf("v.pdf"),
+        })
+        self.assertTrue(FlightPayment.objects.filter(pk=self.old.pk).exists())
+
+    def test_fix_screen_sends_a_returned_booking_to_the_payment_page(self):
+        self.client.force_login(self.agent)
+        r = self.client.get(reverse("booking_fix", args=["flight", self.f.pk]))
+        self.assertEqual(r.url, self.url)

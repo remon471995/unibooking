@@ -11,6 +11,7 @@ from django import forms
 from django.contrib import messages
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.db.models import Count
 from django.forms import modelform_factory
 from django.http import HttpResponseForbidden
@@ -74,6 +75,9 @@ def _notify(user, message, card):
 def _desc(what, kind, obj, booking, cfg):
     ref = booking.booking_ref or booking.voucher_code or f"#{booking.pk}"
     return f"{cfg['label']} {ref}" + (" (دفعة)" if what == "p" else "")
+
+
+_ALL_CHECKS = ("chk_sell", "chk_net", "chk_pay", "chk_docs", "chk_ref")
 
 
 # ---------------------------------------------------------------- queue
@@ -217,7 +221,7 @@ def review_action(request):
     desc = _desc(what, kind, obj, booking, cfg)
 
     if action == "approve":
-        needed = ("chk_sell", "chk_net", "chk_pay", "chk_docs", "chk_ref") if what == "b" else ("chk_amount", "chk_method", "chk_docs")
+        needed = _ALL_CHECKS if what == "b" else ("chk_amount", "chk_method", "chk_docs")
         if not all(request.POST.get(k) for k in needed):
             messages.error(request, "علّم على كل بنود المطابقة قبل الاعتماد.")
             return redirect("review_queue")
@@ -271,59 +275,6 @@ def _may_fix(user, card):
     return can_edit_card(user, card) and role_of(user) != "data_entry"
 
 
-@login_required
-def booking_fix(request, kind, pk):
-    obj, booking, card, cfg = _get("b", kind, pk)
-    if obj is None:
-        return redirect("dashboard")
-    if not _may_fix(request.user, card):
-        messages.error(request, "غير مسموح.")
-        return redirect("card_detail", pk=card.pk)
-    if obj.is_locked:
-        messages.error(request, "الحجز معتمد ومقفول. اطلب فتحه الأول.")
-        return redirect("card_detail", pk=card.pk)
-
-    old_sell, old_net = getattr(obj, cfg["sell"]), getattr(obj, cfg["net"])
-    form = _NumbersForm(request.POST or None, initial={"sell": old_sell, "net": old_net})
-    if request.method == "POST" and form.is_valid():
-        new_sell, new_net = form.cleaned_data["sell"], form.cleaned_data["net"]
-        pays = getattr(obj, "payments")
-        paid_total = sum((p.paid_amount or Decimal("0")) for p in pays.all())
-        first = pays.order_by("pk").first()
-        if new_sell < new_net:
-            form.add_error("sell", "سعر البيع لازم يكون أكبر من أو يساوي سعر النت.")
-        if paid_total > new_sell:
-            form.add_error("sell", f"المدفوع ({paid_total}) أكبر من سعر البيع الجديد. صحّح الدفعات الأول.")
-        if first and paid_total < new_sell and not first.installment_date:
-            form.add_error("sell", "المدفوع أقل من البيع ومفيش آخر ميعاد للسداد على أول دفعة. حدّده من تعديل الدفعة الأول.")
-        if not form.errors:
-            setattr(obj, cfg["sell"], new_sell)
-            setattr(obj, cfg["net"], new_net)
-            was_returned = obj.review_status == RETURNED
-            still = pays.filter(review_status=RETURNED).count()
-            if not (was_returned and still):
-                obj.review_status = PENDING
-            obj.save()
-            # keep the payments' sell / net snapshots equal to the booking numbers (the app assumes that)
-            pays.update(sell_price=new_sell, net_price=new_net)
-            _log(obj, "fixed", f"بيع {old_sell} → {new_sell} | نت {old_net} → {new_net}", request.user)
-            if was_returned and still:
-                messages.warning(request, f"تم حفظ الأرقام. لسه فيه {still} دفعة مرجوعة صلّحها، وبعدين اضغط «إعادة إرسال للمراجعة».")
-            else:
-                messages.success(request, "تم حفظ التصحيح وإرسال الحجز للمراجعة." if was_returned else "تم حفظ الأرقام.")
-            return redirect("card_detail", pk=card.pk)
-    docs = [{
-        "id": p.pk, "method": METHOD_LABELS.get(p.method, p.method), "paid": p.paid_amount, "status": p.review_status,
-        "invoice": p.invoice_file, "voucher": p.voucher_original, "bank": p.bank_file,
-        "editable": p.review_status != APPROVED,
-    } for p in getattr(obj, "payments").all().order_by("created_at")]
-    return render(request, "core/review_fix.html", {
-        "form": form, "title": f"تصحيح أرقام {_desc('b', kind, obj, booking, cfg)}",
-        "note": obj.review_note if obj.review_status == RETURNED else "", "card": card, "multipart": False,
-        "docs": docs, "kind": kind,
-    })
-
-
 _PAY_FIELDS = ["paid_amount", "method", "installment_date", "payment_link", "invoice_file", "voucher_original", "bank_file"]
 _PAY_LABELS = {
     "paid_amount": "المبلغ المدفوع", "method": "طريقة الدفع", "installment_date": "آخر ميعاد للسداد",
@@ -343,6 +294,100 @@ def _due_limits(kind, booking):
             if not max_d or booking.refundable_until < max_d:
                 max_d, why = booking.refundable_until, "آخر يوم استرداد"
     return min_d, max_d, why
+
+
+@login_required
+def booking_fix(request, kind, pk):
+    """ONE screen to correct a booking that is pending or returned: sell, net and every payment that is not
+    approved yet (paid, method, link, last date, invoice, voucher, proof, note).  Saving sends it to the review."""
+    obj, booking, card, cfg = _get("b", kind, pk)
+    if obj is None:
+        return redirect("dashboard")
+    if not _may_fix(request.user, card):
+        messages.error(request, "غير مسموح.")
+        return redirect("card_detail", pk=card.pk)
+    if obj.is_locked:
+        messages.error(request, "الحجز معتمد ومقفول. اطلب تعديل من صفحة الكارت.")
+        return redirect("card_detail", pk=card.pk)
+
+    pays = list(getattr(obj, "payments").order_by("created_at", "pk"))
+    if obj.review_status == RETURNED and not any(p.review_status == APPROVED for p in pays):
+        # sent back by the data entry: the agent re-enters the payment page from scratch (views.*_payment)
+        return redirect(f"{kind}_payment", obj.pk)
+    if not pays:
+        messages.info(request, "سجّل الدفعة الأول (حتى لو المدفوع صفر)، وبعدها تقدر تصحّح.")
+        return redirect(f"{kind}_payment", obj.pk)
+
+    PayForm = modelform_factory(
+        cfg["payment"], fields=_PAY_FIELDS + ["note"], labels={**_PAY_LABELS, "note": "ملاحظة"},
+        widgets={"installment_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+                 "invoice_file": forms.FileInput, "voucher_original": forms.FileInput, "bank_file": forms.FileInput})
+    min_d, max_d, why = _due_limits(kind, obj)
+    old_sell, old_net = getattr(obj, cfg["sell"]), getattr(obj, cfg["net"])
+    form = _NumbersForm(request.POST or None, initial={"sell": old_sell, "net": old_net})
+    pay_forms = []
+    for p in pays:
+        if p.review_status == APPROVED:
+            continue
+        pf = PayForm(request.POST or None, request.FILES or None, instance=p, prefix=f"p{p.pk}")
+        attrs = pf.fields["installment_date"].widget.attrs
+        if min_d:
+            attrs["min"] = min_d.isoformat()
+        if max_d:
+            attrs["max"] = max_d.isoformat()
+        pay_forms.append((p, pf))
+
+    if request.method == "POST":
+        valid = [form.is_valid()] + [pf.is_valid() for _, pf in pay_forms]
+        if all(valid):
+            new_sell, new_net = form.cleaned_data["sell"], form.cleaned_data["net"]
+            approved_paid = sum((p.paid_amount or Decimal("0")) for p in pays if p.review_status == APPROVED)
+            total = approved_paid + sum(pf.cleaned_data["paid_amount"] for _, pf in pay_forms)
+            if new_sell < new_net:
+                form.add_error("sell", "سعر البيع لازم يكون أكبر من أو يساوي سعر النت.")
+            if total > new_sell:
+                form.add_error("sell", f"إجمالي المدفوع ({total}) أكبر من سعر البيع.")
+            for p, pf in pay_forms:
+                cd = pf.cleaned_data
+                paid, method, due, link = cd["paid_amount"], cd["method"], cd.get("installment_date"), cd.get("payment_link")
+                if paid < 0:
+                    pf.add_error("paid_amount", "المبلغ لازم يكون موجب.")
+                if method == "link" and not link:
+                    pf.add_error("payment_link", "رابط الدفع مطلوب لما الطريقة رابط دفع.")
+                if p.pk == pays[0].pk and total < new_sell and not due:
+                    pf.add_error("installment_date", "المدفوع أقل من سعر البيع، فلازم تحدد آخر ميعاد للسداد.")
+                if due:
+                    if min_d and due < min_d:
+                        pf.add_error("installment_date", f"آخر ميعاد للسداد مينفعش يكون قبل تاريخ الحجز ({min_d:%Y-%m-%d}).")
+                    if max_d and due > max_d:
+                        pf.add_error("installment_date", f"آخر ميعاد للسداد لازم يكون في {why} ({max_d:%Y-%m-%d}) أو قبله.")
+            if not form.errors and not any(pf.errors for _, pf in pay_forms):
+                with transaction.atomic():
+                    setattr(obj, cfg["sell"], new_sell)
+                    setattr(obj, cfg["net"], new_net)
+                    first_pf = next((pf for p, pf in pay_forms if p.pk == pays[0].pk), None)
+                    if first_pf is not None and first_pf.cleaned_data.get("installment_date") and hasattr(obj, "agreed_last_due"):
+                        obj.agreed_last_due = first_pf.cleaned_data["installment_date"]
+                    obj.review_status = PENDING
+                    obj.save()
+                    for p, pf in pay_forms:
+                        pay = pf.save(commit=False)
+                        if pay.method != "link":
+                            pay.payment_link = ""
+                        pay.review_status = PENDING
+                        pay.save()
+                    getattr(obj, "payments").update(sell_price=new_sell, net_price=new_net)
+                    _log(obj, "fixed", f"بيع {old_sell} → {new_sell} | نت {old_net} → {new_net}", request.user)
+                messages.success(request, "تم حفظ التصحيح وإرسال الحجز للمراجعة.")
+                return redirect("card_detail", pk=card.pk)
+
+    notes = [n for n in [obj.review_note if obj.review_status == RETURNED else ""] if n]
+    return render(request, "core/booking_correct.html", {
+        "kind": kind, "booking": obj, "card": card, "form": form, "pay_forms": pay_forms,
+        "notes": notes, "edit_name": f"{kind}_edit",
+        "due_hint": (f"آخر ميعاد للسداد لازم يكون في {why} ({max_d:%Y-%m-%d}) أو قبله." if max_d else ""),
+        "title": _desc("b", kind, obj, obj, cfg),
+    })
 
 
 @login_required
