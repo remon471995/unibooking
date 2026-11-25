@@ -43,8 +43,10 @@
       <span>💳 دفعة {{ p.paid_amount|floatformat:2 }} — {{ p.get_method_display }}</span>
       {% if p.review_status == 'pending' %}
         <span style="color:#92400e">⏳ بانتظار المراجعة</span>
+        {% if can_fix and obj.review_status == 'approved' %}<a href="{% url 'payment_fix' kind p.pk %}" style="text-decoration:underline">تعديل</a>{% endif %}
       {% elif p.review_status == 'returned' %}
         <span style="color:#991b1b">↩ مرجوعة: <b>{{ p.review_note }}</b></span>
+        {% if can_fix and obj.review_status != 'returned' %}{% with pay_name=kind|add:"_payment" %}<a href="{% url pay_name obj.pk %}" style="text-decoration:underline">تصحيح الدفعة (من جديد)</a>{% endwith %}{% endif %}
       {% else %}
         <span style="color:#166534">✅ معتمدة{% if p.reviewed_by %} <span style="font-size:12px">(راجعها: {{ p.reviewed_by.get_full_name|default:p.reviewed_by.username }})</span>{% endif %}</span>
         {% if can_fix %}
