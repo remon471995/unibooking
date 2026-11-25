@@ -143,15 +143,15 @@ class UniBookingCard(models.Model):
 
         # حساب المدفوعات
         hotel_paid = (
-            Payment.objects.filter(booking_hotel__in=self.hotels.all())
+            Payment.objects.filter(booking_hotel__in=self.hotels.all(), review_status='approved')
             .aggregate(total=Sum('paid_amount'))['total'] or Decimal("0.00")
         )
         flight_paid = (
-            FlightPayment.objects.filter(booking_flight__in=self.flights.all())
+            FlightPayment.objects.filter(booking_flight__in=self.flights.all(), review_status='approved')
             .aggregate(total=Sum('paid_amount'))['total'] or Decimal("0.00")
         )
         other_paid = (
-            OtherPayment.objects.filter(booking_other__in=self.others.all())
+            OtherPayment.objects.filter(booking_other__in=self.others.all(), review_status='approved')
             .aggregate(total=Sum('paid_amount'))['total'] or Decimal("0.00")
         )
         
@@ -254,7 +254,15 @@ class HotelBooking(VoucherMixin, ReviewFields, models.Model):
 
     @property
     def total_paid(self):
-        return self.payments.aggregate(total=Sum('paid_amount'))['total'] or Decimal('0.00')
+        """What counts as paid: ONLY payments the data entry approved (pending / returned ones are not counted)."""
+        return (self.payments.filter(review_status=ReviewFields.REVIEW_APPROVED)
+                .aggregate(total=Sum("paid_amount"))["total"] or Decimal("0.00"))
+
+    @property
+    def paid_committed(self):
+        """Approved + waiting for review (returned ones are out): used so the agent cannot enter the same money twice."""
+        return (self.payments.exclude(review_status=ReviewFields.REVIEW_RETURNED)
+                .aggregate(total=Sum("paid_amount"))["total"] or Decimal("0.00"))
 
     @property
     def remaining_balance(self):
@@ -441,7 +449,15 @@ class FlightBooking(VoucherMixin, ReviewFields, models.Model):
 
     @property
     def total_paid(self):
-        return self.payments.aggregate(total=Sum('paid_amount'))['total'] or Decimal("0.00")
+        """What counts as paid: ONLY payments the data entry approved (pending / returned ones are not counted)."""
+        return (self.payments.filter(review_status=ReviewFields.REVIEW_APPROVED)
+                .aggregate(total=Sum("paid_amount"))["total"] or Decimal("0.00"))
+
+    @property
+    def paid_committed(self):
+        """Approved + waiting for review (returned ones are out): used so the agent cannot enter the same money twice."""
+        return (self.payments.exclude(review_status=ReviewFields.REVIEW_RETURNED)
+                .aggregate(total=Sum("paid_amount"))["total"] or Decimal("0.00"))
 
     @property
     def remaining_balance(self):
@@ -608,7 +624,15 @@ class OtherBooking(VoucherMixin, ReviewFields, models.Model):
 
     @property
     def total_paid(self):
-        return self.payments.aggregate(total=Sum("paid_amount"))['total'] or Decimal("0.00")
+        """What counts as paid: ONLY payments the data entry approved (pending / returned ones are not counted)."""
+        return (self.payments.filter(review_status=ReviewFields.REVIEW_APPROVED)
+                .aggregate(total=Sum("paid_amount"))["total"] or Decimal("0.00"))
+
+    @property
+    def paid_committed(self):
+        """Approved + waiting for review (returned ones are out): used so the agent cannot enter the same money twice."""
+        return (self.payments.exclude(review_status=ReviewFields.REVIEW_RETURNED)
+                .aggregate(total=Sum("paid_amount"))["total"] or Decimal("0.00"))
 
     @property
     def remaining_balance(self):

@@ -82,7 +82,7 @@ def booking_remaining(booking, key):
     for Model, rel, k, _label, _url, sell_field in KINDS:
         if k == key:
             sell = getattr(booking, sell_field) or Decimal("0")
-            paid = (Model.objects.filter(**{f"{rel}_id": booking.pk})
+            paid = (Model.objects.filter(**{f"{rel}_id": booking.pk}).exclude(review_status="returned")
                     .aggregate(t=Sum("paid_amount"))["t"] or Decimal("0"))
             return sell - paid
     return Decimal("0")
@@ -106,7 +106,7 @@ def due_installments(user, days, today=None, limit=200):
             continue
         booking_ids = {getattr(p, f"{rel}_id") for p in pays}
         paid = dict(
-            Model.objects.filter(**{f"{rel}_id__in": booking_ids})
+            Model.objects.filter(**{f"{rel}_id__in": booking_ids}).exclude(review_status="returned")
             .values(f"{rel}_id").annotate(t=Sum("paid_amount")).values_list(f"{rel}_id", "t")
         )
         for p in pays:

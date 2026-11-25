@@ -253,7 +253,7 @@ class PaymentForm(forms.ModelForm):
                 pass
 
         already = (
-            self.booking.payments.aggregate(total=Sum("paid_amount"))["total"]
+            self.booking.payments.exclude(review_status="returned").aggregate(total=Sum("paid_amount"))["total"]
             or Decimal("0.00")
         )
         if self.instance and self.instance.pk:
@@ -360,7 +360,7 @@ class FlightPaymentForm(forms.ModelForm):
                 or Decimal("0")
             )
 
-            total_paid_so_far = getattr(self.booking, "total_paid", Decimal("0")) or Decimal("0")
+            total_paid_so_far = getattr(self.booking, "paid_committed", Decimal("0")) or Decimal("0")
             if self.instance and self.instance.pk:
                 total_paid_so_far -= (self.instance.paid_amount or Decimal("0"))
 
@@ -500,7 +500,7 @@ class OtherPaymentForm(forms.ModelForm):
                 or Decimal("0")
             )
 
-            total_paid_so_far = getattr(self.booking, "total_paid", Decimal("0")) or Decimal("0")
+            total_paid_so_far = getattr(self.booking, "paid_committed", Decimal("0")) or Decimal("0")
             if self.instance and self.instance.pk:
                 total_paid_so_far -= (self.instance.paid_amount or Decimal("0"))
 
@@ -784,7 +784,7 @@ class PaymentForm(forms.ModelForm):
                 pass
 
         already = (
-            self.booking.payments.aggregate(total=Sum("paid_amount"))["total"]
+            self.booking.payments.exclude(review_status="returned").aggregate(total=Sum("paid_amount"))["total"]
             or Decimal("0.00")
         )
         if self.instance and self.instance.pk:

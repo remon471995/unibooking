@@ -183,6 +183,7 @@ def accounts_ledger_view(request):
     paid_h_map = {
         r["booking_hotel_id"]: r["total"]
         for r in Payment.objects
+                       .filter(review_status="approved")
                        .filter(booking_hotel__in=h_qs)
                        .values("booking_hotel_id")
                        .annotate(total=Sum("paid_amount"))
@@ -190,6 +191,7 @@ def accounts_ledger_view(request):
     paid_f_map = {
         r["booking_flight_id"]: r["total"]
         for r in FlightPayment.objects
+                              .filter(review_status="approved")
                               .filter(booking_flight__in=f_qs)
                               .values("booking_flight_id")
                               .annotate(total=Sum("paid_amount"))
@@ -197,6 +199,7 @@ def accounts_ledger_view(request):
     paid_o_map = {
         r["booking_other_id"]: r["total"]
         for r in OtherPayment.objects
+                             .filter(review_status="approved")
                              .filter(booking_other__in=o_qs)
                              .values("booking_other_id")
                              .annotate(total=Sum("paid_amount"))

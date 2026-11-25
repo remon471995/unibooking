@@ -253,3 +253,92 @@ class ReturnedBookingRedoTests(TestCase):
         self.client.force_login(self.agent)
         r = self.client.get(reverse("booking_fix", args=["flight", self.f.pk]))
         self.assertEqual(r.url, self.url)
+
+
+class ReturnedLaterPaymentTests(TestCase):
+    """Booking approved, first payment approved, the SECOND payment returned: the agent must be able to redo it."""
+
+    def setUp(self):
+        self.agent = make_user("agent")
+        self.card = UniBookingCard.objects.create(
+            customer_name="Ali", mobile="1", nationality="EG", country="EG", created_by=self.agent)
+        self.f = FlightBooking.objects.create(
+            card=self.card, airline="MS", pnr="ABC123", sell_price=Decimal("20"), net_price=Decimal("10"),
+            review_status="approved")
+        self.p1 = FlightPayment.objects.create(
+            booking_flight=self.f, method="link", payment_link="http://x.com/1", paid_amount=Decimal("10"),
+            sell_price=Decimal("20"), net_price=Decimal("10"), review_status="approved")
+        self.p2 = FlightPayment.objects.create(
+            booking_flight=self.f, method="cash", paid_amount=Decimal("10"),
+            sell_price=Decimal("20"), net_price=Decimal("10"), review_status="returned",
+            review_note="[الفاتورة] غلط")
+        self.url = reverse("flight_payment", args=[self.f.pk])
+        self.client.force_login(self.agent)
+
+    def test_page_shows_the_form_again_instead_of_fully_paid(self):
+        r = self.client.get(self.url)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.context["remaining"], Decimal("10"))        # the returned payment does not count
+        self.assertEqual([p.pk for p in r.context["payments"]], [self.p1.pk])
+        self.assertTrue(r.context["has_existing"])                      # sell / net stay locked
+        self.assertIn("الفاتورة", " ".join(str(m) for m in r.context["messages"]))
+
+    def test_redo_replaces_only_the_returned_payment_and_keeps_the_booking_approved(self):
+        r = self.client.post(self.url, {"paid_amount": "10", "method": "link", "payment_link": "http://x.com/2"})
+        self.assertEqual(r.status_code, 302)
+        self.f.refresh_from_db()
+        self.assertFalse(FlightPayment.objects.filter(pk=self.p2.pk).exists())
+        self.assertTrue(FlightPayment.objects.filter(pk=self.p1.pk, review_status="approved").exists())
+        new = FlightPayment.objects.exclude(pk__in=[self.p1.pk]).get(booking_flight=self.f)
+        self.assertEqual((new.paid_amount, new.review_status), (Decimal("10"), "pending"))
+        self.assertEqual(self.f.review_status, "approved")
+
+    def test_review_box_links_to_the_payment_page(self):
+        r = self.client.get(reverse("card_detail", args=[self.card.pk]))
+        self.assertContains(r, self.url)
+
+
+class PaidCountsOnlyAfterApprovalTests(TestCase):
+    """A payment counts as paid only after the data entry approved it; returned / waiting ones do not."""
+
+    def setUp(self):
+        self.agent = make_user("agent")
+        self.de = make_user("de", "data_entry")
+        self.card = UniBookingCard.objects.create(
+            customer_name="Ali", mobile="1", nationality="EG", country="EG", created_by=self.agent)
+        self.f = FlightBooking.objects.create(
+            card=self.card, airline="MS", pnr="ABC123", sell_price=Decimal("20"), net_price=Decimal("10"))
+
+        def pay(amount, status):
+            return FlightPayment.objects.create(
+                booking_flight=self.f, method="link", payment_link="http://x.com", paid_amount=Decimal(amount),
+                sell_price=Decimal("20"), net_price=Decimal("10"), review_status=status)
+        self.ok, self.wait, self.ret = pay("5", "approved"), pay("4", "pending"), pay("3", "returned")
+
+    def test_booking_counts_only_approved_money(self):
+        self.assertEqual(self.f.total_paid, Decimal("5"))
+        self.assertEqual(self.f.remaining_balance, Decimal("15"))
+        self.assertEqual(self.f.paid_committed, Decimal("9"))        # approved + waiting; the returned one is out
+
+    def test_card_totals_count_only_approved_money(self):
+        self.assertEqual(self.card.total_paid, Decimal("5"))
+        self.client.force_login(self.agent)
+        r = self.client.get(reverse("card_detail", args=[self.card.pk]))
+        self.assertEqual(r.context["totals"]["total_paid"], Decimal("5"))
+        self.assertEqual(r.context["totals"]["total_remaining"], Decimal("15"))
+
+    def test_money_waiting_for_approval_cannot_be_entered_twice(self):
+        self.client.force_login(self.agent)
+        before = FlightPayment.objects.count()
+        # 20 sell - 5 approved - 4 waiting = 11 left to enter, so 12 is refused
+        self.client.post(reverse("flight_payment", args=[self.f.pk]),
+                         {"paid_amount": "12", "method": "link", "payment_link": "http://x.com/2"})
+        self.assertEqual(FlightPayment.objects.count(), before)
+
+    def test_approving_makes_the_waiting_payment_count(self):
+        FlightPayment.objects.filter(pk=self.ret.pk).delete()
+        self.client.force_login(self.de)
+        self.client.post(reverse("review_action"), {
+            "what": "b", "kind": "flight", "pk": self.f.pk, "action": "approve",
+            "chk_sell": "1", "chk_net": "1", "chk_pay": "1", "chk_docs": "1", "chk_ref": "1"})
+        self.assertEqual(self.f.total_paid, Decimal("9"))

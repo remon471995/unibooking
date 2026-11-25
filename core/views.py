@@ -468,7 +468,7 @@ def hotel_payment(request, booking_pk):
     has_existing = payments.exists()
     form_booking = _FreshBooking(booking, redo, reset_numbers=not has_existing) if redo else booking
     if redo and request.method == "GET":
-        messages.warning(request, f"↩ الداتا انتري رجّع الحجز: {booking.review_note or '—'} — املا بيانات الدفع كلها من جديد (النت والبيع والمدفوع وطريقة الدفع والفاتورة والفاوتشر).")
+        messages.warning(request, _redo_message(booking, redo))
     if request.method == "POST":
         if not can_edit_card(request.user, booking.card):
             messages.error(request, "غير مسموح.")
@@ -477,7 +477,7 @@ def hotel_payment(request, booking_pk):
             messages.error(request, "الحجز معتمد ومقفول. اطلب تعديل بدل ما تسجّل أول دفعة.")
             return redirect("card_detail", pk=booking.card_id)
 
-    total_paid = payments.aggregate(
+    total_paid = payments.filter(review_status="approved").aggregate(
         total=Coalesce(
             Sum("paid_amount", output_field=DecimalField(max_digits=12, decimal_places=2)),
             V(0, output_field=DecimalField(max_digits=12, decimal_places=2))
@@ -487,7 +487,10 @@ def hotel_payment(request, booking_pk):
     total_net  = booking.net  or Decimal("0.00")
     if redo and not has_existing:
         total_net = total_sell = Decimal("0.00")
-    remaining  = total_sell - total_paid
+    pending_paid = payments.filter(review_status="pending").aggregate(total=Sum("paid_amount"))["total"] or Decimal("0.00")
+    remaining  = total_sell - total_paid - pending_paid     # what is still to be entered
+    if pending_paid > 0 and request.method == "GET":
+        messages.info(request, f"💳 في دفعات بقيمة {pending_paid} بانتظار اعتماد الداتا انتري: مش محسوبة في المدفوع لحد ما تتعتمد.")
     profit     = total_sell - total_net
     is_fully_paid = remaining <= Decimal("0.01")
 
@@ -655,7 +658,7 @@ def other_payment(request, pk):
     has_existing = payments.exists()
     form_booking = _FreshBooking(booking, redo, reset_numbers=not has_existing) if redo else booking
     if redo and request.method == "GET":
-        messages.warning(request, f"↩ الداتا انتري رجّع الحجز: {booking.review_note or '—'} — املا بيانات الدفع كلها من جديد (النت والبيع والمدفوع وطريقة الدفع والفاتورة والفاوتشر).")
+        messages.warning(request, _redo_message(booking, redo))
     if request.method == "POST":
         if not can_edit_card(request.user, booking.card):
             messages.error(request, "غير مسموح.")
@@ -664,12 +667,15 @@ def other_payment(request, pk):
             messages.error(request, "الحجز معتمد ومقفول. اطلب تعديل بدل ما تسجّل أول دفعة.")
             return redirect("card_detail", pk=booking.card_id)
 
-    total_paid = payments.aggregate(total=Sum("paid_amount"))["total"] or Decimal("0.00")
+    total_paid = payments.filter(review_status="approved").aggregate(total=Sum("paid_amount"))["total"] or Decimal("0.00")
     total_net  = booking.net_price  or Decimal("0.00")
     total_sell = booking.sell_price or Decimal("0.00")
     if redo and not has_existing:
         total_net = total_sell = Decimal("0.00")
-    remaining  = total_sell - total_paid
+    pending_paid = payments.filter(review_status="pending").aggregate(total=Sum("paid_amount"))["total"] or Decimal("0.00")
+    remaining  = total_sell - total_paid - pending_paid     # what is still to be entered
+    if pending_paid > 0 and request.method == "GET":
+        messages.info(request, f"💳 في دفعات بقيمة {pending_paid} بانتظار اعتماد الداتا انتري: مش محسوبة في المدفوع لحد ما تتعتمد.")
     profit     = total_sell - total_net
 
     try:
@@ -777,16 +783,27 @@ def other_payment(request, pk):
 
 # --------------- RETURNED BOOKING: the agent re-enters the payment page from scratch ---------------
 def _redo_payments(booking):
-    """Ids of the payments to replace when the data entry sent the booking back, else None.
+    """Ids of the payments the agent has to re-enter from scratch, else None.
 
-    The agent gets the same page as the first time (net, sell, paid, method, invoice, voucher...) EMPTY and fills it
-    all again; the old, not yet approved payments are replaced when the new one is saved.  The data entry's note
-    says what was wrong."""
+    * the booking itself was sent back by the data entry: every payment that is not approved yet;
+    * the booking is approved but a LATER payment was returned: just that returned payment.
+    The agent gets the same page as the first time EMPTY (net / sell only when no other payment is left) and fills it
+    again; the replaced payments are removed when the new one is saved.  The data entry's note says what was wrong."""
     from .models import ReviewFields
+    pays = booking.payments.exclude(review_status=ReviewFields.REVIEW_APPROVED)
     if booking.review_status != ReviewFields.REVIEW_RETURNED:
-        return None
-    ids = list(booking.payments.exclude(review_status=ReviewFields.REVIEW_APPROVED).values_list("pk", flat=True))
+        pays = pays.filter(review_status=ReviewFields.REVIEW_RETURNED)
+    ids = list(pays.values_list("pk", flat=True))
     return ids or None
+
+
+def _redo_message(booking, redo_ids):
+    from .models import ReviewFields
+    if booking.review_status == ReviewFields.REVIEW_RETURNED:
+        why = booking.review_note
+    else:
+        why = " ؛ ".join(n for n in booking.payments.filter(pk__in=redo_ids).values_list("review_note", flat=True) if n)
+    return f"↩ الداتا انتري رجّع الدفعة: {why or '—'} — املا بيانات الدفع من جديد (المدفوع وطريقة الدفع والفاتورة والفاوتشر والإثبات)."
 
 
 class _FreshBooking:
@@ -804,7 +821,11 @@ class _FreshBooking:
 
     @property
     def total_paid(self):
-        return self.payments.aggregate(t=Sum("paid_amount"))["t"] or Decimal("0.00")
+        return self.payments.filter(review_status="approved").aggregate(t=Sum("paid_amount"))["t"] or Decimal("0.00")
+
+    @property
+    def paid_committed(self):
+        return self.payments.exclude(review_status="returned").aggregate(t=Sum("paid_amount"))["t"] or Decimal("0.00")
 
     def __getattr__(self, name):          # checkin, refundable_until, ... come from the real booking
         return getattr(self._booking, name)
@@ -820,9 +841,10 @@ def _finish_redo(booking, redo_ids, user):
     with transaction.atomic():
         for p in old:
             p.delete()
-        booking.review_status = ReviewFields.REVIEW_PENDING
-        booking.save(update_fields=["review_status"])
-        _log(booking, "fixed", f"أعاد الأجنت إدخال بيانات الدفع كلها من جديد (استُبدلت: {summary})", user)
+        if booking.review_status == ReviewFields.REVIEW_RETURNED:
+            booking.review_status = ReviewFields.REVIEW_PENDING
+            booking.save(update_fields=["review_status"])
+        _log(booking, "fixed", f"أعاد الأجنت إدخال بيانات الدفع من جديد (استُبدلت: {summary})", user)
 
 
 # --------------- FLIGHT PAYMENTS ----------------
@@ -836,7 +858,7 @@ def flight_payment(request, booking_pk):
     has_existing = payments.exists()
     form_booking = _FreshBooking(booking, redo, reset_numbers=not has_existing) if redo else booking
     if redo and request.method == "GET":
-        messages.warning(request, f"↩ الداتا انتري رجّع الحجز: {booking.review_note or '—'} — املا بيانات الدفع كلها من جديد (النت والبيع والمدفوع وطريقة الدفع والفاتورة والفاوتشر).")
+        messages.warning(request, _redo_message(booking, redo))
     if request.method == "POST":
         if not can_edit_card(request.user, booking.card):
             messages.error(request, "غير مسموح.")
@@ -845,12 +867,15 @@ def flight_payment(request, booking_pk):
             messages.error(request, "الحجز معتمد ومقفول. اطلب تعديل بدل ما تسجّل أول دفعة.")
             return redirect("card_detail", pk=booking.card_id)
 
-    total_paid = payments.aggregate(total=Sum("paid_amount"))["total"] or Decimal("0.00")
+    total_paid = payments.filter(review_status="approved").aggregate(total=Sum("paid_amount"))["total"] or Decimal("0.00")
     total_net  = booking.net_price  or Decimal("0.00")
     total_sell = booking.sell_price or Decimal("0.00")
     if redo and not has_existing:
         total_net = total_sell = Decimal("0.00")
-    remaining  = total_sell - total_paid
+    pending_paid = payments.filter(review_status="pending").aggregate(total=Sum("paid_amount"))["total"] or Decimal("0.00")
+    remaining  = total_sell - total_paid - pending_paid     # what is still to be entered
+    if pending_paid > 0 and request.method == "GET":
+        messages.info(request, f"💳 في دفعات بقيمة {pending_paid} بانتظار اعتماد الداتا انتري: مش محسوبة في المدفوع لحد ما تتعتمد.")
     profit     = total_sell - total_net
 
     try:
@@ -1007,9 +1032,9 @@ def installments_board(request):
         o_b = o_b.filter(card__customer_name__icontains=q_q)
 
     # دفعات كل نوع
-    p_h = Payment.objects.filter(booking_hotel__in=h_b)
-    p_f = FlightPayment.objects.filter(booking_flight__in=f_b)
-    p_o = OtherPayment.objects.filter(booking_other__in=o_b)
+    p_h = Payment.objects.filter(booking_hotel__in=h_b).exclude(review_status="returned")
+    p_f = FlightPayment.objects.filter(booking_flight__in=f_b).exclude(review_status="returned")
+    p_o = OtherPayment.objects.filter(booking_other__in=o_b).exclude(review_status="returned")
 
     # مجاميع المدفوع لكل حجز
     paid_by_h = dict(
@@ -1116,7 +1141,7 @@ def agent_board(request):
 
     total_sell = sum_or0(h, "sell") + sum_or0(f, "sell_price") + sum_or0(o, "sell_price")
     total_net  = sum_or0(h, "net")  + sum_or0(f, "net_price")  + sum_or0(o, "net_price")
-    total_paid = sum_or0(pays_h, "paid_amount") + sum_or0(pays_f, "paid_amount") + sum_or0(pays_o, "paid_amount")
+    total_paid = sum_or0(pays_h.filter(review_status="approved"), "paid_amount") + sum_or0(pays_f.filter(review_status="approved"), "paid_amount") + sum_or0(pays_o.filter(review_status="approved"), "paid_amount")
     total_profit    = total_sell - total_net
     total_remaining = total_sell - total_paid
 
@@ -1284,9 +1309,9 @@ def reports(request):
 
     total_sell = _sum(h_qs,'sell') + _sum(f_qs,'sell_price') + _sum(o_qs,'sell_price')
     total_net  = _sum(h_qs,'net')  + _sum(f_qs,'net_price')  + _sum(o_qs,'net_price')
-    paid_hotel = _sum(Payment.objects.filter(booking_hotel__in=h_qs), 'paid_amount')
-    paid_flight= _sum(FlightPayment.objects.filter(booking_flight__in=f_qs), 'paid_amount')
-    paid_other = _sum(OtherPayment.objects.filter(booking_other__in=o_qs), 'paid_amount')
+    paid_hotel = _sum(Payment.objects.filter(booking_hotel__in=h_qs, review_status='approved'), 'paid_amount')
+    paid_flight= _sum(FlightPayment.objects.filter(booking_flight__in=f_qs, review_status='approved'), 'paid_amount')
+    paid_other = _sum(OtherPayment.objects.filter(booking_other__in=o_qs, review_status='approved'), 'paid_amount')
     total_paid = paid_hotel + paid_flight + paid_other
     totals = {
         'sell': total_sell,
@@ -1306,12 +1331,12 @@ def reports(request):
             d['sell'] += Decimal(sell); d['net'] += Decimal(net)
             d['paid'] += Decimal(paid); d['count'] += int(count)
 
-        for p in Payment.objects.filter(booking_hotel__in=h_qs).only('employee_name','sell_price','net_price','paid_amount'):
-            _add(p.employee_name, sell=p.sell_price or 0, net=p.net_price or 0, paid=p.paid_amount or 0)
-        for p in FlightPayment.objects.filter(booking_flight__in=f_qs).only('employee_name','sell_price','net_price','paid_amount'):
-            _add(p.employee_name, sell=p.sell_price or 0, net=p.net_price or 0, paid=p.paid_amount or 0)
-        for p in OtherPayment.objects.filter(booking_other__in=o_qs).only('employee_name','sell_price','net_price','paid_amount'):
-            _add(p.employee_name, sell=p.sell_price or 0, net=p.net_price or 0, paid=p.paid_amount or 0)
+        for p in Payment.objects.filter(booking_hotel__in=h_qs).only('employee_name','sell_price','net_price','paid_amount','review_status'):
+            _add(p.employee_name, sell=p.sell_price or 0, net=p.net_price or 0, paid=(p.paid_amount if p.review_status == 'approved' else 0) or 0)
+        for p in FlightPayment.objects.filter(booking_flight__in=f_qs).only('employee_name','sell_price','net_price','paid_amount','review_status'):
+            _add(p.employee_name, sell=p.sell_price or 0, net=p.net_price or 0, paid=(p.paid_amount if p.review_status == 'approved' else 0) or 0)
+        for p in OtherPayment.objects.filter(booking_other__in=o_qs).only('employee_name','sell_price','net_price','paid_amount','review_status'):
+            _add(p.employee_name, sell=p.sell_price or 0, net=p.net_price or 0, paid=(p.paid_amount if p.review_status == 'approved' else 0) or 0)
 
         def _count_by_latest(qs, model, fk):
             sub = Subquery(model.objects.filter(**{fk:OuterRef('pk')}).order_by('-created_at').values('employee_name')[:1])
@@ -1723,11 +1748,11 @@ def reports_analysis(request):
         pf = pf.filter(installment_date__lte=date_to)
         po = po.filter(installment_date__lte=date_to)
 
-    for r in ph.values("employee_name").annotate(paid=_sumdec("paid_amount")):
+    for r in ph.filter(review_status="approved").values("employee_name").annotate(paid=_sumdec("paid_amount")):
         k = (r["employee_name"] or "—").strip(); rows[k]["paid"] += r["paid"]
-    for r in pf.values("employee_name").annotate(paid=_sumdec("paid_amount")):
+    for r in pf.filter(review_status="approved").values("employee_name").annotate(paid=_sumdec("paid_amount")):
         k = (r["employee_name"] or "—").strip(); rows[k]["paid"] += r["paid"]
-    for r in po.values("employee_name").annotate(paid=_sumdec("paid_amount")):
+    for r in po.filter(review_status="approved").values("employee_name").annotate(paid=_sumdec("paid_amount")):
         k = (r["employee_name"] or "—").strip(); rows[k]["paid"] += r["paid"]
 
     emp_rank = []
@@ -1870,11 +1895,11 @@ def _analysis_payload(request):
     if date_to:
         ph = ph.filter(installment_date__lte=date_to); pf = pf.filter(installment_date__lte=date_to); po = po.filter(installment_date__lte=date_to)
 
-    for r in ph.values("employee_name").annotate(paid=_sumdec("paid_amount")):
+    for r in ph.filter(review_status="approved").values("employee_name").annotate(paid=_sumdec("paid_amount")):
         rows[(r["employee_name"] or "—").strip()]["paid"] += r["paid"]
-    for r in pf.values("employee_name").annotate(paid=_sumdec("paid_amount")):
+    for r in pf.filter(review_status="approved").values("employee_name").annotate(paid=_sumdec("paid_amount")):
         rows[(r["employee_name"] or "—").strip()]["paid"] += r["paid"]
-    for r in po.values("employee_name").annotate(paid=_sumdec("paid_amount")):
+    for r in po.filter(review_status="approved").values("employee_name").annotate(paid=_sumdec("paid_amount")):
         rows[(r["employee_name"] or "—").strip()]["paid"] += r["paid"]
 
     emp_rank = []
@@ -2072,11 +2097,11 @@ def performance_dashboard(request):
         pf = pf.filter(booking_flight__card__created_by_id__in=scope_ids)
         po = po.filter(booking_other__card__created_by_id__in=scope_ids)
 
-    for r in ph.values("employee_name").annotate(p=_sumdec("paid_amount")):
+    for r in ph.filter(review_status="approved").values("employee_name").annotate(p=_sumdec("paid_amount")):
         rows_map[(r["employee_name"] or "—").strip()]["paid"] += r["p"]
-    for r in pf.values("employee_name").annotate(p=_sumdec("paid_amount")):
+    for r in pf.filter(review_status="approved").values("employee_name").annotate(p=_sumdec("paid_amount")):
         rows_map[(r["employee_name"] or "—").strip()]["paid"] += r["p"]
-    for r in po.values("employee_name").annotate(p=_sumdec("paid_amount")):
+    for r in po.filter(review_status="approved").values("employee_name").annotate(p=_sumdec("paid_amount")):
         rows_map[(r["employee_name"] or "—").strip()]["paid"] += r["p"]
 
     # بناء الصفوف والترتيب
@@ -2182,11 +2207,11 @@ def performance_export_xlsx(request):
     ph = Payment.objects.all(); pf = FlightPayment.objects.all(); po = OtherPayment.objects.all()
     if date_from: ph = ph.filter(installment_date__gte=date_from); pf = pf.filter(installment_date__gte=date_from); po = po.filter(installment_date__gte=date_from)
     if date_to:   ph = ph.filter(installment_date__lte=date_to); pf = pf.filter(installment_date__lte=date_to); po = po.filter(installment_date__lte=date_to)
-    for r in ph.values("employee_name").annotate(paid=_sumdec("paid_amount")):
+    for r in ph.filter(review_status="approved").values("employee_name").annotate(paid=_sumdec("paid_amount")):
         k = (r["employee_name"] or "—").strip(); rows[k]["paid"] += r["paid"]
-    for r in pf.values("employee_name").annotate(paid=_sumdec("paid_amount")):
+    for r in pf.filter(review_status="approved").values("employee_name").annotate(paid=_sumdec("paid_amount")):
         k = (r["employee_name"] or "—").strip(); rows[k]["paid"] += r["paid"]
-    for r in po.values("employee_name").annotate(paid=_sumdec("paid_amount")):
+    for r in po.filter(review_status="approved").values("employee_name").annotate(paid=_sumdec("paid_amount")):
         k = (r["employee_name"] or "—").strip(); rows[k]["paid"] += r["paid"]
 
     wb = Workbook(); ws = wb.active; ws.title = "Performance"
