@@ -249,6 +249,19 @@ class TicketMessage(models.Model):
         return f"Msg#{self.pk} on Ticket#{self.ticket_id}"
 
 
+class TicketRead(models.Model):
+    """When a user last opened a request. Whatever others wrote after that is NEW for him (the badge on واردى)."""
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="reads")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="ticket_reads")
+    last_read_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        unique_together = (("ticket", "user"),)
+
+    def __str__(self):
+        return f"{self.user} read #{self.ticket_id} at {self.last_read_at:%Y-%m-%d %H:%M}"
+
+
 class TicketAttachment(models.Model):
     message = models.ForeignKey(TicketMessage, on_delete=models.CASCADE, related_name="attachments")
     file = models.FileField(upload_to="tickets/%Y/%m/%d")

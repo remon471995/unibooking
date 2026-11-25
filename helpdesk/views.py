@@ -31,9 +31,30 @@ MENTION_RE = re.compile(r"@(\w[\w\.+-]{1,30})")
 
 # ===================== INBOXES =====================
 
+def _status_filter(qs, status, q=""):
+    """Resolved / cancelled requests stay out of the lists (they distract the people working) unless the user
+    asks for them: a status tab, or a search word."""
+    S = Ticket.Status
+    groups = {
+        "open": [S.OPEN, S.IN_PROGRESS, S.PENDING_ENTRY, S.CALLS],
+        "pending": [S.PENDING, S.WAITING_THIRD_PARTY, S.ON_HOLD],
+        "resolved": [S.RESOLVED],
+        "closed": [S.CANCELLED],
+    }
+    if status in groups:
+        return qs.filter(status__in=groups[status])
+    if status in dict(S.choices):
+        return qs.filter(status=status)
+    if not q:
+        return qs.exclude(status__in=Ticket.CLOSED_STATUSES)
+    return qs
+
+
 @login_required
 def my_inbox(request):
+    from .unread import unread_ticket_ids
     q = request.GET.get("q", "").strip()
+    status = request.GET.get("status", "").strip()
 
     qs = Ticket.objects.filter(
         Q(assigned_to=request.user) | Q(requester=request.user)
@@ -45,13 +66,15 @@ def my_inbox(request):
             | Q(related_ref__icontains=q)
             | Q(tags__name__icontains=q)
         ).distinct()
+    qs = _status_filter(qs, status, q)
 
-    ctx = {
-        "tickets": qs.select_related(
-            "department", "assigned_to", "requester"
-        ).prefetch_related("tags")[:300],
-        "q": q,
-    }
+    # requests with something new for me (a reply, or waiting for my answer) come first, marked "جديد"
+    new_ids = unread_ticket_ids(request.user) | set(
+        Ticket.objects.exclude(status__in=Ticket.CLOSED_STATUSES)
+        .filter(assigned_to=request.user, awaiting_staff=True).values_list("pk", flat=True))
+    tickets = list(qs.select_related("department", "assigned_to", "requester").prefetch_related("tags")[:300])
+    tickets.sort(key=lambda t: t.pk not in new_ids)
+    ctx = {"tickets": tickets, "q": q, "new_ids": new_ids}
     return render(request, "helpdesk/my_inbox.html", ctx)
 
 
@@ -69,8 +92,7 @@ def department_inbox(request, slug: str):
 
     qs = dept.tickets.all()
 
-    if status:
-        qs = qs.filter(status=status)
+    qs = _status_filter(qs, status, (request.GET.get("q") or "").strip())
 
     if cat_slug:
         qs = qs.filter(category__slug=cat_slug)
@@ -127,8 +149,7 @@ def dashboard(request):
     lst = vis
     if dept_slug:
         lst = lst.filter(department__slug=dept_slug)
-    if status:
-        lst = lst.filter(status=status)
+    lst = _status_filter(lst, status, q)
     if priority:
         lst = lst.filter(priority=priority)
     if q:
@@ -393,6 +414,10 @@ def ticket_detail(request, pk: int):
             return redirect(ticket.get_absolute_url())
     else:
         form = TicketReplyForm(department=ticket.department)
+
+    if request.method == "GET":
+        from .unread import mark_ticket_read
+        mark_ticket_read(request.user, ticket)
 
     staff_view = can_see_internal(request.user, ticket)
     msgs = ticket.messages.select_related("sender").prefetch_related("attachments")

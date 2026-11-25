@@ -164,6 +164,13 @@ def _department_staff(dept):
     return members + [dept.manager]
 
 
+def _earlier_writers(ticket):
+    """Everybody (any department) who already wrote a public message on this request."""
+    from django.contrib.auth import get_user_model
+    return list(get_user_model().objects.filter(
+        ticket_messages__ticket=ticket, ticket_messages__is_internal_note=False).distinct())
+
+
 @receiver(post_save, sender=TicketMessage, dispatch_uid="hd_bell_new_message")
 def bell_new_message(sender, instance: TicketMessage, created, **kwargs):
     if not created or getattr(instance, "_system_note", False):
@@ -180,10 +187,10 @@ def bell_new_message(sender, instance: TicketMessage, created, **kwargs):
     elif instance.sender_id == t.requester_id:
         # the person who opened the request wrote: the owner is told; with no owner the whole department is
         staff = [t.assigned_to] if t.assigned_to_id else _department_staff(t.department)
-        people = staff + list(t.watchers.all())
+        people = staff + list(t.watchers.all()) + _earlier_writers(t)
         text = f"🔔 رد جديد من {instance.sender} على الطلب #{t.pk}: {t.subject}"
     else:
-        people = [t.requester, t.assigned_to, t.department.manager] + list(t.watchers.all())
+        people = [t.requester, t.assigned_to, t.department.manager] + list(t.watchers.all()) + _earlier_writers(t)
         text = f"رد جديد على الطلب #{t.pk}: {t.subject}"
     _bell(people, text, t, exclude=instance.sender)
 

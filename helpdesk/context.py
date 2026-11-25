@@ -14,6 +14,8 @@ def dept_context(request):
     badges = {s: 0 for s in inbox}
     for row in open_qs.filter(awaiting_staff=True, department__slug__in=inbox).values("department__slug"):
         badges[row["department__slug"]] += 1
+    from .unread import unread_ticket_ids
+    mine_ids = set(open_qs.filter(assigned_to=user, awaiting_staff=True).values_list("pk", flat=True)) | unread_ticket_ids(user)
     notif_cond = Q(to_user=user)
     if user.is_superuser:          # تنبيهات السوبر يوزر للسوبر يوزر بس
         notif_cond |= Q(to_superusers=True)
@@ -22,7 +24,7 @@ def dept_context(request):
         "hd_write_slugs": allowed_department_slugs(user),
         "hd_inbox_slugs": inbox,
         "hd_badges": badges,
-        "hd_mine": open_qs.filter(assigned_to=user, awaiting_staff=True).count(),
+        "hd_mine": len(mine_ids),
         "hd_unread": unread_qs.count(),
         "hd_bell_items": list(unread_qs.order_by("-created_at")[:8]),
     }
