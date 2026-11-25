@@ -32,7 +32,7 @@ def _make_view(kind):
     @login_required
     def view(request, booking_pk):
         booking = get_object_or_404(cfg["booking"], pk=booking_pk)
-        current_paid = booking.payments.aggregate(
+        current_paid = booking.payments.exclude(review_status="returned").aggregate(
             total=Coalesce(
                 Sum("paid_amount", output_field=DecimalField(max_digits=12, decimal_places=2)),
                 V(0, output_field=DecimalField(max_digits=12, decimal_places=2)),
