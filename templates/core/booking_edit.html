@@ -48,16 +48,8 @@
   </form>
 
   <div class="mt-8 p-4 rounded-lg border border-gray-300 text-sm space-y-2">
-    <div class="font-bold">تعديلات تانية على نفس الحجز</div>
-    <div><a class="underline" href="{% url 'booking_fix' kind booking.pk %}">تعديل سعر البيع والنت</a></div>
+    <div><a class="underline" href="{% url 'booking_fix' kind booking.pk %}">تصحيح الأرقام والدفع والمستندات (شاشة واحدة)</a></div>
     {% if itinerary_url %}<div><a class="underline" href="{% url 'flightdocs:upload' booking.pk %}">تعديل / استبدال خط سير الرحلة</a></div>{% endif %}
-    {% for p in payments %}
-      <div>
-        دفعة {{ p.paid }} ({{ p.method }}) —
-        {% if p.editable %}<a class="underline" href="{% url 'payment_fix' kind p.pk %}">تعديل المبلغ والفاتورة والفاوتشر والرابط والإثبات</a>
-        {% else %}<span class="opacity-60">معتمدة ومقفولة</span>{% endif %}
-      </div>
-    {% endfor %}
   </div>
 </div>
 {% endblock %}

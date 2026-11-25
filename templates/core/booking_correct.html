@@ -1,0 +1,95 @@
+{% extends "core/base.html" %}
+{% block content %}
+<style>
+  .fx input:not([type=checkbox]):not([type=hidden]):not([type=file]), .fx select, .fx textarea {
+    width: 100%; border: 1px solid #94a3b8; border-radius: 8px; padding: 8px 10px; background: transparent; color: inherit;
+  }
+  .fx label { display: block; font-size: 13px; margin-bottom: 4px; opacity: .85; }
+  .fx .err { color: #dc2626; font-size: 12px; margin-top: 3px; }
+  .fx .box { border: 1px solid #cbd5e1; border-radius: 12px; padding: 16px; }
+</style>
+<div class="max-w-4xl mx-auto mt-6 px-1 text-sm">
+  <a href="{% url 'card_detail' card.pk %}" class="px-3 py-1.5 rounded bg-gray-200 hover:bg-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700">← رجوع للكارت</a>
+</div>
+
+<div class="max-w-4xl mx-auto px-4 py-6 fx">
+  <h1 class="text-2xl font-extrabold mb-1">تصحيح الحجز والدفع</h1>
+  <p class="text-sm opacity-70 mb-4">{{ title }} — {{ card.customer_name }}</p>
+
+  {% for n in notes %}<div class="mb-4 p-3 rounded-lg" style="background:#fee2e2;color:#991b1b">↩ سبب الإرجاع: <b>{{ n }}</b></div>{% endfor %}
+  {% if form.non_field_errors %}<div class="mb-4 p-3 rounded-lg" style="background:#fee2e2;color:#991b1b">{{ form.non_field_errors }}</div>{% endif %}
+
+  <form method="post" enctype="multipart/form-data" class="space-y-5">
+    {% csrf_token %}
+
+    <div class="box">
+      <h2 class="font-bold mb-3">أرقام الحجز</h2>
+      <div class="grid md:grid-cols-2 gap-4">
+        {% for field in form %}
+          <div>
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% for e in field.errors %}<div class="err">{{ e }}</div>{% endfor %}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% for p, pf in pay_forms %}
+      <div class="box">
+        <h2 class="font-bold mb-3">الدفعة {% if pay_forms|length > 1 %}{{ forloop.counter }}{% endif %}
+          {% if p.review_status == 'returned' %}<span style="color:#991b1b;font-weight:400">— مرجوعة: {{ p.review_note }}</span>{% endif %}
+        </h2>
+        {% if pf.non_field_errors %}<div class="err mb-2">{{ pf.non_field_errors }}</div>{% endif %}
+        <div class="grid md:grid-cols-2 gap-4">
+          <div>
+            <label for="{{ pf.paid_amount.id_for_label }}">{{ pf.paid_amount.label }}</label>{{ pf.paid_amount }}
+            {% for e in pf.paid_amount.errors %}<div class="err">{{ e }}</div>{% endfor %}
+          </div>
+          <div>
+            <label for="{{ pf.method.id_for_label }}">{{ pf.method.label }}</label>{{ pf.method }}
+            {% for e in pf.method.errors %}<div class="err">{{ e }}</div>{% endfor %}
+          </div>
+          <div>
+            <label for="{{ pf.payment_link.id_for_label }}">{{ pf.payment_link.label }}</label>{{ pf.payment_link }}
+            {% for e in pf.payment_link.errors %}<div class="err">{{ e }}</div>{% endfor %}
+          </div>
+          <div>
+            <label for="{{ pf.installment_date.id_for_label }}">{{ pf.installment_date.label }}</label>{{ pf.installment_date }}
+            {% if due_hint %}<div class="text-xs opacity-60 mt-1">{{ due_hint }}</div>{% endif %}
+            {% for e in pf.installment_date.errors %}<div class="err">{{ e }}</div>{% endfor %}
+          </div>
+          <div>
+            <label for="{{ pf.invoice_file.id_for_label }}">{{ pf.invoice_file.label }}</label>
+            {% if p.invoice_file %}<div class="text-xs mb-1">الحالي: <a class="underline" target="_blank" href="{{ p.invoice_file.url }}">فتح الفاتورة</a> — ارفع ملف جديد لو عايز تستبدلها</div>{% endif %}
+            {{ pf.invoice_file }}
+            {% for e in pf.invoice_file.errors %}<div class="err">{{ e }}</div>{% endfor %}
+          </div>
+          <div>
+            <label for="{{ pf.voucher_original.id_for_label }}">{{ pf.voucher_original.label }}</label>
+            {% if p.voucher_original %}<div class="text-xs mb-1">الحالي: <a class="underline" target="_blank" href="{{ p.voucher_original.url }}">فتح الفاوتشر</a> — ارفع ملف جديد لو عايز تستبدله</div>{% endif %}
+            {{ pf.voucher_original }}
+            {% for e in pf.voucher_original.errors %}<div class="err">{{ e }}</div>{% endfor %}
+          </div>
+          <div>
+            <label for="{{ pf.bank_file.id_for_label }}">{{ pf.bank_file.label }}</label>
+            {% if p.bank_file %}<div class="text-xs mb-1">الحالي: <a class="underline" target="_blank" href="{{ p.bank_file.url }}">فتح الإثبات</a></div>{% endif %}
+            {{ pf.bank_file }}
+            {% for e in pf.bank_file.errors %}<div class="err">{{ e }}</div>{% endfor %}
+          </div>
+          <div>
+            <label for="{{ pf.note.id_for_label }}">{{ pf.note.label }}</label>{{ pf.note }}
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+
+    <button class="px-5 py-2 rounded-lg bg-blue-600 text-white font-bold">حفظ وإرسال للمراجعة</button>
+  </form>
+
+  <div class="mt-6 text-sm opacity-80">
+    لتعديل بيانات الحجز نفسها (PNR، التواريخ، النزلاء):
+    <a class="underline" href="{% url edit_name booking.pk %}">تعديل بيانات الحجز</a>
+  </div>
+</div>
+{% endblock %}
