@@ -80,7 +80,6 @@
       <div class="flex flex-wrap gap-2">
         <a href="{% url 'hotel_payment' booking.pk %}" class="px-3 py-1.5 text-sm bg-blue-500 text-white rounded-md">إدارة الدفع</a>
         <a href="{% url 'hotel_voucher' booking.pk %}" target="_blank" class="px-3 py-1.5 text-sm bg-gray-200 rounded-md">طباعة الفاوتشر</a>
-        <a href="{% url 'hotel_payment_modify' booking.pk %}" class="px-3 py-1.5 text-sm bg-amber-600 text-white rounded-md">طلب تعديل</a>
         {% if hd_new %}<a href="{{ hd_new }}?department=cs&related_app=core&related_model=hotelbooking&related_id={{ booking.pk }}&related_ref={{ booking.voucher_code|urlencode }}&subject={{ "CS — "|urlencode }}{{ card.customer_name|urlencode }}{{ " — "|urlencode }}{{ booking.voucher_code|urlencode }}" class="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-md">طلب CS للحجز ده</a>{% endif %}
       </div>
     </div>
@@ -110,7 +109,6 @@
       </div>
       <div class="flex flex-wrap gap-2">
         <a href="{% url 'flight_payment' f.pk %}" class="px-3 py-1.5 text-sm bg-blue-500 text-white rounded-md">إدارة الدفع</a>
-        <a href="{% url 'flight_payment_modify' f.pk %}" class="px-3 py-1.5 text-sm bg-amber-600 text-white rounded-md">طلب تعديل</a>
         {% if hd_new %}<a href="{{ hd_new }}?department=cs&related_app=core&related_model=flightbooking&related_id={{ f.pk }}&related_ref={{ f.voucher_code|urlencode }}&subject={{ "CS — "|urlencode }}{{ card.customer_name|urlencode }}{{ " — "|urlencode }}{{ f.voucher_code|urlencode }}" class="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-md">طلب CS للحجز ده</a>{% endif %}
         {% if f.itinerary %}
         <a href="{% url 'flightdocs:voucher' f.pk %}" target="_blank" class="px-3 py-1.5 text-sm bg-gray-200 rounded-md">فاوتشر الطيران</a>
@@ -150,7 +148,6 @@
       </div>
       <div class="flex flex-wrap gap-2">
         <a href="{% url 'other_payment' o.pk %}" class="px-3 py-1.5 text-sm bg-blue-500 text-white rounded-md">إدارة الدفع</a>
-        <a href="{% url 'other_payment_modify' o.pk %}" class="px-3 py-1.5 text-sm bg-amber-600 text-white rounded-md">طلب تعديل</a>
         {% if hd_new %}<a href="{{ hd_new }}?department=cs&related_app=core&related_model=otherbooking&related_id={{ o.pk }}&related_ref={{ o.voucher_code|urlencode }}&subject={{ "CS — "|urlencode }}{{ card.customer_name|urlencode }}{{ " — "|urlencode }}{{ o.voucher_code|urlencode }}" class="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-md">طلب CS للحجز ده</a>{% endif %}
       </div>
     </div>
