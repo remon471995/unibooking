@@ -90,7 +90,7 @@
         <label class="block text-xs font-medium text-gray-500 mb-1">الحالة</label>
         <select name="status"
                 class="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2 text-xs md:text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
-          <option value="">كل الحالات</option>
+          <option value="">المفتوحة (المحلولة والمُلغاة مخفية)</option>
           {% for code, label in status_choices %}<option value="{{ code }}" {% if request.GET.status == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
         </select>
       </div>

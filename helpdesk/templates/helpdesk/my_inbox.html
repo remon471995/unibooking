@@ -31,7 +31,7 @@
              {% else %}
                border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800
              {% endif %}">
-          الكل
+          المفتوحة
         </a>
 
         <a href="?status=open"
@@ -125,6 +125,7 @@
                     <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                       {{ t.subject }}
                     </span>
+                    {% if t.pk in new_ids %}<span class="ms-1 px-1.5 rounded-full bg-red-500 text-white text-[10px] align-middle">جديد</span>{% endif %}
                     <span class="text-[11px] text-gray-500 truncate">
                       {% if t.requester %}{{ t.requester }}{% else %}—{% endif %}
                     </span>
