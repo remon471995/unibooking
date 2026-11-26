@@ -19,6 +19,7 @@ from .models import (
     TicketCategory,
 )
 from .forms import TicketForm, TicketReplyForm
+from .search import ticket_search_q
 from .permissions import (
     can_view_ticket, can_reply_ticket, is_dept_member, can_forward, can_see_internal,
     allowed_department_slugs, visible_tickets,
@@ -122,6 +123,7 @@ def department_inbox(request, slug: str):
 
 @login_required
 def dashboard(request):
+    q = (request.GET.get("q") or "").strip()
     vis = visible_tickets(request.user)
     by_status = vis.values("status").annotate(c=Count("id")).order_by()
     by_dept = (
@@ -153,10 +155,7 @@ def dashboard(request):
     if priority:
         lst = lst.filter(priority=priority)
     if q:
-        lst = lst.filter(
-            Q(subject__icontains=q) | Q(id__icontains=q) | Q(related_ref__icontains=q)
-            | Q(requester__username__icontains=q) | Q(assigned_to__username__icontains=q)
-        ).distinct()
+        lst = lst.filter(ticket_search_q(q)).distinct()
     labels = dict(Ticket.Status.choices)
 
     S = Ticket.Status
@@ -204,18 +203,9 @@ def search(request):
     if status:
         qs = qs.filter(status=status)
 
-    # فلتر كلمة البحث
+    # فلتر كلمة البحث (رقم الطلب، مرجع الحجز / PNR / كود الفاوتشر، رقم الموبايل، العميل ...)
     if q:
-        qs = qs.filter(
-            Q(subject__icontains=q)
-            | Q(id__icontains=q)
-            | Q(related_ref__icontains=q)
-            | Q(requester__username__icontains=q)
-            | Q(requester__first_name__icontains=q)
-            | Q(requester__last_name__icontains=q)
-            | Q(assigned_to__username__icontains=q)
-            | Q(tags__name__icontains=q)
-        ).distinct()
+        qs = qs.filter(ticket_search_q(q)).distinct()
 
     departments = Department.objects.filter(is_active=True).order_by("name")
 
@@ -367,7 +357,11 @@ def ticket_detail(request, pk: int):
         messages.error(request, "ليست لديك صلاحية لعرض هذه التذكرة.")
         return redirect("helpdesk:my_inbox")
 
+    can_reply = can_reply_ticket(request.user, ticket)
     if request.method == "POST":
+        if not can_reply:
+            messages.error(request, "تقدر تشوف الطلب بس، الرد للأطراف المعنيّة.")
+            return redirect(ticket.get_absolute_url())
         form = TicketReplyForm(
             request.POST, request.FILES, department=ticket.department
         )
@@ -427,6 +421,7 @@ def ticket_detail(request, pk: int):
         "ticket": ticket,
         "thread": msgs,
         "form": form,
+        "can_reply": can_reply,
         "status_choices": Ticket.Status.choices,
         "staff_view": staff_view,
         "assignees": eligible_assignees(ticket.department, exclude=ticket.assigned_to) if staff_view else [],

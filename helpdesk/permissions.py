@@ -42,6 +42,12 @@ def is_dept_leader(user: User, department) -> bool:
     ).exists()
 
 def can_view_ticket(user: User, ticket: Ticket) -> bool:
+    """Every signed-in employee sees every request (his own or not).  Internal notes stay for the department's staff
+    (can_see_internal) and answering stays with the people involved (can_reply_ticket)."""
+    return bool(user.is_authenticated)
+
+
+def _is_party(user: User, ticket: Ticket) -> bool:
     """
     صلاحية عرض التذكرة:
     1. السوبر يوزر.
@@ -77,11 +83,9 @@ def can_view_ticket(user: User, ticket: Ticket) -> bool:
     return is_dept_member(user, ticket.department)
 
 def can_reply_ticket(user: User, ticket: Ticket) -> bool:
-    """
-    صلاحية الرد: نفس صلاحيات المشاهدة.
-    (أي شخص يقدر يشوف التذكرة، يقدر يرد عليها)
-    """
-    return can_view_ticket(user, ticket)
+    """Answering is for the people involved: the requester, the owner, the watchers, the department's members, the
+    requester's team leader / supervisor and the managers (what used to be the "may see" rule)."""
+    return _is_party(user, ticket)
 
 
 # ---------------------------------------------------------------------------
@@ -134,22 +138,5 @@ def can_see_internal(user, ticket: Ticket) -> bool:
 
 
 def visible_tickets(user):
-    """Every request this user may open (same rules as can_view_ticket) as one queryset.
-    Used by search, the dashboard and the CSV export so nobody can list requests they could not open."""
-    from django.db.models import Q
-    qs = Ticket.objects.all()
-    if not user.is_authenticated:
-        return qs.none()
-    if user.is_superuser:
-        return qs
-    from core.permissions import manageable_user_ids
-    ids = manageable_user_ids(user)
-    if ids is None:                       # sales manager / admin
-        return qs
-    dept_ids = set(DepartmentMembership.objects.filter(user=user, is_active=True).values_list("department_id", flat=True))
-    dept_ids |= set(Department.objects.filter(manager=user).values_list("id", flat=True))
-    return qs.filter(
-        Q(requester=user) | Q(assigned_to=user) | Q(watchers=user)
-        | Q(department_id__in=dept_ids) | Q(parent__department_id__in=dept_ids)
-        | Q(requester_id__in=ids)
-    ).distinct()
+    """Every request, for every signed-in employee (used by search, the dashboard and the CSV export)."""
+    return Ticket.objects.all() if user.is_authenticated else Ticket.objects.none()
