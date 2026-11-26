@@ -3016,6 +3016,9 @@ def teams_manage(request):
         elif action == "move_member":
             user = get_object_or_404(User, pk=request.POST.get("user_id"))
             target = request.POST.get("team_id") or ""
+            if target and not is_sales_side(user):
+                messages.error(request, "الفرق للمبيعات بس. الموظف ده من قسم تاني.")
+                return redirect("teams_manage")
             for m in current_memberships().filter(user=user):
                 if m.start_date >= today:
                     m.delete()
@@ -3039,8 +3042,10 @@ def teams_manage(request):
     by_role = {}
     for u in users:
         by_role.setdefault(_profile_role(u), []).append(u)
-    leaders_all = by_role.get("leader", [])
-    supervisors_all = by_role.get("supervisor", [])
+    # Teams are for the SALES side only: people of another department (ops, accounts, cs, fft, quotation, hr, it ...)
+    # are not offered as agents, leaders or supervisors (core.permissions.is_sales_side, blank department = sales).
+    leaders_all = [u for u in by_role.get("leader", []) if is_sales_side(u)]
+    supervisors_all = [u for u in by_role.get("supervisor", []) if is_sales_side(u)]
     members_by_team = {}
     for u in users:
         t = team_by_user.get(u.id)
@@ -3063,7 +3068,7 @@ def teams_manage(request):
         "leader_options": with_current(leaders_all, t.leader_id),
         "supervisor_options": with_current(supervisors_all, t.supervisor_id),
     } for t in teams]
-    unassigned = [u for u in by_role.get("agent", []) if u.id not in team_by_user]
+    unassigned = [u for u in by_role.get("agent", []) if u.id not in team_by_user and is_sales_side(u)]
     return render(request, "core/teams.html", {
         "rows": rows, "teams": teams, "unassigned": unassigned,
         "no_leaders": not leaders_all, "no_supervisors": not supervisors_all,
