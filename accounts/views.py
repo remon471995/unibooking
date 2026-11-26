@@ -120,6 +120,9 @@ def manage_staff(request: HttpRequest) -> HttpResponse:
 
         elif action == "set_department":
             dep = bulk_form.cleaned_data["department"]
+            if not dep:
+                messages.error(request, "اختر القسم الأول.")
+                return redirect("accounts:manage_staff")
             for u in qs:
                 profile, _ = UserProfile.objects.get_or_create(user=u)
                 profile.department = dep
@@ -135,6 +138,9 @@ def manage_staff(request: HttpRequest) -> HttpResponse:
 
         elif action == "change_role":
             role = bulk_form.cleaned_data["role"]
+            if not role:
+                messages.error(request, "اختر الدور الأول.")
+                return redirect("accounts:manage_staff")
             for u in qs:
                 profile, _ = UserProfile.objects.get_or_create(user=u)
                 profile.role = role
