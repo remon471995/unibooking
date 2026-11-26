@@ -78,6 +78,7 @@
       </div>
 
       <div class="p-4 border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 rounded-b-2xl">
+        {% if can_reply %}
         <form method="post" enctype="multipart/form-data" class="relative">
           {% csrf_token %}
           
@@ -115,6 +116,9 @@
             </button>
           </div>
         </form>
+        {% else %}
+        <div class="text-sm text-gray-500 py-3 text-center">👁 للمشاهدة فقط — الرد للأطراف المعنيّة بالطلب.</div>
+        {% endif %}
       </div>
     </div>
   </div>
