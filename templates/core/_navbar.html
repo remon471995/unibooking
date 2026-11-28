@@ -58,7 +58,7 @@
           {% url 'review_queue' as review_url %}
           <a href="{{ review_url }}"
              class="px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 whitespace-nowrap">
-            المراجعة
+            المراجعة{% if rv_pending %} <span class="inline-block min-w-[18px] text-center text-[11px] leading-[18px] rounded-full bg-red-500 text-white px-1">{{ rv_pending }}</span>{% endif %}
           </a>
         {% endif %}
 

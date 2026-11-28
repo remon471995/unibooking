@@ -20,6 +20,10 @@
   .btn-no{background:#dc2626;color:#fff;border-radius:6px;padding:6px 14px}
   .btn-b{background:#2563eb;color:#fff;border-radius:6px;padding:6px 14px}
   .mu{color:#6b7280;font-size:12px}
+  .wait{padding:1px 8px;border-radius:999px;font-size:12px;margin-inline-start:6px}
+  .wait-ok{background:#dcfce7;color:#166534}
+  .wait-slow{background:#fef3c7;color:#92400e}
+  .wait-late{background:#fee2e2;color:#991b1b;font-weight:700}
   .rv-all{font-weight:700}
   .rv-who{display:inline-block;padding:2px 8px;border-radius:999px;background:rgba(22,163,74,.12);color:#166534;font-size:12px}
 </style>
@@ -48,13 +52,19 @@
 {% endif %}
 
 {% if reviewer %}
+<div class="rv-box" style="display:flex;gap:18px;flex-wrap:wrap;align-items:center">
+  <div><b style="font-size:20px">{{ summary.total }}</b> <span class="mu">بانتظار مراجعتك</span></div>
+  <div><b style="font-size:20px;color:#b91c1c">{{ summary.late }}</b> <span class="mu">متأخر (أكتر من 24 ساعة)</span></div>
+  <div><b style="font-size:20px;color:#b45309">{{ summary.slow }}</b> <span class="mu">أكتر من 4 ساعات</span></div>
+  {% if summary.oldest %}<div class="mu">الأقدم بينتظر من {{ summary.oldest_waited }} — مترتبين الأقدم أولاً</div>{% endif %}
+</div>
 {# ----------- pending bookings ----------- #}
 <h2 class="text-lg font-bold mb-2 mt-4">حجوزات بانتظار المراجعة ({{ pending_b|length }})</h2>
 {% for it in pending_b %}
 <div class="rv-box">
   <div class="rv-head">
     <div><b>{{ it.label }} — {{ it.ref }}</b> · {{ it.customer }} · <a class="underline" href="{% url 'card_detail' it.card_id %}">الكارت</a></div>
-    <div class="mu">{{ it.agent }} · {{ it.team }} · {{ it.created|date:"Y-m-d H:i" }}</div>
+    <div class="mu">{{ it.agent }} · {{ it.team }} · {{ it.created|date:"Y-m-d H:i" }}{% if it.waited and it.status == "pending" %}<span class="wait wait-{{ it.urgency }}">⏱ بانتظار {{ it.waited }}</span>{% endif %}</div>
   </div>
   <div class="rv-nums">
     <div><b>{{ it.sell|floatformat:2|intcomma }}</b><span>سعر البيع</span></div>
@@ -150,7 +160,7 @@
 <div class="rv-box">
   <div class="rv-head">
     <div><b>{{ it.label }} — {{ it.ref }}</b> · {{ it.customer }} · <a class="underline" href="{% url 'card_detail' it.card_id %}">الكارت</a></div>
-    <div class="mu">{{ it.agent }} · {{ it.team }} · {{ it.created|date:"Y-m-d H:i" }}</div>
+    <div class="mu">{{ it.agent }} · {{ it.team }} · {{ it.created|date:"Y-m-d H:i" }}{% if it.waited and it.status == "pending" %}<span class="wait wait-{{ it.urgency }}">⏱ بانتظار {{ it.waited }}</span>{% endif %}</div>
   </div>
   <div class="rv-nums">
     <div><b>{{ it.paid|floatformat:2|intcomma }}</b><span>المبلغ</span></div>
