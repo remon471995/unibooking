@@ -98,7 +98,7 @@ class InstallmentVisibilityTests(TestCase):
     def test_fully_paid_booking_is_not_an_installment(self):
         self._installment(paid="1000")
         self.assertEqual(due_installments(self.agent, 5), [])
-        self.assertEqual(Notification.objects.count(), 0)
+        self.assertFalse(Notification.objects.filter(message__contains="قسط").exists())
 
     def test_installment_outside_the_window_is_not_listed(self):
         self._installment(due=timezone.localdate() + timedelta(days=30))

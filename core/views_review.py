@@ -16,7 +16,9 @@ from django.db.models import Count
 from django.forms import modelform_factory
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
+from django.utils.timesince import timesince
 from django.views.decorators.http import require_POST
 
 from .models import (
@@ -80,6 +82,51 @@ def _desc(what, kind, obj, booking, cfg):
 _ALL_CHECKS = ("chk_sell", "chk_net", "chk_pay", "chk_docs", "chk_ref")
 
 
+# ---------------------------------------------------------------- the data entry under pressure
+SLOW_HOURS, LATE_HOURS = 4, 24            # amber after 4 hours, red after 24
+
+
+def _waiting(since):
+    """How long an item has been waiting for the review, and how urgent that is."""
+    hours = (timezone.now() - since).total_seconds() / 3600 if since else 0
+    return {"since": since, "waited": timesince(since) if since else "",
+            "urgency": "late" if hours >= LATE_HOURS else "slow" if hours >= SLOW_HOURS else "ok"}
+
+
+def _booking_waiting_since(booking, pays):
+    """When the booking reached the review: its first payment, or the last time the agent sent it back fixed."""
+    since = pays[0].created_at if pays else booking.created_at
+    ct = ContentType.objects.get_for_model(booking)
+    last = (ReviewLog.objects.filter(content_type=ct, object_id=booking.pk, action__in=("fixed", "resubmitted"))
+            .values_list("at", flat=True).first())
+    return max(since, last) if last else since
+
+
+def pending_review_count():
+    """The number on the menu for the data entry (same rules as the queue below)."""
+    total = 0
+    for cfg in KINDS.values():
+        total += (cfg["booking"].objects.filter(review_status=PENDING).annotate(npay=Count("payments"))
+                  .filter(npay__gt=0).count())
+        total += cfg["payment"].objects.filter(review_status=PENDING).exclude(
+            **{f"{cfg['fk']}__review_status": PENDING}).count()
+    total += UnlockRequest.objects.filter(status="requested").count()
+    try:
+        from modreq.services import pending_for_review
+        total += len(pending_for_review())
+    except Exception:
+        pass
+    return total
+
+
+def notify_reviewers(message):
+    """A bell notification for every data entry user: something just reached the review."""
+    from django.contrib.auth import get_user_model
+    url = reverse("review_queue")
+    for u in get_user_model().objects.filter(is_active=True, profile__role="data_entry"):
+        Notification.objects.create(to_user=u, message=message, target_url=url)
+
+
 # ---------------------------------------------------------------- queue
 def _booking_item(kind, cfg, b):
     sell, net = getattr(b, cfg["sell"]) or Decimal("0"), getattr(b, cfg["net"]) or Decimal("0")
@@ -90,6 +137,7 @@ def _booking_item(kind, cfg, b):
         "customer": b.card.customer_name, "card_id": b.card_id,
         "agent": _name(b.card.created_by), "team": b.card.team.name if b.card.team else "—",
         "sell": sell, "net": net, "profit": sell - net, "created": b.created_at, "status": b.review_status,
+        **_waiting(_booking_waiting_since(b, pays)),
         "note": b.review_note,
         "reviewer": _name(b.reviewed_by), "reviewed_at": b.reviewed_at,
         "payments": [{"method": METHOD_LABELS.get(p.method, p.method), "paid": p.paid_amount, "date": p.installment_date,
@@ -109,6 +157,7 @@ def _payment_item(kind, cfg, p):
         "paid": p.paid_amount, "method": METHOD_LABELS.get(p.method, p.method), "date": p.installment_date,
         "invoice": p.invoice_file, "voucher": p.voucher_original, "bank": p.bank_file, "link": p.payment_link,
         "created": p.created_at, "status": p.review_status, "note": p.review_note,
+        **_waiting(p.created_at),
         "reviewer": _name(p.reviewed_by), "reviewed_at": p.reviewed_at,
         # ✅ تفاصيل طلب التعديل: ملخص التغيير (في الملاحظة) + الأسعار الحالية بعد التعديل
         "pnote": p.note, "sell_snap": p.sell_price, "net_snap": p.net_price,
@@ -138,8 +187,8 @@ def review_queue(request):
             for p in pq.filter(review_status=RETURNED).order_by("-reviewed_at"):
                 it = _payment_item(kind, cfg, p)
                 returned.append(it)
-        pending_b.sort(key=lambda x: x["created"])
-        pending_p.sort(key=lambda x: x["created"])
+        pending_b.sort(key=lambda x: x["since"])          # the one waiting the longest first
+        pending_p.sort(key=lambda x: x["since"])
 
     # طلبات التعديل بانتظار اعتماد الداتا انتري
     mod_requests = []
@@ -194,7 +243,16 @@ def review_queue(request):
             "customer": card.customer_name, "card_id": card.pk,
         })
 
+    waiting_items = pending_b + pending_p
+    summary = {
+        "total": len(waiting_items) + len(unlocks) + len(mod_requests),
+        "late": sum(1 for x in waiting_items if x["urgency"] == "late"),
+        "slow": sum(1 for x in waiting_items if x["urgency"] == "slow"),
+        "oldest": min((x["since"] for x in waiting_items), default=None),
+    }
+    summary["oldest_waited"] = timesince(summary["oldest"]) if summary["oldest"] else ""
     return render(request, "core/review.html", {
+        "summary": summary,
         "reviewer": reviewer, "pending_b": pending_b, "pending_p": pending_p,
         "returned": returned, "unlocks": unlocks, "recent": recent, "mod_requests": mod_requests,
     })
@@ -535,6 +593,7 @@ def resubmit(request):
     obj.review_status = PENDING
     obj.save(update_fields=["review_status"])
     _log(obj, "resubmitted", "", request.user)
+    notify_reviewers(f"🔁 أُعيد إرسال حجز للمراجعة: {card.customer_name} — {_name(request.user)}")
     if still:
         messages.warning(request, f"اتبعت للمراجعة، بس لسه فيه {still} دفعة مرجوعة لازم تصلّحها.")
     else:

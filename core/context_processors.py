@@ -3,6 +3,16 @@ from core.models import Notification
 from core.permissions import is_sales_side, sees_installments, sees_review, sees_performance
 
 
+def _review_pending(user):
+    if not sees_review(user):
+        return 0
+    try:
+        from core.views_review import pending_review_count
+        return pending_review_count()
+    except Exception:
+        return 0
+
+
 def notifications_context(request):
     if not request.user.is_authenticated:
         return {}
@@ -20,4 +30,6 @@ def notifications_context(request):
         "sees_installments": sees_installments(u),
         "sees_review": sees_review(u),
         "sees_performance": sees_performance(u),
+        # the number of items waiting for the data entry (shown next to "المراجعة" in the menu)
+        "rv_pending": _review_pending(u),
     }

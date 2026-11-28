@@ -243,3 +243,36 @@ def other_payment_post_save(sender, instance: OtherPayment, created, **kwargs):
     url = f"/other/{instance.booking_other_id}/payment/"
 
     _notify_accounting_price_change(msg, url)
+
+
+
+# ------------- the data entry is told when something reaches the review -------------
+def _tell_reviewers_about_payment(instance, created):
+    if not created:
+        return
+    from .views_review import KINDS, notify_reviewers
+    for cfg in KINDS.values():
+        if isinstance(instance, cfg["payment"]):
+            booking = getattr(instance, cfg["fk"])
+            who = booking.card.created_by
+            name = (who.get_full_name() or who.username) if who else "—"
+            if booking.review_status == "pending" and booking.payments.count() == 1:
+                notify_reviewers(f"📥 حجز جديد بانتظار المراجعة ({cfg['label']}): {booking.card.customer_name} — {name}")
+            elif booking.review_status == "approved":
+                notify_reviewers(f"💳 دفعة جديدة بانتظار المراجعة ({cfg['label']}): {booking.card.customer_name} — {name}")
+            return
+
+
+@receiver(post_save, sender=Payment, dispatch_uid="rv_notify_hotel_payment")
+def rv_notify_hotel_payment(sender, instance, created, **kwargs):
+    _tell_reviewers_about_payment(instance, created)
+
+
+@receiver(post_save, sender=FlightPayment, dispatch_uid="rv_notify_flight_payment")
+def rv_notify_flight_payment(sender, instance, created, **kwargs):
+    _tell_reviewers_about_payment(instance, created)
+
+
+@receiver(post_save, sender=OtherPayment, dispatch_uid="rv_notify_other_payment")
+def rv_notify_other_payment(sender, instance, created, **kwargs):
+    _tell_reviewers_about_payment(instance, created)

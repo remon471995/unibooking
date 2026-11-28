@@ -835,7 +835,7 @@ def _finish_redo(booking, redo_ids, user):
     """Called right after the new payment was saved: drop the replaced ones and send the booking back to review."""
     from django.db import transaction
     from .models import ReviewFields
-    from .views_review import _log
+    from .views_review import _log, notify_reviewers
     old = list(booking.payments.filter(pk__in=redo_ids))
     summary = " ; ".join(f"{p.get_method_display()} {p.paid_amount}" for p in old)
     with transaction.atomic():
@@ -845,6 +845,7 @@ def _finish_redo(booking, redo_ids, user):
             booking.review_status = ReviewFields.REVIEW_PENDING
             booking.save(update_fields=["review_status"])
         _log(booking, "fixed", f"أعاد الأجنت إدخال بيانات الدفع من جديد (استُبدلت: {summary})", user)
+    notify_reviewers(f"🔁 أعاد الأجنت إدخال بيانات الدفع بعد الرفض: {booking.card.customer_name} — {user.get_full_name() or user.username}")
 
 
 # --------------- FLIGHT PAYMENTS ----------------
