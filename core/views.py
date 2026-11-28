@@ -11,7 +11,7 @@ from django.contrib.auth.decorators import permission_required
 from django.contrib.contenttypes.models import ContentType
 
 from .forms import BookingAmendmentForm
-from .permissions import can_edit_card, is_manager, team_of, current_memberships, role_of, manageable_user_ids, is_sales_side, sees_all_bookings
+from .permissions import can_edit_card, is_manager, team_of, current_memberships, role_of, manageable_user_ids, is_sales_side, sees_all_bookings, sees_performance, sees_all_performance
 from core.services.teams import team_totals, month_progress, current_cycle, month_matrix, month_bounds, profit_of, pct as _pct
 from .models import BookingAmendment
 from django.contrib.contenttypes.models import ContentType
@@ -2033,16 +2033,13 @@ from django.shortcuts import redirect
 @login_required
 def performance_dashboard(request):
     """
-    لوحة الأداء — ظاهرة فقط للسوبر والليدر والسوبرفايزر والمدير.
-    الموظف العادي (agent) لا يراها ولا يستطيع دخولها.
+    لوحة الأداء — لفريق المبيعات. الأجنت يشوف اللي يخصه بس، والليدر والسوبر والمانجر والأدمن يشوفوا كل حاجة.
     """
-    # Access: admin / sales manager, anyone who leads or supervises a team, or the old leader roles
-    scope_ids = manageable_user_ids(request.user)   # None = everyone
-    legacy_profile = getattr(request.user, "employee_profile", None)
-    legacy_role = getattr(legacy_profile, "role", "").lower() if legacy_profile else ""
-    has_people = scope_ids is None or len(scope_ids) > 1
-    if not (request.user.is_superuser or has_people or legacy_role in ("leader", "supervisor", "manager")):
-        return HttpResponseForbidden("🚫 غير مصرح لك بالدخول إلى لوحة الأداء.")
+    # Access: the sales side.  Leaders, supervisors, the sales manager and the admin see everybody;
+    # an agent sees only what is his own.
+    if not sees_performance(request.user):
+        return HttpResponseForbidden("🚫 لوحة الأداء لفريق المبيعات.")
+    scope_ids = None if sees_all_performance(request.user) else {request.user.id}   # None = everyone
 
     # فلاتر
     q_from = (request.GET.get("from") or "").strip()
@@ -2180,12 +2177,9 @@ def performance_dashboard(request):
 
 @login_required
 def performance_export_xlsx(request):
-    """نفس فكرة لوحة الأداء — مسموح فقط للسوبر والليدر والسوبرفايزر والمدير"""
-    if not request.user.is_superuser:
-        profile = getattr(request.user, "employee_profile", None)
-        role = getattr(profile, "role", "").lower() if profile else ""
-        if role not in ["leader", "supervisor", "manager"]:
-            return HttpResponseForbidden("🚫 غير مصرح بتصدير بيانات الأداء.")
+    """نفس فكرة لوحة الأداء — للي بيشوف الكل (ليدر / سوبر / مانجر / أدمن)"""
+    if not sees_all_performance(request.user):
+        return HttpResponseForbidden("🚫 غير مصرح بتصدير بيانات الأداء.")
 
     if Workbook is None:
         return HttpResponse("openpyxl غير مُثبت. ثبّته: pip install openpyxl", status=500)

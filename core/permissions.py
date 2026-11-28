@@ -102,11 +102,23 @@ def sees_review(user):
     return bool(getattr(user, "is_authenticated", False) and role_of(user) == "data_entry" and not user.is_superuser)
 
 
-def sees_performance(user):
+def sees_all_performance(user):
+    """The performance board shows EVERYTHING to the sales side above the agent: leader and supervisor (by profile
+    role, or because he leads / supervises an active team), the sales manager, the admin and superusers."""
+    if not getattr(user, "is_authenticated", False):
+        return False
     if user.is_superuser or role_of(user) in ("sales_manager", "admin"):
         return True
-    return is_sales_side(user) and role_of(user) in ("leader", "supervisor")
+    if role_of(user) in ("leader", "supervisor") and is_sales_side(user):
+        return True
+    from django.db.models import Q
+    from .models import Team
+    return Team.objects.filter(is_active=True).filter(Q(leader=user) | Q(supervisor=user)).exists()
 
+
+def sees_performance(user):
+    """Who has the performance board: the sales side. The agent sees only what is his own; see sees_all_performance."""
+    return sees_all_performance(user) or is_sales_side(user)
 
 
 # ---------------------------------------------------------------- who sees every booking
