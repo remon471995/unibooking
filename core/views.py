@@ -996,7 +996,7 @@ def installments_board(request):
 
     # صلاحيات: الأجنت يشوف أقساطه بس، ومن فوقه (ليدر / سوبر / مانجر / أدمن) + الداتا انتري + الحسابات يشوفوا الكل
     # (القاعدة كلها في core/installments.py)
-    from .installments import scope_q, due_installments
+    from .installments import scope_q, due_installments, overdue_installments
     from .permissions import sees_installments
     if not sees_installments(request.user):
         return HttpResponseForbidden("🚫 الأقساط متاحة لفريق المبيعات والداتا انتري والحسابات.")
@@ -1009,6 +1009,7 @@ def installments_board(request):
 
     # أقساط قريبة: نفس قاعدة الصلاحيات، والحجوزات المسددة بالكامل مش بتظهر
     reminders = due_installments(request.user, remind_days, today=today)
+    overdue = overdue_installments(request.user, today=today)
 
     # مصدر الحجوزات (فلترة بتاريخ الحجز)
     h_b = HotelBooking.objects.select_related("card")
@@ -1101,6 +1102,8 @@ def installments_board(request):
         "q_from": q_from, "q_to": q_to, "q": q_q,
         "kpis": kpis,
         "reminders": reminders,
+        "overdue": overdue,
+        "overdue_total": sum((r["remaining"] for r in overdue), Decimal("0")),
         "rows": rows[:300],
         "remind_days": remind_days,
         "only_due": only_due,

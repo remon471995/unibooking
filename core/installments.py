@@ -73,20 +73,16 @@ def booking_remaining(booking, key):
     return Decimal("0")
 
 
-def due_installments(user, days, today=None, limit=200):
-    """Installments due within `days` days that the user may see, soonest first.
-    Bookings that are already paid in full are left out."""
-    today = today or timezone.localdate()
-    soon = today + timedelta(days=days)
+def _rows(user, when, today, limit, newest_first=False):
+    """Installment rows the user may see.  `when` = filter on installment_date.  A booking that is already paid in full
+    (approved + waiting payments, not the returned ones) is left out."""
     rows = []
     for Model, rel, key, label, url_name, sell_field in KINDS:
-        qs = (Model.objects
-              .filter(installment_date__range=(today, soon))
-              .select_related(f"{rel}__card__created_by"))
+        qs = (Model.objects.filter(**when).select_related(f"{rel}__card__created_by"))
         q = scope_q(user, prefix=f"{rel}__")
         if q is not None:
             qs = qs.filter(q)
-        pays = list(qs.order_by("installment_date")[:limit])
+        pays = list(qs.order_by("-installment_date" if newest_first else "installment_date")[:limit])
         if not pays:
             continue
         booking_ids = {getattr(p, f"{rel}_id") for p in pays}
@@ -108,7 +104,24 @@ def due_installments(user, days, today=None, limit=200):
                 "days": (p.installment_date - today).days,
                 "owner": _name(b.card.created_by),
             })
+    return rows
+
+
+def due_installments(user, days, today=None, limit=200):
+    """Installments due within `days` days that the user may see, soonest first."""
+    today = today or timezone.localdate()
+    rows = _rows(user, {"installment_date__range": (today, today + timedelta(days=days))}, today, limit)
     rows.sort(key=lambda r: (r["due"], r["customer"]))
+    return rows
+
+
+def overdue_installments(user, today=None, limit=300):
+    """Installments whose last agreed date has PASSED and that are still not paid in full, the most late first."""
+    today = today or timezone.localdate()
+    rows = _rows(user, {"installment_date__lt": today}, today, limit)
+    for r in rows:
+        r["days_late"] = -r["days"]
+    rows.sort(key=lambda r: (-r["days_late"], r["customer"]))
     return rows
 
 
@@ -137,5 +150,35 @@ def notify_installment(payment, today=None, days=None):
         _n, created = Notification.objects.get_or_create(
             to_user=u, message=msg, due_date=due, target_url=url,
         )
+        sent += int(created)
+    return sent
+
+
+def notify_overdue(payment, today=None, days=None):
+    """Tell everybody who must see it that an installment is late (once per installment).  Only the ones that became
+    late within the last `days` days (default 30) so the first run does not flood the bell with old history."""
+    from django.conf import settings
+
+    days = days if days is not None else getattr(settings, "INSTALLMENT_OVERDUE_NOTIFY_DAYS", 30)
+    today = today or timezone.localdate()
+    due = payment.installment_date
+    if not due or not (today - timedelta(days=days) <= due < today):
+        return 0
+    for Model, rel, key, label, url_name, _sell in KINDS:
+        if isinstance(payment, Model):
+            booking = getattr(payment, rel)
+            break
+    else:
+        return 0
+    remaining = booking_remaining(booking, key)
+    if remaining <= Decimal("0.01"):
+        return 0
+    card = booking.card
+    url = reverse(url_name, args=[booking.pk])
+    msg = (f"⚠ قسط {label} متأخر (كان مستحق {due}) — المتبقي {remaining:.2f} — "
+           f"العميل: {card.customer_name} — الأجنت: {_name(card.created_by)}")
+    sent = 0
+    for u in installment_recipients(card):
+        _n, created = Notification.objects.get_or_create(to_user=u, message=msg, due_date=due, target_url=url)
         sent += int(created)
     return sent
