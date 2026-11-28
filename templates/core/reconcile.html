@@ -1,0 +1,67 @@
+{% extends "core/base.html" %}
+{% load humanize %}
+{% block title %}مطابقة الأرقام{% endblock %}
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+  <div>
+    <h1 class="text-2xl font-extrabold">مطابقة أرقام الحجوزات والمدفوعات</h1>
+    <p class="text-sm opacity-70">كل شهر (بتاريخ الحجز): اللي الحجوزات بتقوله، واللي اتحصّل فعلاً (دفعات معتمدة)، واللي مستني مراجعة، واللي اترجّع. تحت: الحجوزات اللي شكلها فيها مشكلة.</p>
+  </div>
+
+  <form method="get" class="flex gap-3 items-end flex-wrap">
+    <label class="text-sm">من<br><input type="date" name="from" value="{{ q_from }}" class="border rounded px-2 py-1 bg-transparent"></label>
+    <label class="text-sm">إلى<br><input type="date" name="to" value="{{ q_to }}" class="border rounded px-2 py-1 bg-transparent"></label>
+    <button class="px-4 py-2 rounded bg-blue-600 text-white">تطبيق</button>
+  </form>
+
+  <div class="overflow-x-auto rounded-xl bg-white dark:bg-gray-900 shadow">
+    <table class="min-w-full text-sm">
+      <thead><tr class="text-right">
+        <th class="py-2 px-3 text-right">الشهر</th><th class="px-3 text-right">حجوزات</th><th class="px-3 text-right">البيع</th>
+        <th class="px-3 text-right">النت</th><th class="px-3 text-right">الربح</th><th class="px-3 text-right">محصّل (معتمد)</th>
+        <th class="px-3 text-right">بانتظار المراجعة</th><th class="px-3 text-right">مرجوع</th><th class="px-3 text-right">المتبقي</th>
+        <th class="px-3 text-right" title="لو الرقم ده مختلف عن البيع يبقى في دفعات متكررة بتتحسب">بيع من الدفعات</th>
+      </tr></thead>
+      <tbody>
+        {% for m in months %}
+        <tr class="border-t">
+          <td class="py-2 px-3 whitespace-nowrap">{{ m.month }}</td><td class="px-3">{{ m.count }}</td>
+          <td class="px-3">{{ m.sell|floatformat:2|intcomma }}</td><td class="px-3">{{ m.net|floatformat:2|intcomma }}</td>
+          <td class="px-3 font-semibold">{{ m.profit|floatformat:2|intcomma }}</td><td class="px-3">{{ m.paid|floatformat:2|intcomma }}</td>
+          <td class="px-3">{{ m.waiting|floatformat:2|intcomma }}</td><td class="px-3">{{ m.returned|floatformat:2|intcomma }}</td>
+          <td class="px-3">{{ m.remaining|floatformat:2|intcomma }}</td>
+          <td class="px-3 {% if m.sell_from_payments != m.sell %}text-amber-700{% else %}opacity-60{% endif %}">{{ m.sell_from_payments|floatformat:2|intcomma }}</td>
+        </tr>
+        {% empty %}<tr><td colspan="10" class="p-6 text-center opacity-60">مفيش بيانات.</td></tr>{% endfor %}
+        {% if months %}
+        <tr class="border-t font-bold bg-black/5">
+          <td class="py-2 px-3">الإجمالي</td><td class="px-3">{{ totals.count }}</td><td class="px-3">{{ totals.sell|floatformat:2|intcomma }}</td>
+          <td class="px-3">{{ totals.net|floatformat:2|intcomma }}</td><td class="px-3">{{ totals.profit|floatformat:2|intcomma }}</td>
+          <td class="px-3">{{ totals.paid|floatformat:2|intcomma }}</td><td class="px-3">{{ totals.waiting|floatformat:2|intcomma }}</td>
+          <td class="px-3">{{ totals.returned|floatformat:2|intcomma }}</td><td class="px-3">{{ totals.remaining|floatformat:2|intcomma }}</td><td></td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="text-lg font-bold">حجوزات محتاجة مراجعة</h2>
+  {% for g in issues %}
+  <div class="rounded-xl bg-white dark:bg-gray-900 shadow p-4">
+    <div class="font-semibold mb-2">⚠ {{ g.label }} <span class="opacity-60">({{ g.count }})</span></div>
+    <table class="min-w-full text-sm">
+      {% for r in g.rows %}
+      <tr class="border-t">
+        <td class="py-1 px-2">{{ r.kind }}</td><td class="px-2">{{ r.ref }}</td><td class="px-2">{{ r.customer }}</td>
+        <td class="px-2">بيع {{ r.sell|floatformat:2 }} / نت {{ r.net|floatformat:2 }} / مدفوع {{ r.paid|floatformat:2 }}</td>
+        <td class="px-2">{{ r.detail }}</td>
+        <td class="px-2"><a class="underline text-blue-600" href="{% url 'card_detail' r.card_id %}">الكارت</a></td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% empty %}
+  <div class="rounded-xl bg-green-50 text-green-800 p-4">✅ مفيش مشاكل ظاهرة في الأرقام.</div>
+  {% endfor %}
+</div>
+{% endblock %}
