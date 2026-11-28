@@ -56,6 +56,48 @@
     </div>
   </div>
 
+  <!-- أقساط متأخرة -->
+  <div class="bg-red-50 border border-red-300 rounded-xl p-4 mb-4">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-semibold text-red-900">⚠ أقساط متأخرة (فات ميعاد السداد ولسه ماتسددتش)</h2>
+      <span class="text-xs text-red-800">{{ overdue|length }} قسط — المتبقي {{ overdue_total|floatformat:2|intcomma }}</span>
+    </div>
+    {% if overdue %}
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead>
+          <tr class="text-red-900">
+            <th class="text-right py-2 px-2">كان مستحق</th>
+            <th class="text-right py-2 px-2">متأخر (يوم)</th>
+            <th class="text-right py-2 px-2">العميل</th>
+            <th class="text-right py-2 px-2">الأجنت</th>
+            <th class="text-right py-2 px-2">النوع</th>
+            <th class="text-right py-2 px-2">المرجع</th>
+            <th class="text-right py-2 px-2">المتبقي</th>
+            <th class="text-right py-2 px-2">التحصيل</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in overdue %}
+          <tr class="border-t border-red-200">
+            <td class="py-2 px-2 whitespace-nowrap">{{ r.due }}</td>
+            <td class="py-2 px-2 font-bold text-red-700">{{ r.days_late }}</td>
+            <td class="py-2 px-2">{{ r.customer }}</td>
+            <td class="py-2 px-2">{{ r.owner }}</td>
+            <td class="py-2 px-2">{{ r.kind }}</td>
+            <td class="py-2 px-2">{{ r.ref }}</td>
+            <td class="py-2 px-2 font-semibold">{{ r.remaining|floatformat:2|intcomma }}</td>
+            <td class="py-2 px-2"><a href="{{ r.url }}" class="text-blue-600 hover:underline">إدارة الدفعات</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <div class="text-sm text-red-800">مفيش أقساط متأخرة. 👍</div>
+    {% endif %}
+  </div>
+
   <!-- تذكير بالأقساط القريبة -->
   <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
     <div class="flex items-center justify-between mb-3">
