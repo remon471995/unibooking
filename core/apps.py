@@ -16,3 +16,10 @@ class CoreConfig(AppConfig):
         except Exception:
             # يفضّل تسجيل لوج بدل الـ pass لو عايز تتتبع الأعطال
             pass
+
+        # الشغل اليومي (تنبيهات الأقساط القريبة والمتأخرة) بيشتغل لوحده مع السيرفر، من غير cron
+        try:
+            from . import background
+            background.start()
+        except Exception:
+            pass
