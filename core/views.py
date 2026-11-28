@@ -1339,20 +1339,19 @@ def reports(request):
             d['sell'] += Decimal(sell); d['net'] += Decimal(net)
             d['paid'] += Decimal(paid); d['count'] += int(count)
 
-        for p in Payment.objects.filter(booking_hotel__in=h_qs).only('employee_name','sell_price','net_price','paid_amount','review_status'):
-            _add(p.employee_name, sell=p.sell_price or 0, net=p.net_price or 0, paid=(p.paid_amount if p.review_status == 'approved' else 0) or 0)
-        for p in FlightPayment.objects.filter(booking_flight__in=f_qs).only('employee_name','sell_price','net_price','paid_amount','review_status'):
-            _add(p.employee_name, sell=p.sell_price or 0, net=p.net_price or 0, paid=(p.paid_amount if p.review_status == 'approved' else 0) or 0)
-        for p in OtherPayment.objects.filter(booking_other__in=o_qs).only('employee_name','sell_price','net_price','paid_amount','review_status'):
-            _add(p.employee_name, sell=p.sell_price or 0, net=p.net_price or 0, paid=(p.paid_amount if p.review_status == 'approved' else 0) or 0)
-
-        def _count_by_latest(qs, model, fk):
-            sub = Subquery(model.objects.filter(**{fk:OuterRef('pk')}).order_by('-created_at').values('employee_name')[:1])
-            for rec in _with_acc_date(qs).annotate(last_emp=sub).values('last_emp'):
-                _add(rec['last_emp'] or '-', count=1)
-        _count_by_latest(h_qs, Payment, 'booking_hotel')
-        _count_by_latest(f_qs, FlightPayment, 'booking_flight')
-        _count_by_latest(o_qs, OtherPayment, 'booking_other')
+        # sell / net / count come from the BOOKINGS (one row per booking, under the booking's employee); the
+        # money collected is the approved payments of the same bookings.  (Before, every PAYMENT added the
+        # booking's sell and net again, so a booking with two payments counted twice.)
+        for model, pay_model, rel, sell_f, net_f, qs in (
+                (HotelBooking, Payment, "booking_hotel", "sell", "net", h_qs),
+                (FlightBooking, FlightPayment, "booking_flight", "sell_price", "net_price", f_qs),
+                (OtherBooking, OtherPayment, "booking_other", "sell_price", "net_price", o_qs)):
+            base = model.objects.filter(pk__in=qs.values("pk"))
+            for r in base.values("employee_name").annotate(s=Sum(sell_f), n=Sum(net_f), c=Count("id")):
+                _add(r["employee_name"], sell=r["s"] or 0, net=r["n"] or 0, count=r["c"])
+            for r in (pay_model.objects.filter(**{f"{rel}__in": base.values("pk")}, review_status="approved")
+                      .values(f"{rel}__employee_name").annotate(p=Sum("paid_amount"))):
+                _add(r[f"{rel}__employee_name"], paid=r["p"] or 0)
 
         for emp, v in agg.items():
             profit = (v['sell'] - v['net'])
@@ -1372,15 +1371,15 @@ def reports(request):
         top_emp = emp_rows[:5]
     else:
         profit_map = {}
-        def _add_profit(qs, sell_field, net_field):
-            for p in qs.values('employee_name').annotate(
+        def _add_profit(model, qs, sell_field, net_field):
+            for p in model.objects.filter(pk__in=qs.values("pk")).values("employee_name").annotate(
                 sell=Sum(sell_field), net=Sum(net_field)
             ):
-                nm = p['employee_name'] or '-'
-                profit_map[nm] = profit_map.get(nm, Decimal('0')) + (p['sell'] or 0) - (p['net'] or 0)
-        _add_profit(Payment.objects.filter(booking_hotel__in=h_qs), 'sell_price', 'net_price')
-        _add_profit(FlightPayment.objects.filter(booking_flight__in=f_qs), 'sell_price', 'net_price')
-        _add_profit(OtherPayment.objects.filter(booking_other__in=o_qs), 'sell_price', 'net_price')
+                nm = p["employee_name"] or "-"
+                profit_map[nm] = profit_map.get(nm, Decimal("0")) + (p["sell"] or 0) - (p["net"] or 0)
+        _add_profit(HotelBooking, h_qs, "sell", "net")
+        _add_profit(FlightBooking, f_qs, "sell_price", "net_price")
+        _add_profit(OtherBooking, o_qs, "sell_price", "net_price")
         top_emp = sorted(
             [{'employee': k, 'profit': v} for k,v in profit_map.items()],
             key=lambda x: x['profit'], reverse=True
@@ -1743,25 +1742,11 @@ def reports_analysis(request):
         k = (r["employee_name"] or "—").strip()
         rows[k]["sell"] += r["sell"]; rows[k]["net"] += r["net"]; rows[k]["count"] += r["cnt"]
 
-    # تحصيلات
-    ph = Payment.objects.filter(**base_p)
-    pf = FlightPayment.objects.filter(**base_p)
-    po = OtherPayment.objects.filter(**base_p)
-    if date_from:
-        ph = ph.filter(installment_date__gte=date_from)
-        pf = pf.filter(installment_date__gte=date_from)
-        po = po.filter(installment_date__gte=date_from)
-    if date_to:
-        ph = ph.filter(installment_date__lte=date_to)
-        pf = pf.filter(installment_date__lte=date_to)
-        po = po.filter(installment_date__lte=date_to)
-
-    for r in ph.filter(review_status="approved").values("employee_name").annotate(paid=_sumdec("paid_amount")):
-        k = (r["employee_name"] or "—").strip(); rows[k]["paid"] += r["paid"]
-    for r in pf.filter(review_status="approved").values("employee_name").annotate(paid=_sumdec("paid_amount")):
-        k = (r["employee_name"] or "—").strip(); rows[k]["paid"] += r["paid"]
-    for r in po.filter(review_status="approved").values("employee_name").annotate(paid=_sumdec("paid_amount")):
-        k = (r["employee_name"] or "—").strip(); rows[k]["paid"] += r["paid"]
+    # تحصيلات: الدفعات المعتمدة للحجوزات نفسها اللي اتحسبت فوق (نفس التواريخ ونفس النطاق)، على موظف الحجز
+    for _Pay, _rel, _bq in ((Payment, "booking_hotel", h), (FlightPayment, "booking_flight", f), (OtherPayment, "booking_other", o)):
+        for r in (_Pay.objects.filter(**{f"{_rel}__in": _bq.values("pk")}, review_status="approved")
+                  .values(f"{_rel}__employee_name").annotate(_p=_sumdec("paid_amount"))):
+            rows[(r[f"{_rel}__employee_name"] or "—").strip()]["paid"] += r["_p"]
 
     emp_rank = []
     for emp_name, d in rows.items():
@@ -1895,20 +1880,11 @@ def _analysis_payload(request):
         k = (r["employee_name"] or "—").strip()
         rows[k]["sell"] += r["sell"]; rows[k]["net"] += r["net"]; rows[k]["count"] += r["cnt"]
 
-    ph = Payment.objects.filter(**base_p)
-    pf = FlightPayment.objects.filter(**base_p)
-    po = OtherPayment.objects.filter(**base_p)
-    if date_from:
-        ph = ph.filter(installment_date__gte=date_from); pf = pf.filter(installment_date__gte=date_from); po = po.filter(installment_date__gte=date_from)
-    if date_to:
-        ph = ph.filter(installment_date__lte=date_to); pf = pf.filter(installment_date__lte=date_to); po = po.filter(installment_date__lte=date_to)
-
-    for r in ph.filter(review_status="approved").values("employee_name").annotate(paid=_sumdec("paid_amount")):
-        rows[(r["employee_name"] or "—").strip()]["paid"] += r["paid"]
-    for r in pf.filter(review_status="approved").values("employee_name").annotate(paid=_sumdec("paid_amount")):
-        rows[(r["employee_name"] or "—").strip()]["paid"] += r["paid"]
-    for r in po.filter(review_status="approved").values("employee_name").annotate(paid=_sumdec("paid_amount")):
-        rows[(r["employee_name"] or "—").strip()]["paid"] += r["paid"]
+    # تحصيلات: الدفعات المعتمدة للحجوزات نفسها اللي اتحسبت فوق (نفس التواريخ ونفس النطاق)، على موظف الحجز
+    for _Pay, _rel, _bq in ((Payment, "booking_hotel", h), (FlightPayment, "booking_flight", f), (OtherPayment, "booking_other", o)):
+        for r in (_Pay.objects.filter(**{f"{_rel}__in": _bq.values("pk")}, review_status="approved")
+                  .values(f"{_rel}__employee_name").annotate(_p=_sumdec("paid_amount"))):
+            rows[(r[f"{_rel}__employee_name"] or "—").strip()]["paid"] += r["_p"]
 
     emp_rank = []
     for emp_name, d in rows.items():
@@ -2084,30 +2060,11 @@ def performance_dashboard(request):
         k = (r["employee_name"] or "—").strip()
         rows_map[k]["sell"] += r["s"]; rows_map[k]["net"] += r["n"]; rows_map[k]["count"] += r["c"]
 
-    # تحصيلات
-    ph = Payment.objects.all()
-    pf = FlightPayment.objects.all()
-    po = OtherPayment.objects.all()
-    if date_from:
-        ph = ph.filter(installment_date__gte=date_from)
-        pf = pf.filter(installment_date__gte=date_from)
-        po = po.filter(installment_date__gte=date_from)
-    if date_to:
-        ph = ph.filter(installment_date__lte=date_to)
-        pf = pf.filter(installment_date__lte=date_to)
-        po = po.filter(installment_date__lte=date_to)
-
-    if scope_ids is not None:
-        ph = ph.filter(booking_hotel__card__created_by_id__in=scope_ids)
-        pf = pf.filter(booking_flight__card__created_by_id__in=scope_ids)
-        po = po.filter(booking_other__card__created_by_id__in=scope_ids)
-
-    for r in ph.filter(review_status="approved").values("employee_name").annotate(p=_sumdec("paid_amount")):
-        rows_map[(r["employee_name"] or "—").strip()]["paid"] += r["p"]
-    for r in pf.filter(review_status="approved").values("employee_name").annotate(p=_sumdec("paid_amount")):
-        rows_map[(r["employee_name"] or "—").strip()]["paid"] += r["p"]
-    for r in po.filter(review_status="approved").values("employee_name").annotate(p=_sumdec("paid_amount")):
-        rows_map[(r["employee_name"] or "—").strip()]["paid"] += r["p"]
+    # تحصيلات: الدفعات المعتمدة للحجوزات نفسها اللي اتحسبت فوق (نفس التواريخ ونفس النطاق)، على موظف الحجز
+    for _Pay, _rel, _bq in ((Payment, "booking_hotel", h), (FlightPayment, "booking_flight", f), (OtherPayment, "booking_other", o)):
+        for r in (_Pay.objects.filter(**{f"{_rel}__in": _bq.values("pk")}, review_status="approved")
+                  .values(f"{_rel}__employee_name").annotate(_p=_sumdec("paid_amount"))):
+            rows_map[(r[f"{_rel}__employee_name"] or "—").strip()]["paid"] += r["_p"]
 
     # بناء الصفوف والترتيب
     rows = []
@@ -2206,15 +2163,11 @@ def performance_export_xlsx(request):
     for r in o.values("employee_name").annotate(sell=_sumdec("sell_price"), net=_sumdec("net_price"), cnt=Count("id")):
         k = (r["employee_name"] or "—").strip(); rows[k]["sell"] += r["sell"]; rows[k]["net"] += r["net"]; rows[k]["count"] += r["cnt"]
 
-    ph = Payment.objects.all(); pf = FlightPayment.objects.all(); po = OtherPayment.objects.all()
-    if date_from: ph = ph.filter(installment_date__gte=date_from); pf = pf.filter(installment_date__gte=date_from); po = po.filter(installment_date__gte=date_from)
-    if date_to:   ph = ph.filter(installment_date__lte=date_to); pf = pf.filter(installment_date__lte=date_to); po = po.filter(installment_date__lte=date_to)
-    for r in ph.filter(review_status="approved").values("employee_name").annotate(paid=_sumdec("paid_amount")):
-        k = (r["employee_name"] or "—").strip(); rows[k]["paid"] += r["paid"]
-    for r in pf.filter(review_status="approved").values("employee_name").annotate(paid=_sumdec("paid_amount")):
-        k = (r["employee_name"] or "—").strip(); rows[k]["paid"] += r["paid"]
-    for r in po.filter(review_status="approved").values("employee_name").annotate(paid=_sumdec("paid_amount")):
-        k = (r["employee_name"] or "—").strip(); rows[k]["paid"] += r["paid"]
+    # تحصيلات: الدفعات المعتمدة للحجوزات نفسها اللي اتحسبت فوق (نفس التواريخ ونفس النطاق)، على موظف الحجز
+    for _Pay, _rel, _bq in ((Payment, "booking_hotel", h), (FlightPayment, "booking_flight", f), (OtherPayment, "booking_other", o)):
+        for r in (_Pay.objects.filter(**{f"{_rel}__in": _bq.values("pk")}, review_status="approved")
+                  .values(f"{_rel}__employee_name").annotate(_p=_sumdec("paid_amount"))):
+            rows[(r[f"{_rel}__employee_name"] or "—").strip()]["paid"] += r["_p"]
 
     wb = Workbook(); ws = wb.active; ws.title = "Performance"
     ws.append(["Employee","Bookings","Sell","Net","Profit","Paid","Remaining"])
